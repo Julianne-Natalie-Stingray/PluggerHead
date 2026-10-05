@@ -8,19 +8,19 @@ public class DragAndDropService2D
     private Rigidbody2D _rb;
     private Collider2D _cld;
     private Camera _dragCamera;
-    
+
     [SerializeField] private bool allowDragging = true;
     public bool AllowDragging => allowDragging;
-    
+
     [SerializeField] private bool retainDragOffset = true;
-    
+
     public bool IsDragging { get; private set; }
     private Vector2 dragOffset;
     private Vector2 pointerWorld;
     private RigidbodyType2D cachedRbType;
-    
+
     /// <summary>
-    /// Fallback to main camera if no camera is provided. 
+    /// Fallback to main camera if no camera is provided.
     /// </summary>
     /// <param name="input"></param>
     /// <param name="rb"></param>
@@ -48,19 +48,19 @@ public class DragAndDropService2D
     {
         _input.PrimaryPressed -= BeginDrag;
         _input.PrimaryReleased -= EndDrag;
-        
+
         if (IsDragging)
             EndDrag();
     }
-    
+
     public void BeginDrag()
     {
         if (!allowDragging) return;
-        
+
         pointerWorld = GetPointerWorldPosition();
-        
+
         if (!_cld.OverlapPoint(pointerWorld)) return;
-        
+
         IsDragging = true;
 
         cachedRbType = _rb.bodyType;
@@ -78,7 +78,7 @@ public class DragAndDropService2D
     public void Drag()
     {
         if (!allowDragging || !IsDragging) return;
-        
+
         pointerWorld = GetPointerWorldPosition();
         _rb.MovePosition(pointerWorld + dragOffset);
     }
@@ -86,12 +86,12 @@ public class DragAndDropService2D
     public void EndDrag()
     {
         if (!IsDragging) return;
-        
+
         IsDragging = false;
-        
+
         _rb.bodyType = cachedRbType;
     }
-    
+
     private Vector2 GetPointerWorldPosition()
     {
         var screen = _input.PointerPosition;

@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4790efb8cde0df54db4113b5a72f3215, type: 3}
   m_Name: GenericSfx
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   audioId: 0
   clip: {fileID: 8300000, guid: 8454236ba50e36247835a1d7430b6eaf, type: 3}
   mixerGroup: {fileID: 5747262707835034664, guid: a6b573f691acdc44a9421d10d0de8b7a, type: 2}

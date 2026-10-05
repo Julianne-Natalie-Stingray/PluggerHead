@@ -11,5 +11,5 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c2b396aeebc9d984da298eee313896bc, type: 3}
   m_Name: TestScriptableObjectB
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   slider: {x: 3, y: 7}

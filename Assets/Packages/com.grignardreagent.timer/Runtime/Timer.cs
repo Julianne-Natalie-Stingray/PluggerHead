@@ -211,7 +211,7 @@ public sealed class Timer
 
     /// <summary>
     /// Completes the timer when the supplied condition becomes true.
-    /// Remaining timestamps will fire immediately. 
+    /// Remaining timestamps will fire immediately.
     /// The condition is evaluated once per frame while the timer is running.
     /// Must be configured before the timer is started for the first time.
     /// </summary>
@@ -235,7 +235,7 @@ public sealed class Timer
         completeCondition = condition;
         return this;
     }
-    
+
     private IEnumerator Run()
     {
         ProcessTimeStamps();
@@ -247,7 +247,7 @@ public sealed class Timer
                 ForwardToCompletion();
                 yield break;
             }
-            
+
             yield return null;
 
             float deltaTime = useUnscaledTime

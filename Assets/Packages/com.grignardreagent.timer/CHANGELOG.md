@@ -13,7 +13,7 @@
 ```csharp
     /// <summary>
     /// Completes the timer when the supplied condition becomes true.
-    /// Remaining timestamps will fire immediately. 
+    /// Remaining timestamps will fire immediately.
     /// The condition is evaluated once per frame while the timer is running.
     /// Must be configured before timer.Start() is called.
     /// </summary>

@@ -69,7 +69,7 @@ namespace AYellowpaper.SerializedCollections.KeysGenerators
 		private int _startValue = 1;
 		[SerializeField]
 		private int _endValue = 10;
-		
+
 		public override IEnumerable GetKeys(Type type)
 		{
 			int dir = Math.Sign(_endValue - _startValue);

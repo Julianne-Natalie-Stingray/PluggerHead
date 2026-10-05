@@ -150,8 +150,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7b0412035f55dbd41961c46eda8c116a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   People:
     _serializedList:
     - Key: 0
@@ -173,7 +173,7 @@ MonoBehaviour:
     - Key: 4
       Value:
         FirstName: Voldemort
-        LastName: 
+        LastName:
     - Key: 5
       Value:
         FirstName: Elon
@@ -181,11 +181,11 @@ MonoBehaviour:
     - Key: 6
       Value:
         FirstName: Kratos
-        LastName: 
+        LastName:
     - Key: 7
       Value:
         FirstName: Mario
-        LastName: 
+        LastName:
     - Key: 8
       Value:
         FirstName: Nathan
@@ -251,8 +251,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 02fa5409c7fd33049898fab8d165622b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   ElementDescriptions:
     _serializedList:
     - Key: 0

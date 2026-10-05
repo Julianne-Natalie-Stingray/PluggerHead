@@ -16,7 +16,7 @@ namespace AYellowpaper.SerializedCollections.Editor
     public class SerializedDictionaryInstanceDrawer
     {
         private const float MinKeyValueLabelWidth = 40f;
-        
+
         private FieldInfo _fieldInfo;
         private ReorderableList _unexpandedList;
         private SingleEditingData _singleEditingData;
@@ -342,7 +342,7 @@ namespace AYellowpaper.SerializedCollections.Editor
 
             UpdateAfterInput();
         }
-        
+
         private void OnDrawUnexpandedHeader(Rect rect)
         {
             EditorGUI.BeginProperty(rect, _label, ListProperty);
@@ -353,7 +353,7 @@ namespace AYellowpaper.SerializedCollections.Editor
             GUI.Label(detailsRect, _shortDetailsContent, detailsStyle);
 
             EditorGUI.EndProperty();
-            
+
             UpdateAfterInput();
         }
 

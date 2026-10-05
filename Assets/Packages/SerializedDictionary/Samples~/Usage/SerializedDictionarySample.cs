@@ -8,7 +8,7 @@ namespace AYellowpaper.SerializedCollections
     {
         [SerializedDictionary("Element Type", "Description")]
         public SerializedDictionary<ElementType, string> ElementDescriptions;
-        
+
         public enum ElementType
         {
             Fire,
