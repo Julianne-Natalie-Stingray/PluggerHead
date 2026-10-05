@@ -37,6 +37,9 @@ public sealed class InputManager : MonoBehaviour
     /// <summary>第二操作按钮（当前为 J）；由 Player 决定拾取或交互。</summary>
     public event Action SecondaryPressed;
 
+    /// <summary>第三操作按钮（当前为 K）；玩法层决定切换行为。</summary>
+    public event Action TertiaryPressed;
+
     /// <summary>Up 按钮按下/松开事件；玩法层决定其含义，当前绑定为空格。</summary>
     public event Action UpPressed;
     public event Action UpReleased;
@@ -91,6 +94,7 @@ public sealed class InputManager : MonoBehaviour
         controls.Gameplay.Up.performed += HandleUpPressed;
         controls.Gameplay.Up.canceled += HandleUpReleased;
         controls.Gameplay.SecondaryPress.performed += HandleSecondaryPressed;
+        controls.Gameplay.TertiaryPress.performed += HandleTertiaryPressed;
 
         controls.Gameplay.Enable();
     }
@@ -102,6 +106,7 @@ public sealed class InputManager : MonoBehaviour
         controls.Gameplay.Up.performed -= HandleUpPressed;
         controls.Gameplay.Up.canceled -= HandleUpReleased;
         controls.Gameplay.SecondaryPress.performed -= HandleSecondaryPressed;
+        controls.Gameplay.TertiaryPress.performed -= HandleTertiaryPressed;
 
         controls.Gameplay.Disable();
     }
@@ -123,4 +128,7 @@ public sealed class InputManager : MonoBehaviour
 
     private void HandleSecondaryPressed(InputAction.CallbackContext context)
         => SecondaryPressed?.Invoke();
+
+    private void HandleTertiaryPressed(InputAction.CallbackContext context)
+        => TertiaryPressed?.Invoke();
 }

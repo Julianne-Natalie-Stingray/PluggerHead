@@ -9,11 +9,18 @@ public class EnvInteractionTarget : MonoBehaviour
 {
     public enum OperationType
     {
-        PickUp,
-        Interact
+        PickUp = 0,
+        Interact = 1,
+        PickUpAndInteract = 2
     }
 
     [SerializeField] private OperationType operation = OperationType.Interact;
 
     public OperationType Operation => operation;
+
+    public bool CanPickUp => operation == OperationType.PickUp ||
+        operation == OperationType.PickUpAndInteract;
+
+    public bool CanSelect => operation == OperationType.Interact ||
+        operation == OperationType.PickUpAndInteract;
 }

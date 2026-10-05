@@ -71,6 +71,15 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""TertiaryPress"",
+                    ""type"": ""Button"",
+                    ""id"": ""de91f0ac-bd74-4b2d-ab18-fb237ef3f971"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -172,6 +181,17 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""action"": ""SecondaryPress"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""bca54088-1a38-4079-9ea1-91ee0b3346a3"",
+                    ""path"": ""<Keyboard>/k"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""TertiaryPress"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -185,6 +205,7 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         m_Gameplay_Up = m_Gameplay.FindAction("Up", throwIfNotFound: true);
         m_Gameplay_MovementInput = m_Gameplay.FindAction("MovementInput", throwIfNotFound: true);
         m_Gameplay_SecondaryPress = m_Gameplay.FindAction("SecondaryPress", throwIfNotFound: true);
+        m_Gameplay_TertiaryPress = m_Gameplay.FindAction("TertiaryPress", throwIfNotFound: true);
     }
 
     public void Dispose()
@@ -251,6 +272,7 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
     private readonly InputAction m_Gameplay_Up;
     private readonly InputAction m_Gameplay_MovementInput;
     private readonly InputAction m_Gameplay_SecondaryPress;
+    private readonly InputAction m_Gameplay_TertiaryPress;
     public struct GameplayActions
     {
         private @PlayerControls m_Wrapper;
@@ -260,6 +282,7 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         public InputAction @Up => m_Wrapper.m_Gameplay_Up;
         public InputAction @MovementInput => m_Wrapper.m_Gameplay_MovementInput;
         public InputAction @SecondaryPress => m_Wrapper.m_Gameplay_SecondaryPress;
+        public InputAction @TertiaryPress => m_Wrapper.m_Gameplay_TertiaryPress;
         public InputActionMap Get() { return m_Wrapper.m_Gameplay; }
         public void Enable() { Get().Enable(); }
         public void Disable() { Get().Disable(); }
@@ -284,6 +307,9 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @SecondaryPress.started += instance.OnSecondaryPress;
             @SecondaryPress.performed += instance.OnSecondaryPress;
             @SecondaryPress.canceled += instance.OnSecondaryPress;
+            @TertiaryPress.started += instance.OnTertiaryPress;
+            @TertiaryPress.performed += instance.OnTertiaryPress;
+            @TertiaryPress.canceled += instance.OnTertiaryPress;
         }
 
         private void UnregisterCallbacks(IGameplayActions instance)
@@ -303,6 +329,9 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @SecondaryPress.started -= instance.OnSecondaryPress;
             @SecondaryPress.performed -= instance.OnSecondaryPress;
             @SecondaryPress.canceled -= instance.OnSecondaryPress;
+            @TertiaryPress.started -= instance.OnTertiaryPress;
+            @TertiaryPress.performed -= instance.OnTertiaryPress;
+            @TertiaryPress.canceled -= instance.OnTertiaryPress;
         }
 
         public void RemoveCallbacks(IGameplayActions instance)
@@ -327,5 +356,6 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         void OnUp(InputAction.CallbackContext context);
         void OnMovementInput(InputAction.CallbackContext context);
         void OnSecondaryPress(InputAction.CallbackContext context);
+        void OnTertiaryPress(InputAction.CallbackContext context);
     }
 }

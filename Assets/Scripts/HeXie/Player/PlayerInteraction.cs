@@ -9,6 +9,14 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class PlayerInteraction : MonoBehaviour
 {
+    public enum OperationMode
+    {
+        PickUp,
+        Select
+    }
+
+    [SerializeField] private OperationMode dualTargetMode = OperationMode.PickUp;
+    public OperationMode CurrentMode => dualTargetMode;
     [SerializeField, Min(0f)] private float interactionRadius = 2f;
     [SerializeField] private LayerMask interactionLayers = ~0;
 
@@ -33,6 +41,7 @@ public class PlayerInteraction : MonoBehaviour
 
         input = core.Input;
         input.SecondaryPressed += HandleOperation;
+        input.TertiaryPressed += ToggleOperationMode;
     }
 
     private void OnEnable()
@@ -40,6 +49,7 @@ public class PlayerInteraction : MonoBehaviour
         if (input != null)
         {
             input.SecondaryPressed += HandleOperation;
+            input.TertiaryPressed += ToggleOperationMode;
         }
     }
 
@@ -48,7 +58,31 @@ public class PlayerInteraction : MonoBehaviour
         if (input != null)
         {
             input.SecondaryPressed -= HandleOperation;
+            input.TertiaryPressed -= ToggleOperationMode;
         }
+    }
+
+    /// <summary>K 只切换双属性目标的 J 操作，不直接发出 Env 请求。</summary>
+    public void ToggleOperationMode()
+    {
+        if (!isActiveAndEnabled || Time.timeScale <= 0f)
+        {
+            return;
+        }
+
+        dualTargetMode = dualTargetMode == OperationMode.PickUp
+            ? OperationMode.Select
+            : OperationMode.PickUp;
+    }
+
+    private OperationMode GetOperation(EnvInteractionTarget target)
+    {
+        if (target.CanPickUp && target.CanSelect)
+        {
+            return dualTargetMode;
+        }
+
+        return target.CanPickUp ? OperationMode.PickUp : OperationMode.Select;
     }
 
     private void HandleOperation()
@@ -83,15 +117,15 @@ public class PlayerInteraction : MonoBehaviour
             return false;
         }
 
-        switch (target.Operation)
+        switch (GetOperation(target))
         {
-            case EnvInteractionTarget.OperationType.PickUp:
+            case OperationMode.PickUp:
                 return environment.PickUpItem(new PickUpItemData
                 {
                     Actor = gameObject,
                     Item = target.gameObject
                 });
-            case EnvInteractionTarget.OperationType.Interact:
+            case OperationMode.Select:
                 environment.Interact(new InteractionData
                 {
                     Actor = gameObject,
@@ -123,7 +157,8 @@ public class PlayerInteraction : MonoBehaviour
             EnvInteractionTarget candidate = hit.GetComponentInParent<EnvInteractionTarget>();
             if (candidate == null || !candidate.isActiveAndEnabled ||
                 candidate.transform.IsChildOf(transform) ||
-                (candidate.Operation == EnvInteractionTarget.OperationType.PickUp &&
+                (!candidate.CanPickUp && !candidate.CanSelect) ||
+                (GetOperation(candidate) == OperationMode.PickUp &&
                  inventory.Contains(candidate.gameObject)))
             {
                 continue;
