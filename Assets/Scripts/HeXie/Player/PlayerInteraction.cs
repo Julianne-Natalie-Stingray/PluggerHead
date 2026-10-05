@@ -16,7 +16,6 @@ public class PlayerInteraction : MonoBehaviour
     }
 
     [SerializeField] private OperationMode dualTargetMode = OperationMode.PickUp;
-    public OperationMode CurrentMode => dualTargetMode;
     [SerializeField, Min(0f)] private float interactionRadius = 2f;
     [SerializeField] private LayerMask interactionLayers = ~0;
 
@@ -24,6 +23,8 @@ public class PlayerInteraction : MonoBehaviour
     private InputManager input;
     private PlayerMove playerMove;
     private readonly List<Collider2D> hits = new List<Collider2D>();
+
+    public OperationMode CurrentMode => dualTargetMode;
 
     private void Awake()
     {
@@ -42,12 +43,17 @@ public class PlayerInteraction : MonoBehaviour
         }
 
         input = core.Input;
-        input.SecondaryPressed += HandleOperation;
-        input.TertiaryPressed += ToggleOperationMode;
+        BindInput();
     }
 
     private void OnEnable()
     {
+        BindInput();
+    }
+
+    private void BindInput()
+    {
+        UnbindInput();
         if (input != null)
         {
             input.SecondaryPressed += HandleOperation;
@@ -56,6 +62,11 @@ public class PlayerInteraction : MonoBehaviour
     }
 
     private void OnDisable()
+    {
+        UnbindInput();
+    }
+
+    private void UnbindInput()
     {
         if (input != null)
         {
@@ -123,29 +134,31 @@ public class PlayerInteraction : MonoBehaviour
             return false;
         }
 
+        bool performed = PerformOperation(environment, target);
+        if (performed && playerMove != null)
+        {
+            playerMove.TryStartInteractionAnimation();
+        }
+
+        return performed;
+    }
+
+    private bool PerformOperation(EnvFacade environment, EnvInteractionTarget target)
+    {
         switch (GetOperation(target))
         {
             case OperationMode.PickUp:
-                bool pickedUp = environment.PickUpItem(new PickUpItemData
+                return environment.PickUpItem(new PickUpItemData
                 {
                     Actor = gameObject,
                     Item = target.gameObject
                 });
-                if (pickedUp && playerMove != null)
-                {
-                    playerMove.TryStartInteractionAnimation();
-                }
-                return pickedUp;
             case OperationMode.Select:
                 environment.Interact(new InteractionData
                 {
                     Actor = gameObject,
                     Target = target.gameObject
                 });
-                if (playerMove != null)
-                {
-                    playerMove.TryStartInteractionAnimation();
-                }
                 return true;
             default:
                 return false;

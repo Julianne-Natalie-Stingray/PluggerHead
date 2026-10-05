@@ -103,7 +103,7 @@ public class InventoryUI : MonoBehaviour
         // SpriteRenderer 不提供 Sprite 变更事件，低频检查也会清理背包已销毁引用。
         IReadOnlyList<GameObject> items = inventory != null ? inventory.Items : null;
         int count = items != null ? items.Count : 0;
-        if (refreshRequested || count != displayedItemCount)
+        if (refreshRequested || count != displayedItemCount || count > slots.Count)
         {
             Refresh();
             return;
@@ -131,12 +131,13 @@ public class InventoryUI : MonoBehaviour
         foreach (Transform child in slotsRoot)
         {
             Transform icon = child.Find("Icon");
-            if (icon == null)
+            RectTransform root = child as RectTransform;
+            if (icon == null || root == null)
             {
                 continue;
             }
 
-            slots.Add(new SlotView((RectTransform)child, icon.GetComponent<UnityEngine.UI.Image>()));
+            slots.Add(new SlotView(root, icon.GetComponent<UnityEngine.UI.Image>()));
         }
     }
 
@@ -201,7 +202,8 @@ public class InventoryUI : MonoBehaviour
         {
             RectTransform slot = Instantiate(slotTemplate, slotsRoot);
             slot.name = "Slot" + (slots.Count + 1).ToString("00");
-            slots.Add(new SlotView(slot, slot.Find("Icon").GetComponent<UnityEngine.UI.Image>()));
+            Transform icon = slot.Find("Icon");
+            slots.Add(new SlotView(slot, icon != null ? icon.GetComponent<UnityEngine.UI.Image>() : null));
         }
     }
 

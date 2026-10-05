@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -21,8 +22,10 @@ public class PlayerMove : MonoBehaviour
     [Tooltip("可作为地面的碰撞层。玩家需要非 Trigger 的 Collider2D。")]
     private LayerMask groundLayers = ~0;
 
-    private readonly System.Collections.Generic.List<ContactPoint2D> contacts =
-        new System.Collections.Generic.List<ContactPoint2D>();
+    private readonly List<ContactPoint2D> contacts = new List<ContactPoint2D>();
+    private const float GroundedUpwardSpeedThreshold = 0.1f;
+    private const float MinimumGroundNormalY = 0.65f;
+    private const float MovementAnimationThreshold = 0.01f;
     private bool jumpRequested;
 
     private Rigidbody2D body;
@@ -67,8 +70,7 @@ public class PlayerMove : MonoBehaviour
 
     private bool TryTriggerAnimation(int trigger)
     {
-        if (!isActiveAndEnabled || IsInputLocked || Time.timeScale <= 0f ||
-            animator == null || !animator.isActiveAndEnabled || animator.runtimeAnimatorController == null)
+        if (!isActiveAndEnabled || IsInputLocked || Time.timeScale <= 0f || !CanUseAnimator())
         {
             return false;
         }
@@ -81,10 +83,16 @@ public class PlayerMove : MonoBehaviour
 
     private void UpdateMovementAnimation(bool moving)
     {
-        if (animator != null && animator.isActiveAndEnabled && animator.runtimeAnimatorController != null)
+        if (CanUseAnimator())
         {
             animator.SetBool(MovingParameter, moving);
         }
+    }
+
+    private bool CanUseAnimator()
+    {
+        return animator != null && animator.isActiveAndEnabled &&
+            animator.runtimeAnimatorController != null && animator.isInitialized;
     }
 
     public void OnDashStarted()
@@ -140,13 +148,19 @@ public class PlayerMove : MonoBehaviour
         }
 
         input = core.Input;
-        input.UpPressed += HandleUpPressed;
+        BindInput();
     }
 
     private void OnEnable()
     {
+        BindInput();
+    }
+
+    private void BindInput()
+    {
         if (input != null)
         {
+            input.UpPressed -= HandleUpPressed;
             input.UpPressed += HandleUpPressed;
         }
     }
@@ -159,7 +173,7 @@ public class PlayerMove : MonoBehaviour
 
     private bool IsGrounded()
     {
-        if (body.velocity.y > 0.1f)
+        if (body.velocity.y > GroundedUpwardSpeedThreshold)
         {
             return false;
         }
@@ -171,7 +185,7 @@ public class PlayerMove : MonoBehaviour
         foreach (ContactPoint2D contact in contacts)
         {
             // 仅接受向上的支撑面，避免墙壁或天花板被判定为地面。
-            if (contact.normal.y >= 0.65f)
+            if (contact.normal.y >= MinimumGroundNormalY)
             {
                 return true;
             }
@@ -202,7 +216,7 @@ public class PlayerMove : MonoBehaviour
 
         jumpRequested = false;
         body.velocity = new Vector2(horizontal * Mathf.Max(0f, moveSpeed), vertical);
-        UpdateMovementAnimation(Mathf.Abs(horizontal) > 0.01f);
+        UpdateMovementAnimation(Mathf.Abs(horizontal) > MovementAnimationThreshold);
     }
 
     private void OnDisable()
@@ -214,7 +228,7 @@ public class PlayerMove : MonoBehaviour
         jumpRequested = false;
 
         UpdateMovementAnimation(false);
-        if (animator != null && animator.runtimeAnimatorController != null)
+        if (CanUseAnimator())
         {
             animator.ResetTrigger(DashParameter);
             animator.ResetTrigger(InteractParameter);

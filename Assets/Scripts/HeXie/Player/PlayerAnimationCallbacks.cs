@@ -48,8 +48,7 @@ public class PlayerAnimationCallbacks : MonoBehaviour
 
         bool dash = false;
         bool interact = false;
-        if (isActiveAndEnabled && animator != null && animator.isActiveAndEnabled &&
-            animator.runtimeAnimatorController != null && animator.isInitialized)
+        if (CanReadAnimator())
         {
             for (int layer = 0; layer < animator.layerCount; layer++)
             {
@@ -67,6 +66,12 @@ public class PlayerAnimationCallbacks : MonoBehaviour
         }
 
         DispatchAnimationCallbacks(dash, interact);
+    }
+
+    private bool CanReadAnimator()
+    {
+        return isActiveAndEnabled && animator != null && animator.isActiveAndEnabled &&
+            animator.runtimeAnimatorController != null && animator.isInitialized;
     }
 
     private void AccumulateActiveActions(AnimatorStateInfo state, ref bool dash, ref bool interact)
