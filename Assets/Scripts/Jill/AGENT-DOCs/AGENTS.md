@@ -29,8 +29,9 @@
 
 ## 1.4    单一写入路径 / Single write path
 
-- 所有改动都发生在 `Assets/` 之下. `ProjectSettings/` 与 `Packages/` 属于 §2.2 的例外情形, 需先申请. 
+- 所有改动都发生在 `Assets/` 之下. `ProjectSettings/`,  `Packages/` 属于 §2.2 的例外情形, 需先申请. 
 - All changes happen under `Assets/`. `ProjectSettings/` and `Packages/` are the exceptions governed by §2.2 and require a prior request.
+- 我负责的部分是Core / Environment, 只允许动`Jill/`目录下的文件.
 
 # 2    写入权限 / Write Permissions
 
@@ -56,7 +57,7 @@
 
 - 可以写入 / Writable: `Assets/`
 - 写入需要询问 / Ask before writing: `ProjectSettings/`
-- 禁止写入 / Forbidden: `Packages/`, `Library/`, `Temp/`, `Logs/`, `UserSettings/`, `Build/`, `Builds/`, `obj/`, `.vs/`, `.idea/`
+- 禁止写入 / Forbidden: `Packages/`, `Library/`, `Temp/`, `Logs/`, `UserSettings/`, `Build/`, `Builds/`, `obj/`, `.vs/`, `.idea/`, `Assets/Packages`
 - 若确有需要解决的Packages依赖, 抛出申请由我解决. 
 - If a package dependency genuinely must be resolved, raise a request and I will resolve it.
 - `Library/`, `Temp/`, `Logs/`, `UserSettings/`, `obj/`, `Build/`, `Builds/` 均由Unity自行管理, DSH不得创建, 修改或删除其中的任何内容. 
@@ -156,11 +157,15 @@ Every Subsystem holds one `README.md`.
 It must state:
 
 - Subsystem职能; / the Subsystem's responsibilities;
+
 - 公共API; / its public API;
+
 - 内部实现思路概述. / an outline of its internal approach.
+
 - 职能改变, README同步改动. / When responsibilities change, the README changes with them.
 
 - 撰写语言按 §5.1.0: 只用中文.
+
 - Language per §5.1.0: Chinese only.
 
 ### 5.1.2    CHANGELOG编写 / Writing the CHANGELOG

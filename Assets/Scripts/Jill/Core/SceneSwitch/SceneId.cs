@@ -23,13 +23,17 @@
 /// </summary>
 public enum SceneId
 {
-    /// <summary>
-    /// The template's own scene: the only one that exists today, and the one that hosts the Core prefab.
-    /// 模版自带的场景: 目前唯一存在的场景, 也是承载 Core 预制体的场景.
-    /// </summary>
-    SampleScene,
-    New
+#region Jill
 
-    // TODO: Add one member per switchable scene, together with its mapping in SceneSwitchConfigs.
-    // TODO: 每个可切换场景加一个成员, 并在 SceneSwitchConfigs 中同时加上它的映射.
+    JillTestScene,
+    JillTestSceneSwitch,
+
+#endregion
+
+#region HeXie
+
+    HeXieTestScene
+
+#endregion
+
 }
