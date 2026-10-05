@@ -22,11 +22,13 @@ public class PlayerInteraction : MonoBehaviour
 
     private PlayerInventory inventory;
     private InputManager input;
+    private PlayerMove playerMove;
     private readonly List<Collider2D> hits = new List<Collider2D>();
 
     private void Awake()
     {
         inventory = GetComponent<PlayerInventory>();
+        playerMove = GetComponent<PlayerMove>();
     }
 
     private void Start()
@@ -96,7 +98,11 @@ public class PlayerInteraction : MonoBehaviour
     /// <summary>每次只处理最近的一个目标；无目标时不发出请求。</summary>
     public bool TryPerformOperation()
     {
-        if (!isActiveAndEnabled)
+        if (playerMove == null)
+        {
+            playerMove = GetComponent<PlayerMove>();
+        }
+        if (!isActiveAndEnabled || (playerMove != null && playerMove.IsInputLocked))
         {
             return false;
         }
@@ -120,17 +126,26 @@ public class PlayerInteraction : MonoBehaviour
         switch (GetOperation(target))
         {
             case OperationMode.PickUp:
-                return environment.PickUpItem(new PickUpItemData
+                bool pickedUp = environment.PickUpItem(new PickUpItemData
                 {
                     Actor = gameObject,
                     Item = target.gameObject
                 });
+                if (pickedUp && playerMove != null)
+                {
+                    playerMove.TryStartInteractionAnimation();
+                }
+                return pickedUp;
             case OperationMode.Select:
                 environment.Interact(new InteractionData
                 {
                     Actor = gameObject,
                     Target = target.gameObject
                 });
+                if (playerMove != null)
+                {
+                    playerMove.TryStartInteractionAnimation();
+                }
                 return true;
             default:
                 return false;

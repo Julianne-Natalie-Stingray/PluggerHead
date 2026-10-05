@@ -27,6 +27,10 @@ public class PlayerMove : MonoBehaviour
 
     private Rigidbody2D body;
     private InputManager input;
+    private Animator animator;
+    private static readonly int MovingParameter = Animator.StringToHash("tryMoving");
+    private static readonly int DashParameter = Animator.StringToHash("Dash");
+    private static readonly int InteractParameter = Animator.StringToHash("Interact");
     private bool isDashInputLocked;
     private bool isInteractionInputLocked;
     private bool isManuallyInputLocked;
@@ -47,6 +51,40 @@ public class PlayerMove : MonoBehaviour
     public void UnlockInput()
     {
         LockInput(false);
+    }
+
+    /// <summary>请求冲刺动画；冲刺位移由动作实现负责，不在动画回调中重复触发。</summary>
+    public bool TryStartDashAnimation()
+    {
+        return TryTriggerAnimation(DashParameter);
+    }
+
+    /// <summary>在拾取或选中请求成功后调用。</summary>
+    public bool TryStartInteractionAnimation()
+    {
+        return TryTriggerAnimation(InteractParameter);
+    }
+
+    private bool TryTriggerAnimation(int trigger)
+    {
+        if (!isActiveAndEnabled || IsInputLocked || Time.timeScale <= 0f ||
+            animator == null || !animator.isActiveAndEnabled || animator.runtimeAnimatorController == null)
+        {
+            return false;
+        }
+
+        animator.ResetTrigger(DashParameter);
+        animator.ResetTrigger(InteractParameter);
+        animator.SetTrigger(trigger);
+        return true;
+    }
+
+    private void UpdateMovementAnimation(bool moving)
+    {
+        if (animator != null && animator.isActiveAndEnabled && animator.runtimeAnimatorController != null)
+        {
+            animator.SetBool(MovingParameter, moving);
+        }
     }
 
     public void OnDashStarted()
@@ -81,6 +119,7 @@ public class PlayerMove : MonoBehaviour
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
+        animator = GetComponentInChildren<Animator>(true);
         PlayerAnimationCallbacks callbacks = GetComponent<PlayerAnimationCallbacks>();
         if (callbacks == null)
         {
@@ -145,6 +184,7 @@ public class PlayerMove : MonoBehaviour
     {
         if (IsInputLocked)
         {
+            UpdateMovementAnimation(false);
             jumpRequested = false;
             return;
         }
@@ -162,6 +202,7 @@ public class PlayerMove : MonoBehaviour
 
         jumpRequested = false;
         body.velocity = new Vector2(horizontal * Mathf.Max(0f, moveSpeed), vertical);
+        UpdateMovementAnimation(Mathf.Abs(horizontal) > 0.01f);
     }
 
     private void OnDisable()
@@ -171,6 +212,13 @@ public class PlayerMove : MonoBehaviour
             input.UpPressed -= HandleUpPressed;
         }
         jumpRequested = false;
+
+        UpdateMovementAnimation(false);
+        if (animator != null && animator.runtimeAnimatorController != null)
+        {
+            animator.ResetTrigger(DashParameter);
+            animator.ResetTrigger(InteractParameter);
+        }
 
         // 禁用移动组件时停止水平移动，但继续保留竖直运动。
         if (body != null)
