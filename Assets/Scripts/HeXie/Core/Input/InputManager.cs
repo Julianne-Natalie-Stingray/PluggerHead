@@ -34,6 +34,15 @@ public sealed class InputManager : MonoBehaviour
     public event Action PrimaryPressed;
     public event Action PrimaryReleased;
 
+    /// <summary>第二操作按钮（当前为 J）；由 Player 决定拾取或交互。</summary>
+    public event Action SecondaryPressed;
+
+    /// <summary>Up 按钮按下/松开事件；玩法层决定其含义，当前绑定为空格。</summary>
+    public event Action UpPressed;
+    public event Action UpReleased;
+
+    public bool IsUpPressed => controls?.Gameplay.Up.IsPressed() ?? false;
+
     /// <summary>
     /// Pointer position in screen space. Extension point: the template ships no consumer for it.
     /// 屏幕空间的指针位置. 扩展点: 模版不为它附带消费者.
@@ -79,6 +88,9 @@ public sealed class InputManager : MonoBehaviour
     {
         controls.Gameplay.PrimaryPress.performed += HandlePrimaryPressed;
         controls.Gameplay.PrimaryPress.canceled += HandlePrimaryReleased;
+        controls.Gameplay.Up.performed += HandleUpPressed;
+        controls.Gameplay.Up.canceled += HandleUpReleased;
+        controls.Gameplay.SecondaryPress.performed += HandleSecondaryPressed;
 
         controls.Gameplay.Enable();
     }
@@ -87,6 +99,9 @@ public sealed class InputManager : MonoBehaviour
     {
         controls.Gameplay.PrimaryPress.performed -= HandlePrimaryPressed;
         controls.Gameplay.PrimaryPress.canceled -= HandlePrimaryReleased;
+        controls.Gameplay.Up.performed -= HandleUpPressed;
+        controls.Gameplay.Up.canceled -= HandleUpReleased;
+        controls.Gameplay.SecondaryPress.performed -= HandleSecondaryPressed;
 
         controls.Gameplay.Disable();
     }
@@ -99,4 +114,13 @@ public sealed class InputManager : MonoBehaviour
 
     private void HandlePrimaryReleased(InputAction.CallbackContext context)
         => PrimaryReleased?.Invoke();
+
+    private void HandleUpPressed(InputAction.CallbackContext context)
+        => UpPressed?.Invoke();
+
+    private void HandleUpReleased(InputAction.CallbackContext context)
+        => UpReleased?.Invoke();
+
+    private void HandleSecondaryPressed(InputAction.CallbackContext context)
+        => SecondaryPressed?.Invoke();
 }
