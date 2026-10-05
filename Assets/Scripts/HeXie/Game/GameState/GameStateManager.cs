@@ -124,7 +124,9 @@ public static class GameStateManager
     public static void EnterLoading()
     {
         if (Current == GameState.Loading)
+        {
             return;
+        }
 
         stateBeforeLoading = Current;
 
@@ -143,7 +145,9 @@ public static class GameStateManager
     public static void ExitLoading()
     {
         if (Current != GameState.Loading)
+        {
             return;
+        }
 
         Apply(stateBeforeLoading);
     }

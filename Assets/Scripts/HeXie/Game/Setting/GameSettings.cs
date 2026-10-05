@@ -36,13 +36,9 @@ using UnityEngine;
 [Serializable]
 public class GameSettings : ISettingData
 {
-#region APIs
+    [SerializeField] private AudioSettings audio;
 
     public AudioSettings Audio => audio;
-
-#endregion
-
-    [SerializeField] private AudioSettings audio;
 
     /// <summary>
     /// Restore every field to its design default.

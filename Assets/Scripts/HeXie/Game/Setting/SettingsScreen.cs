@@ -22,10 +22,12 @@ public sealed class SettingsScreen : MonoBehaviour
             return;
         }
 
-        AudioSettings audio = SettingBootstrap.Settings.Audio;
-        masterVolume.SetValueWithoutNotify(audio.MasterVolume);
-        ostVolume.SetValueWithoutNotify(audio.OstVolume);
-        sfxVolume.SetValueWithoutNotify(audio.SfxVolume);
+        if (!HasRequiredReferences())
+        {
+            return;
+        }
+
+        LoadVolumeValues();
         saveStatus.text = string.Empty;
         // MainMenu 场景尚未实现，暂不提供退出操作。
         exitButton.interactable = false;
@@ -38,6 +40,14 @@ public sealed class SettingsScreen : MonoBehaviour
         gameObject.SetActive(true);
     }
 
+    private void LoadVolumeValues()
+    {
+        AudioSettings audio = SettingBootstrap.Settings.Audio;
+        masterVolume.SetValueWithoutNotify(audio.MasterVolume);
+        ostVolume.SetValueWithoutNotify(audio.OstVolume);
+        sfxVolume.SetValueWithoutNotify(audio.SfxVolume);
+    }
+
     public void ContinueGame()
     {
         gameObject.SetActive(false);
@@ -45,7 +55,7 @@ public sealed class SettingsScreen : MonoBehaviour
 
     public void SaveSettings()
     {
-        if (!gameObject.activeInHierarchy)
+        if (!gameObject.activeInHierarchy || !HasRequiredReferences())
         {
             return;
         }
@@ -71,7 +81,22 @@ public sealed class SettingsScreen : MonoBehaviour
 
     public void OnVolumeChanged(float value)
     {
-        saveStatus.text = string.Empty;
+        if (saveStatus != null)
+        {
+            saveStatus.text = string.Empty;
+        }
+    }
+
+    private bool HasRequiredReferences()
+    {
+        if (masterVolume != null && ostVolume != null && sfxVolume != null &&
+            exitButton != null && saveStatus != null)
+        {
+            return true;
+        }
+
+        Debug.LogError("SettingsScreen 需要音量滑块、退出按钮和保存状态文本引用。", this);
+        return false;
     }
 
     private void OnDisable()

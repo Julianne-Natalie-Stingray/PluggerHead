@@ -115,8 +115,13 @@ public abstract class SettingStore<TData>
         }
 
         if (TryDeserialize(json, target))
+        {
             return;
+        }
 
+        // A failed overwrite may already have changed some fields.
+        // 覆盖失败前可能已写入部分字段，恢复完整默认值后再报告失败。
+        target.ResetToDefault();
         ReportLoadFailure($"could not parse {filePath}");
     }
 
@@ -214,9 +219,11 @@ public abstract class SettingStore<TData>
     /// 实现思路: 每个数据类型一个文件, 位于平台的持久化数据目录下, 以类型命名, 因此无需任何配置即可稳定.
     /// </summary>
     private string BuildFilePath()
-        => System.IO.Path.Combine(
+    {
+        return System.IO.Path.Combine(
             Application.persistentDataPath,
             typeof(TData).Name + FileExtension);
+    }
 
     private void ReportLoadFailure(string reason)
     {

@@ -31,7 +31,9 @@ public sealed class FileSettingStore : SettingStore<GameSettings>
     /// 普通可序列化类的原因.
     /// </summary>
     protected override string Serialize(GameSettings target)
-        => JsonUtility.ToJson(target, true);
+    {
+        return JsonUtility.ToJson(target, true);
+    }
 
     /// <summary>
     /// Single entry point for applying the file's JSON onto the already defaulted instance.

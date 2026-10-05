@@ -55,6 +55,7 @@ public static class SettingBootstrap
         store = new FileSettingStore();
         store.Load();
 
+        Application.quitting -= HandleQuitting;
         Application.quitting += HandleQuitting;
     }
 
@@ -68,7 +69,9 @@ public static class SettingBootstrap
     /// 保存按设计是显式的: 改动值不会使其持久化, 这使"已改动"与"已提交"保持为两个独立决定.
     /// </summary>
     public static bool Save()
-        => store.Save();
+    {
+        return store.Save();
+    }
 
     /// <summary>
     /// Single entry point for discarding the live values in favour of defaults.
@@ -79,10 +82,14 @@ public static class SettingBootstrap
     /// 因此调用方不会仅仅因为索取默认值就意外覆盖已保存的文件.
     /// </summary>
     public static void ResetToDefault()
-        => store.ResetToDefault();
+    {
+        store.ResetToDefault();
+    }
 
     private static void HandleQuitting()
-        => store.Save();
+    {
+        Save();
+    }
 
     /// <summary>
     /// TODO: Provide a way to trigger a save from the Inspector for manual verification. Not implemented
