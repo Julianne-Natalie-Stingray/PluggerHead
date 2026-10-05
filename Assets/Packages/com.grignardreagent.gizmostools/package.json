@@ -1,0 +1,10 @@
+{
+  "name": "com.grignardreagent.gizmostools",
+  "version": "1.0.0",
+  "displayName": "GizmosTools",
+  "description": "Small reusable Gizmos drawing helpers for Unity.",
+  "unity": "2022.2",
+  "author": {
+    "name": "Grignard Reagent"
+  }
+}

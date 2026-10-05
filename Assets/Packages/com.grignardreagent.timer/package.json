@@ -1,0 +1,13 @@
+{
+  "name": "com.grignardreagent.timer",
+  "version": "1.2.0",
+  "displayName": "Timer",
+  "description": "A lightweight coroutine-backed fluent timer for Unity.",
+  "unity": "2022.2",
+  "author": {
+    "name": "Grignard Reagent"
+  },
+  "dependencies": {
+    "com.grignardreagent.gamelog": "1.1.0"
+  }
+}

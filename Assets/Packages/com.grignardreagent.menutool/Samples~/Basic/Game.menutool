@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "identifier": "Game",
+  "label": "Game",
+  "defaultFileName": "Default",
+  "nodes": [
+    {
+      "identifier": "BasicSettings",
+      "label": "Basic Settings",
+      "fileName": "",
+      "children": []
+    },
+    {
+      "identifier": "Configs",
+      "label": "Configs",
+      "fileName": "Config",
+      "children": [
+        {
+          "identifier": "Input",
+          "label": "Input",
+          "fileName": "InputConfig",
+          "children": []
+        }
+      ]
+    },
+    {
+      "identifier": "Distributables",
+      "label": "Distributables",
+      "fileName": "Distribution",
+      "children": []
+    }
+  ]
+}

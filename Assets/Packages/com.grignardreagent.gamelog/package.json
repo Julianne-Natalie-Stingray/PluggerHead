@@ -1,0 +1,10 @@
+{
+  "name": "com.grignardreagent.gamelog",
+  "version": "1.1.0",
+  "displayName": "GameLog",
+  "description": "A small fluent structured logging utility for Unity.",
+  "unity": "2022.2",
+  "author": {
+    "name": "Grignard Reagent"
+  }
+}

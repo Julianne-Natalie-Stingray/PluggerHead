@@ -1,0 +1,23 @@
+{
+  "name": "com.grignardreagent.menutool",
+  "version": "1.0.1",
+  "displayName": "Menu Tool",
+  "description": "Unity 2022.3 custom asset pipeline for project-specific CreateAssetMenu paths and generated compile-time constants.",
+  "unity": "2022.3",
+  "keywords": [
+    "editor",
+    "menu",
+    "code generation",
+    "scripted importer"
+  ],
+  "author": {
+    "name": "Grignard Reagent"
+  },
+  "samples": [
+    {
+      "displayName": "Basic Menu Tool Definition",
+      "description": "Example .menutool definition and CreateAssetMenu usage.",
+      "path": "Samples~/Basic"
+    }
+  ]
+}
