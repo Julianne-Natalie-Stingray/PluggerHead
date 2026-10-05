@@ -79,3 +79,6 @@ crashlytics-build.properties
 /[Aa]ssets/CLAUDE.md
 /[Aa]ssets/AGENTS.md.meta
 /[Aa]ssets/CLAUDE.md.meta
+
+# JetBrains IDE settings
+.idea/
