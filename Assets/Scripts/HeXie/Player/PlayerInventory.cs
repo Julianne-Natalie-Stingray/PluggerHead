@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -17,6 +18,9 @@ public class PlayerInventory : MonoBehaviour
     private IReadOnlyList<GameObject> readOnlyItems;
 
     public EnvFacade Environment => environment;
+
+    /// <summary>道具引用集合变化后通知；Sprite 变化不属于背包集合变化。</summary>
+    public event Action Changed;
 
     /// <summary>只读的道具引用列表；引用本身仍指向 Env 中的原对象。</summary>
     public IReadOnlyList<GameObject> Items
@@ -71,6 +75,7 @@ public class PlayerInventory : MonoBehaviour
         }
 
         items.Add(item);
+        Changed?.Invoke();
         return true;
     }
 
@@ -78,11 +83,20 @@ public class PlayerInventory : MonoBehaviour
     public bool RemoveItem(GameObject item)
     {
         RemoveDestroyedItems();
-        return item != null && items.Remove(item);
+        if (item == null || !items.Remove(item))
+        {
+            return false;
+        }
+
+        Changed?.Invoke();
+        return true;
     }
 
     private void RemoveDestroyedItems()
     {
-        items.RemoveAll(item => item == null);
+        if (items.RemoveAll(item => item == null) > 0)
+        {
+            Changed?.Invoke();
+        }
     }
 }

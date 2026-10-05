@@ -14,8 +14,25 @@ public class InventoryUI : MonoBehaviour
     [SerializeField] private RectTransform slotTemplate;
     [SerializeField, Min(1)] private int minimumSlots = 8;
 
-    private readonly List<RectTransform> slots = new List<RectTransform>();
-    private readonly List<UnityEngine.UI.Image> icons = new List<UnityEngine.UI.Image>();
+    private sealed class SlotView
+    {
+        public readonly RectTransform Root;
+        public readonly UnityEngine.UI.Image Icon;
+
+        public SlotView(RectTransform root, UnityEngine.UI.Image icon)
+        {
+            Root = root;
+            Icon = icon;
+        }
+    }
+
+    private readonly List<SlotView> slots = new List<SlotView>();
+    private const float SpriteCheckInterval = 0.1f;
+    private PlayerInventory subscribedInventory;
+    private bool refreshRequested = true;
+    private float nextSpriteCheckTime;
+    private int displayedItemCount;
+    private int displayedMinimumSlots;
 
     private void Awake()
     {
@@ -24,13 +41,88 @@ public class InventoryUI : MonoBehaviour
 
     private void LateUpdate()
     {
-        Refresh();
+        BindInventory();
+        if (refreshRequested || displayedMinimumSlots != minimumSlots ||
+            (inventory == null && displayedItemCount > 0))
+        {
+            Refresh();
+        }
+        else if (Time.unscaledTime >= nextSpriteCheckTime)
+        {
+            CheckItemSprites();
+        }
+    }
+
+    private void OnEnable()
+    {
+        BindInventory();
+        RequestRefresh();
+    }
+
+    private void OnDisable()
+    {
+        if (subscribedInventory != null)
+        {
+            subscribedInventory.Changed -= RequestRefresh;
+        }
+        subscribedInventory = null;
+    }
+
+    private void BindInventory()
+    {
+        if (!isActiveAndEnabled)
+        {
+            return;
+        }
+
+        if (subscribedInventory == inventory)
+        {
+            return;
+        }
+
+        if (subscribedInventory != null)
+        {
+            subscribedInventory.Changed -= RequestRefresh;
+        }
+        subscribedInventory = inventory;
+        if (subscribedInventory != null)
+        {
+            subscribedInventory.Changed += RequestRefresh;
+        }
+        RequestRefresh();
+    }
+
+    private void RequestRefresh()
+    {
+        refreshRequested = true;
+    }
+
+    private void CheckItemSprites()
+    {
+        nextSpriteCheckTime = Time.unscaledTime + SpriteCheckInterval;
+        // SpriteRenderer 不提供 Sprite 变更事件，低频检查也会清理背包已销毁引用。
+        IReadOnlyList<GameObject> items = inventory != null ? inventory.Items : null;
+        int count = items != null ? items.Count : 0;
+        if (refreshRequested || count != displayedItemCount)
+        {
+            Refresh();
+            return;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            Sprite sprite = GetItemSprite(items[i]);
+            UnityEngine.UI.Image icon = slots[i].Icon;
+            if (icon != null && (icon.sprite != sprite || icon.enabled != (sprite != null)))
+            {
+                UpdateIcon(icon, sprite);
+            }
+        }
     }
 
     private void CacheSlots()
     {
         slots.Clear();
-        icons.Clear();
         if (slotsRoot == null)
         {
             return;
@@ -44,14 +136,14 @@ public class InventoryUI : MonoBehaviour
                 continue;
             }
 
-            slots.Add((RectTransform)child);
-            icons.Add(icon.GetComponent<UnityEngine.UI.Image>());
+            slots.Add(new SlotView((RectTransform)child, icon.GetComponent<UnityEngine.UI.Image>()));
         }
     }
 
     /// <summary>刷新引用与 Sprite；无物品或无 Sprite 时仅显示灰色槽位。</summary>
     public void Refresh()
     {
+        BindInventory();
         if (slotsRoot == null || slotTemplate == null)
         {
             return;
@@ -63,45 +155,67 @@ public class InventoryUI : MonoBehaviour
         }
 
         IReadOnlyList<GameObject> items = inventory != null ? inventory.Items : null;
-        int count = items != null ? items.Count : 0;
-        int visibleCount = Mathf.Max(minimumSlots, count);
-        while (slots.Count < visibleCount)
-        {
-            RectTransform slot = Instantiate(slotTemplate, slotsRoot);
-            slot.name = "Slot" + (slots.Count + 1).ToString("00");
-            slots.Add(slot);
-            icons.Add(slot.Find("Icon").GetComponent<UnityEngine.UI.Image>());
-        }
+        int itemCount = items != null ? items.Count : 0;
+        int visibleCount = Mathf.Max(minimumSlots, itemCount);
+        ExtendSlots(visibleCount);
 
         for (int i = 0; i < slots.Count; i++)
         {
             bool visible = i < visibleCount;
-            if (slots[i].gameObject.activeSelf != visible)
-            {
-                slots[i].gameObject.SetActive(visible);
-            }
+            SetSlotVisible(slots[i].Root, visible);
 
-            Sprite sprite = null;
-            if (visible && i < count && items[i] != null)
-            {
-                SpriteRenderer renderer = items[i].GetComponentInChildren<SpriteRenderer>(true);
-                if (renderer != null)
-                {
-                    sprite = renderer.sprite;
-                }
-            }
+            Sprite sprite = visible && i < itemCount ? GetItemSprite(items[i]) : null;
 
-            UnityEngine.UI.Image icon = icons[i];
-            if (icon == null)
-            {
-                continue;
-            }
-
-            if (icon.sprite != sprite)
-            {
-                icon.sprite = sprite;
-            }
-            icon.enabled = sprite != null;
+            UnityEngine.UI.Image icon = slots[i].Icon;
+            UpdateIcon(icon, sprite);
         }
+
+        displayedItemCount = itemCount;
+        displayedMinimumSlots = minimumSlots;
+        nextSpriteCheckTime = Time.unscaledTime + SpriteCheckInterval;
+        refreshRequested = false;
+    }
+
+    private void SetSlotVisible(RectTransform slot, bool visible)
+    {
+        if (slot.gameObject.activeSelf != visible)
+        {
+            slot.gameObject.SetActive(visible);
+        }
+    }
+
+    private Sprite GetItemSprite(GameObject item)
+    {
+        if (item == null)
+        {
+            return null;
+        }
+
+        SpriteRenderer renderer = item.GetComponentInChildren<SpriteRenderer>(true);
+        return renderer != null ? renderer.sprite : null;
+    }
+
+    private void ExtendSlots(int visibleCount)
+    {
+        while (slots.Count < visibleCount)
+        {
+            RectTransform slot = Instantiate(slotTemplate, slotsRoot);
+            slot.name = "Slot" + (slots.Count + 1).ToString("00");
+            slots.Add(new SlotView(slot, slot.Find("Icon").GetComponent<UnityEngine.UI.Image>()));
+        }
+    }
+
+    private void UpdateIcon(UnityEngine.UI.Image icon, Sprite sprite)
+    {
+        if (icon == null)
+        {
+            return;
+        }
+
+        if (icon.sprite != sprite)
+        {
+            icon.sprite = sprite;
+        }
+        icon.enabled = sprite != null;
     }
 }
