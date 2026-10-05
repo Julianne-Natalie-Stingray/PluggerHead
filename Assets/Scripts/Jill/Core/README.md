@@ -27,6 +27,7 @@ Core 是本工程共享运行时基础设施的单一入口.
 | `Audio/AudioEmitter.cs` | MonoBehaviour | 单个池化声部; 播放, 定位, 跟随, 报告结束 |
 | `Audio/SODefinitions/` | ScriptableObject | `AudioClipData` 描述单个 clip; `AudioManagerConfigs` 是音频总线配置 |
 | `Audio/Setting/` | `[Serializable]` class | `AudioSettings`, 音频总线的持久化音量 |
+| `Audio/README.md` | 文档 | **音频 Subsystem 自己的 README**: 职能 / 公共API / 内部实现思路; 本文件只保留与它的接口关系 |
 | `GameObjectPool/` | class | 复用对象池; 额外提供"能否复用"的硬上限探查 |
 | `Input/` | class | `DragAndDropService2D`, 纯可序列化辅助类; 早期代码 |
 
@@ -129,6 +130,9 @@ Core 是本工程共享运行时基础设施的单一入口.
 
 `DragAndDropService2D` 是本工程早期阶段的产物, 目前**没有任何使用者**: 它需要调用方自行 `Initialize(...)` 与 `Enable()`, 并在自己的帧循环里调用 `Drag()`, 而这些都没有发生. 它作为可复用服务保留在原处, 不在模版范围内继续演进.
 
+> **音频的权威文档是 `Audio/README.md`.** 以下三节保留为 Core 视角的摘要; 音频自身的限流模型, 渐变, 归还链路
+> 与"玩家音量到总线"以 `Audio/README.md` 为准 —— 两者不一致时以它为准.
+
 ### 音频的限流与释放链路
 
 音频有**两个互相独立**的实例上限, 都**不是**池大小:
@@ -223,5 +227,4 @@ Core 是本工程共享运行时基础设施的单一入口.
 
 ## TODO
 
-- TODO: 音频设置尚未被应用. `AudioSettings` 已有 `MasterVolume` / `OstVolume` / `SfxVolume`, 但 `AudioManager` 未读取它们, 因此改动设置不影响实际音量. 未实现原因: 归属 `Setting` 与 `Core` 的交界, 按 §4.1 应作为独立交付; 应用方式已定 —— 由音频自行拉取设置并应用到 mixer.
-- TODO: 为音频增加"总线整体缩放"(如全局音量滑条). 当前 `Master.mixer` 虽已有 `SFX` / `OST` 分组, 但 `m_ExposedParameters` 为空数组, 因此代码层面无法调节总线音量; 正确的落点是 AudioMixer 的 exposed parameter, 需要一次独立的资产配置交付.
+- 音频相关的待办已全部移入 `Audio/README.md` 的 TODO 一节(该 Subsystem 现在有自己的 README). 本文件只保留 Core 层面的协调内容.

@@ -38,6 +38,8 @@ public struct AudioBuilder
     private Vector3? position;
     private bool? surviveFreeze;
     private bool? allowWhileFrozen;
+    private float? fadeIn;
+    private float? fadeOut;
     private bool isUsed;
 
     internal AudioBuilder(AudioManager manager)
@@ -50,7 +52,9 @@ public struct AudioBuilder
         position = null;
         surviveFreeze = null;
         allowWhileFrozen = null;
+        fadeIn = null;
         isUsed = false;
+        fadeOut = null;
     }
 
     /// <summary>
@@ -170,6 +174,25 @@ public struct AudioBuilder
     }
 
     /// <summary>
+    /// Override, for this request only, the ramp this playback uses.
+    /// Implementation approach: records two nullable overrides; an absent value falls back to the clip's
+    /// static AudioClipData.FadeIn / FadeOut. A duration of 0 is a hard start or a hard cut, which is the
+    /// original behaviour, so a caller that wants no ramp can say so explicitly.
+    /// 仅对本次请求覆盖这次播放所用的渐变.
+    /// 实现思路: 记录两个可空覆盖; 未设置时回落到 clip 的静态 `AudioClipData.FadeIn` / `FadeOut`.
+    /// 时长为 0 即硬起或硬切, 也就是原先的行为, 因此"不要渐变"的调用方可以显式表达.
+    /// </summary>
+    public AudioBuilder WithFade(float fadeIn, float fadeOut)
+    {
+        if (isUsed)
+            return this;
+
+        this.fadeIn = fadeIn;
+        this.fadeOut = fadeOut;
+        return this;
+    }
+
+    /// <summary>
     /// Single entry point for submitting this request.
     /// Implementation approach: forwards every carried parameter to AudioManager, which applies the instance
     /// limits, may preempt an older sound, and returns a handle scoped to the playback it started.
@@ -185,6 +208,7 @@ public struct AudioBuilder
 
         isUsed = true;
 
-        return manager.Play(audioId, volume, pitch, position, followTarget, surviveFreeze, allowWhileFrozen);
+        return manager.Play(
+            audioId, volume, pitch, position, followTarget, surviveFreeze, allowWhileFrozen, fadeIn, fadeOut);
     }
 }

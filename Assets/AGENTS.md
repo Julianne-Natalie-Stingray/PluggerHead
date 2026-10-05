@@ -8,6 +8,8 @@
 - After changes are made to the clone, I review and amend them, then merge to the main branch.
 - 如果我的指令与该文件产生冲突, 停止并询问
 - If my instruction conflicts with this file, stop and ask.
+- 本文件(`Assets/AGENTS.md`)由我维护. DSH可以指出问题并给出建议文本, 但**不得改动本文件**; 改动一律由我粘贴. 
+- This file (`Assets/AGENTS.md`) is maintained by me. DSH may point out problems and propose text, but **must never modify this file**; every change is pasted by me.
 
 ## 1.2    写入边界 / Write boundary
 
@@ -20,25 +22,36 @@
 
 - **读取权限无边界. 沙箱只限制写入, 不限制读取.**
 - **Read permission is unbounded. The sandbox constrains writes only, never reads.**
-- 工程本体位于本工作区之外, 与副本共享同一个 `.git`. DSH能够读到本体及其 git 元数据, 这是已知且已被接受的事实, 不是"DSH对本体一无所知". 
-- The main project lives outside this workspace and shares the same `.git` as the clone. DSH can read the main project and its git metadata. This is a known and accepted fact, not a claim that "DSH is ignorant of the main project".
-- 因此, 下述行为是本工作流**唯一**的隔离手段: DSH不得主动访问本工作区之外的任何路径, 不得读取工程本体, 不得读取本体的 `.git`. 该约束由纪律承载, 不由机制承载. 
-- Therefore the following is the **only** isolation this workflow has: DSH must not proactively access any path outside this workspace, must not read the main project, and must not read the main project's `.git`. This constraint is carried by discipline, not by a mechanism.
+- 工程本体位于本工作区之外, 与副本共享同一个 `.git`. 具体形式是: 本工作区是它的一个 git worktree, 因此工作区根下的 `.git` 是一个**指针文件**, 指向工作区之外的本体 `.git`. 
+- The main project lives outside this workspace and shares the same `.git` as the clone. Concretely: this workspace is one of its git worktrees, so the `.git` entry at the workspace root is a **pointer file** into the main project's `.git`.
+- DSH不得主动访问本工作区之外的任何路径, 不得读取工程本体, 不得读取本体的 `.git`. 允许读取**本工作区自己的** `.git` 指针文件的**那一行**, 以判定 git 命令会走到哪里; 但**不得跟进**该目标, 也不得复述其中的本体路径. 
+- DSH must not proactively access any path outside this workspace, must not read the main project, and must not read the main project's `.git`. It may read the **single line** of this workspace's **own** `.git` pointer file to determine where git commands lead, but must never follow that target nor repeat the main-project path it contains.
+- 该约束的目的是**本体不被版本控制影响**, 而不是完全隔离. 因此 §3.1 允许的只读 git 命令可以穿透 worktree 链接. 
+- The purpose of this constraint is that **the main project is not affected through version control**, not total isolation. Read-only git commands (§3.1) may therefore reach through the worktree link.
 - 当某项操作看起来必须越界时, 停止并询问, 由我代为执行. 
 - When an operation appears to require crossing that boundary, stop and ask, and I will perform it instead.
 
 ## 1.4    单一写入路径 / Single write path
 
-- 所有改动都发生在 `Assets/` 之下. `ProjectSettings/`,  `Packages/` 属于 §2.2 的例外情形, 需先申请. 
+- 所有改动都发生在 `Assets/` 之下. `ProjectSettings/`, `Packages/` 属于 §2.2 的例外情形, 需先申请. 
 - All changes happen under `Assets/`. `ProjectSettings/` and `Packages/` are the exceptions governed by §2.2 and require a prior request.
-- 我负责的部分是Core / Environment, 只允许动`Jill/`目录下的文件.
+- DSH的交付在 `Assets/Scripts/Jill/` 之下, 允许改动该目录下 §2.1 许可的类型, **含 `Jill/Core/**`**. 
+- DSH's deliveries live under `Assets/Scripts/Jill/`; the file types permitted by §2.1 may be changed there, **including `Jill/Core/**`**.
+- 我负责 Core / Environment 的**资产侧**(场景, 预制体, `.asset`, Inspector 赋值), DSH 负责 `Jill/` 下的**代码与文档侧**. 
+- I own the **asset side** of Core / Environment (scenes, prefabs, `.asset` files, Inspector assignments); DSH owns the **code and documentation side** under `Jill/`.
+- `Assets/` 根下的三份文档是唯一例外: `Assets/CHANGELOG.md` 与 `Assets/PENDING_INSPECTOR.md` 由 DSH 维护; `Assets/AGENTS.md` 只有我能改(§1.1). 
+- The three documents at the `Assets/` root are the only exception: `Assets/CHANGELOG.md` and `Assets/PENDING_INSPECTOR.md` are maintained by DSH; `Assets/AGENTS.md` is edited by me alone (§1.1).
 
 # 2    写入权限 / Write Permissions
 
 ## 2.1    文件类型 / File types
 
 - 可以写入 / Writable: `.cs`, `.asmdef`, `.json`, `.md`
-- 禁止写入 / Forbidden: `.git`, `.vs`, `.meta`, `.idea`, `.unity`, `.scene`, `.prefab`, `.asset`
+- 禁止写入 / Forbidden: `.git`, `.vs`, `.meta`, `.idea`, `.unity`, `.scene`, `.prefab`, `.asset`, `.mixer`
+- 唯一例外: `Assets/AGENTS.md` 虽为 `.md`, 但 DSH **不得写入**(§1.1). 
+- Sole exception: although `Assets/AGENTS.md` is a `.md`, DSH **must not write it** (§1.1).
+- 另注: 删除文件不在DSH能力之内, 详见 §3.2. 
+- Note also: deleting files is outside DSH's capability; see §3.2.
 
 ### 2.1.1    `.meta` 规则 / The `.meta` rule
 
@@ -55,13 +68,13 @@
 
 ## 2.2    文件目录 / Directories
 
-- 可以写入 / Writable: `Assets/`
+- 可以写入 / Writable: `Assets/` (含 `Assets/` 根下的 `CHANGELOG.md` 与 `PENDING_INSPECTOR.md`)
 - 写入需要询问 / Ask before writing: `ProjectSettings/`
 - 禁止写入 / Forbidden: `Packages/`, `Library/`, `Temp/`, `Logs/`, `UserSettings/`, `Build/`, `Builds/`, `obj/`, `.vs/`, `.idea/`, `Assets/Packages`
 - 若确有需要解决的Packages依赖, 抛出申请由我解决. 
 - If a package dependency genuinely must be resolved, raise a request and I will resolve it.
-- `Library/`, `Temp/`, `Logs/`, `UserSettings/`, `obj/`, `Build/`, `Builds/` 均由Unity自行管理, DSH不得创建, 修改或删除其中的任何内容. 
-- `Library/`, `Temp/`, `Logs/`, `UserSettings/`, `obj/`, `Build/`, and `Builds/` are all managed by Unity. DSH must not create, modify, or delete anything inside them.
+- `Library/`, `Temp/`, `Logs/`, `UserSettings/`, `obj/`, `Build/`, `Builds/` 均由Unity自行管理, DSH不得创建, 修改或删除其中的任何内容. 只读访问许可, 见 §3.1. 
+- `Library/`, `Temp/`, `Logs/`, `UserSettings/`, `obj/`, `Build/`, and `Builds/` are all managed by Unity. DSH must not create, modify, or delete anything inside them. Read-only access is permitted; see §3.1.
 
 # 3    操作权限 / Operation Permissions
 
@@ -73,11 +86,15 @@
 - `ProjectSettings/` becomes writable after a request is granted.
 - 申请后可以修改 `Editor` 脚本
 - `Editor` scripts become modifiable after a request is granted.
-- 只读的git操作 / Read-only git operations: `status`, `diff`, `log`, `show`
+- 只读的git操作, **仅此三条** / Read-only git operations, **these three only**: `status`, `diff`, `git update-index --refresh`
+- `git log` 与 `git show` **禁止**: 它们会把本体历史搬进DSH的上下文, 而 §1.3 的目的是本体不被版本控制影响. 
+- `git log` and `git show` are **forbidden**: they would pull the main project's history into DSH's context, while the purpose of §1.3 is that the main project is not affected through version control.
 - `git update-index --refresh` —— 允许, 且**仅此一条** `update-index` 形式. 它只刷新索引中记录的文件状态缓存, 不改变任何被跟踪文件的内容, 不动 `HEAD`, 不动工作区. 禁止 `--add`, `--remove`, `--force-remove` 以及任何其他 `update-index` 形式. 
 - `git update-index --refresh` is permitted, and it is the **only** permitted form of `update-index`. It only refreshes the stat cache recorded in the index; it changes no tracked file's content, does not move `HEAD`, and does not touch the working tree. `--add`, `--remove`, `--force-remove`, and every other form of `update-index` are forbidden.
 - 允许该命令的理由 / Why it is permitted: 整个审批流程建立在"`git status` 不说谎"之上. 幽灵 ` M` 标记会训练我忽略这个标记, 而它正是唯一能看见越界写入的像素. 
 - The whole approval flow rests on `git status` not lying. A phantom ` M` marker trains me to ignore that marker, which is the only pixel through which an out-of-bounds write becomes visible.
+- 允许**只读**访问 `Library/ScriptAssemblies/` 下的编译产物(时间戳, 字节数), 用于自查"交付边界处代码是否编译通过". 这是读, 不是写. 
+- DSH may **read** the build artifacts under `Library/ScriptAssemblies/` (timestamps, sizes) to self-check that the code compiles at the delivery boundary. This is a read, not a write.
 
 ## 3.2    禁止的操作 / Forbidden operations
 
@@ -87,12 +104,18 @@
   - `Assets/Infra/MenuTool/Game.MenuTool.g.cs` (由 `.menutool` 资产生成)
   - 注意: Unity自身会在导入时重写这些文件 (例如修正过期的源路径注释). 由此产生的 diff 是**预期的**, 不属于DSH的越界写入. 
   - Note: Unity itself rewrites these files on import (for example, correcting a stale source-path comment). A diff arising from that rewrite is **expected** and is not an out-of-bounds write by DSH.
+- **删除任何文件或目录**. 沙箱在机制上不允许: 工作区根上 `Everyone` 对"删除子目录与文件"是**拒绝**, DSH自身的授权不含删除能力. 需要删除时: 停止, 把动作登记进 `Assets/PENDING_INSPECTOR.md`, 由我执行. 
+- **Deleting any file or directory.** The sandbox disallows it mechanically: at the workspace root `Everyone` is **denied** "delete subdirectories and files", and DSH's own grant carries no delete capability. When a deletion is needed: stop, record it in `Assets/PENDING_INSPECTOR.md`, and I perform it.
+- 推论: 脚本中不得依赖"操作成功"的回声. 删除, 移动, 覆盖一类动作必须以**复查结果**收尾, 不得以自身打印的日志为证据. 
+- Corollary: never rely on a script's own echo that an operation succeeded. Destructive actions (delete, move, overwrite) must end with a **re-read of the result**; DSH's own printed line is not evidence.
 - 任何涉及 `Inspector` 的操作
 - Any operation that touches the `Inspector`.
 - 任何对场景, 预制体的操作
 - Any operation on scenes or prefabs.
 - `git commit`, `push`, `merge`, `rebase`, `reset`, `checkout`, `switch`, `clean`, `add`
 - `git commit`, `push`, `merge`, `rebase`, `reset`, `checkout`, `switch`, `clean`, `add`.
+- 任何对 `Assets/AGENTS.md` 的改动(§1.1)
+- Any change to `Assets/AGENTS.md` (§1.1).
 
 ## 3.3    会话前置条件 / Session preconditions
 
@@ -104,6 +127,8 @@
 - If the precondition does not hold: **stop immediately and ask**, and begin no writes.
 - 同一工程目录不允许被两个Unity进程同时打开 (Unity自身会拒绝). 因此DSH不得对副本启动任何第二Unity实例或命令行Unity进程. 
 - A single project directory must not be opened by two Unity processes at once (Unity refuses this itself). DSH therefore must not start a second Unity instance or any command-line Unity process against the clone.
+- **焦点问题不引入任何机制.** Unity在2022.3里只在重新获得焦点时刷新资产库, 这是文档化行为; 我不为它引入后台刷新脚本, 而是以分屏监视替代. 因此每次交付必须列出"需要我看一眼Unity"的文件清单(新增, 改名, 需要删除的文件), 以便我触发导入. 
+- **No mechanism is introduced for the focus problem.** In 2022.3 Unity refreshes the Asset Database only when the Editor regains focus; that is documented behaviour. Rather than adding a background-refresh script, I monitor Unity on a split screen. Every delivery must therefore list the files that need "one glance at Unity" (added, renamed, to-be-deleted), so that I can trigger the import.
 - 我的操作时序承诺: 我会在DSH完整交付一份工作之后才操作GUI. 因此DSH不应预期在交付中途得到Inspector反馈. 
 - My side of the timing contract: I operate the GUI only after DSH has delivered one complete unit of work. DSH should therefore not expect Inspector feedback mid-delivery.
 
@@ -124,6 +149,8 @@
 - If a delivery needs an interface from another Subsystem that has not been delivered yet, that interface is a **design-level incompleteness** and breaks the compilation boundary.
 - 此时**先问再写**: 停止, 说明所缺接口, 等我裁决. 不得先写半个接口. 
 - In that case **ask before writing**: stop, name the missing interface, and wait for my decision. Never write half an interface first.
+- 同理, 若交付依赖只有我能完成的**资产侧前置**(例如在 AudioMixer 里暴露参数), 该前置必须先进 `Assets/PENDING_INSPECTOR.md`, 并且在你勾选**且**出言确认之前, DSH 不得开始依赖它的代码. 
+- Likewise, if a delivery depends on an **asset-side prerequisite** only I can perform (for example exposing parameters in an AudioMixer), that prerequisite must be recorded in `Assets/PENDING_INSPECTOR.md` first, and DSH must not begin the dependent code until I have ticked it **and** said so in words.
 - 该规则同时满足 §5.2.1 "Subsystem间低耦合": 跨Subsystem的引用点应当少而显式. 
 - This rule also serves §5.2.1 "low coupling between Subsystems": cross-Subsystem reference points should be few and explicit.
 
@@ -146,10 +173,13 @@ The `.md` files of this section are deliverables, not code. Their only reader is
 - Applies to: each Subsystem's `README.md`, `Assets/CHANGELOG.md`, and `Assets/PENDING_INSPECTOR.md`.
 - 不适用: `.cs` 内的 XML注解, 行内注释, 以及 `GameLog` 日志文本 —— 这些是代码, 仍为双语英文在前.
 - Does not apply to: XML documentation comments, inline comments, or `GameLog` text inside `.cs` files — those are code and stay bilingual with English first.
-- 本文件(`AGENTS.md`)不在此节管辖内, 它是规则本身, 保留双语标题.
-- This file (`AGENTS.md`) is not governed by this section; it is the rule itself and keeps its bilingual headings.
+- 本文件(`Assets/AGENTS.md`)不在此节管辖内, 它是规则本身, 保留双语标题.
+- This file (`Assets/AGENTS.md`) is not governed by this section; it is the rule itself and keeps its bilingual headings.
 
 ### 5.1.1    README编写 / Writing READMEs
+
+Subsystem的划分以**交付单元**为准. 已确立的独立交付单元包括 `Core/Audio`, `Core/SceneSwitch`, `Game/Setting`, `Game/GameState`, `Infra`.
+Subsystems are defined by **unit of delivery**. The established units include `Core/Audio`, `Core/SceneSwitch`, `Game/Setting`, `Game/GameState`, and `Infra`.
 
 在每个Subsystem下存有一份 `README.md`. 
 Every Subsystem holds one `README.md`.
@@ -164,20 +194,24 @@ It must state:
 
 - 职能改变, README同步改动. / When responsibilities change, the README changes with them.
 
+- 架构层面的**设计决定**(例如"退出时恢复状态归 session 负责")必须写进对应 README, 不能只存在于历史CHANGELOG里. / Architecture-level **design decisions** (for example "restoring state on exit is the session's responsibility") must be written into the Subsystem's README, not left only in an older CHANGELOG entry.
+
+- `Core/README.md` 覆盖 `Core/` 层面的协调内容(如 `CoreFacade`), 不替代下层Subsystem的README. 尚未建立README的交付单元, 在首次触及它的交付中补齐, 不单独开交付. / `Core/README.md` covers `Core`-level coordination (such as `CoreFacade`) and does not replace the READMEs of Subsystems beneath it. A delivery unit that has no README yet gets one in the first delivery that touches it; it is not a delivery of its own.
+
 - 撰写语言按 §5.1.0: 只用中文.
 
 - Language per §5.1.0: Chinese only.
 
 ### 5.1.2    CHANGELOG编写 / Writing the CHANGELOG
 
-- 每次修改在 `Assets/` 目录下编写 `Assets/CHANGELOG.md`, 记录修改. 
-- Record every change in `Assets/CHANGELOG.md` under `Assets/`.
+- 每次修改在 `Assets/` 根下编写 `Assets/CHANGELOG.md`, 记录修改. 新条目写在文件最前. 
+- Record every change in `Assets/CHANGELOG.md` at the `Assets/` root. New entries go at the top of the file.
 - 每条记录必须以下述两条强制清单结尾. 
 - Every entry must end with the two mandatory checklists below.
-- 同时列出需要我接下来在 Inspector 里手动做的操作, 用checkbox做成check list的形式. 
-- Also list the operations I must perform by hand in the Inspector next, as a checkbox checklist.
-- 新增文件清单: 列出本次新增的每个 `.cs` 文件, 以及它**待Unity生成的 `.meta`**, 同样用checkbox列出. 这是 §2.1.1 的落地形式. 
-- New-file checklist: list every `.cs` file added by this change together with its **pending `.meta`**, again as a checkbox list. This is how §2.1.1 is carried out.
+- 清单之一, **新增文件**: 列出本次新增的每个 `.cs` 文件, 以及它**待Unity生成的 `.meta`**; 本次新增的其它需提交文件与其 `.meta` 同样列出. 用checkbox形式. 这是 §2.1.1 的落地形式. 
+- Checklist one, **new files**: list every `.cs` file added by this change together with its **pending `.meta`**, plus any other new files that must be committed and their `.meta`, as a checkbox list. This is how §2.1.1 is carried out.
+- 清单之二, **需要我手动完成的操作**: **只给指针**, 指向 `Assets/PENDING_INSPECTOR.md`(单一事实源). CHANGELOG不重复列举这些操作; 若本次确实没有, 指针照写并注明"本次无需操作". 
+- Checklist two, **operations I must perform by hand**: a **pointer only**, to `Assets/PENDING_INSPECTOR.md` (the single source of truth). The CHANGELOG does not repeat those items; if there are genuinely none, the pointer still appears, marked "nothing required this time".
 - 结账规则: 若我尚未勾完上一份交付的清单, DSH不得把"已完成"当作既成事实写进新的CHANGELOG条目. 
 - Closing rule: if I have not finished checking off the previous delivery's lists, DSH must not record "done" as an established fact in a new CHANGELOG entry.
 - 撰写语言按 §5.1.0: 只用中文.
@@ -187,10 +221,12 @@ It must state:
 
 - `Assets/PENDING_INSPECTOR.md` 与 `Assets/CHANGELOG.md` 同级, 是**独立文件**, 不是CHANGELOG的一个小节. 
 - `Assets/PENDING_INSPECTOR.md` sits beside `Assets/CHANGELOG.md` and is a **separate file**, not a section inside the CHANGELOG.
-- `CHANGELOG.md` 记录**已发生**的改动; `PENDING_INSPECTOR.md` 记录**尚未由我完成**的Inspector操作. 
-- `CHANGELOG.md` records changes that **have happened**; `PENDING_INSPECTOR.md` records Inspector operations that **I have not completed yet**.
-- **硬闸门**: 只要 `PENDING_INSPECTOR.md` 存在未勾选项, DSH不得开始任何依赖这些Inspector赋值的新工作. 必须停下并提醒我. 
-- **Hard gate**: while any unchecked item remains in `PENDING_INSPECTOR.md`, DSH must not begin any new work that depends on those Inspector assignments. It must stop and remind me.
+- `CHANGELOG.md` 记录**已发生**的改动; `PENDING_INSPECTOR.md` 记录**尚未由我完成**的操作, 并且是这类操作的**唯一事实源**. 
+- `CHANGELOG.md` records changes that **have happened**; `PENDING_INSPECTOR.md` records operations that **I have not completed yet**, and is the **single source of truth** for them.
+- 它的范围不限于Inspector: 包括Inspector赋值, 资产与GUI操作, 以及DSH无权限执行的文件动作(例如**删除文件**, 见 §3.2). 
+- Its scope is not limited to the Inspector: it covers Inspector assignments, asset and GUI work, and file actions DSH has no permission for (for example **deleting files**, see §3.2).
+- **硬闸门**: 只要其中存在未勾选项, DSH不得开始任何依赖这些赋值的新工作. 必须停下并提醒我. 
+- **Hard gate**: while any unchecked item remains, DSH must not begin any new work that depends on those assignments. It must stop and remind me.
 - 解闸只能由我**显式确认**触发 (例如"已配好"). 勾选状态本身在git中可见, 但"我配好了"这句话必须由我说出. DSH不得自行推断闸门已解除. 
 - The gate is lifted only by my **explicit confirmation** (for example, "it is configured"). The checkbox state is visible in git, but the sentence "I have configured it" must come from me. DSH must never infer that the gate has been lifted.
 - 撰写语言按 §5.1.0: 只用中文.
@@ -241,6 +277,8 @@ A class must state:
 - Implementations I have explicitly deferred, or that await a design decision, must be marked with `TODO: `.
 - 需要写明: 待实现内容; 未实现原因. 
 - It must state: what remains to be implemented, and why it is not implemented.
+- 已知的真实缺陷若不能立即修复, 同样用 `TODO: ` 记录, 并写明阻塞原因(例如位于 §2.2 的禁写区). 
+- A known real defect that cannot be fixed immediately is likewise recorded with `TODO: `, naming the blocker (for example, it lives inside the §2.2 write-forbidden area).
 - 只允许在XML或常规注解中使用 `TODO: `. 
 - `TODO: ` is permitted only inside XML or ordinary comments.
 
@@ -267,8 +305,10 @@ A class must state:
 - Use the Singleton pattern sparingly.
 - 最小化暴露字段 / 方法, 公共字段除非确有写入需要, 全部使用Property + backing field暴露
 - Minimise exposed fields and methods; unless a field genuinely must be written from outside, expose it as a Property with a backing field.
-- 不使用序列化字段 + Inspector赋值解决引用, 尽量通过 `GetComponent<>()` + 缓存解决依赖, 除非依赖与场景高度相关必须手动赋值, 或确有需要
-- Do not resolve references through serialized fields plus Inspector assignment. Resolve dependencies through `GetComponent<>()` plus caching, unless the dependency is so scene-specific that it must be assigned by hand, or there is a genuine need.
+- **解决依赖**不使用序列化字段 + Inspector赋值, 改用 `GetComponent<>()` + 缓存, 除非依赖与场景高度相关必须手动赋值, 或确有需要
+- Do not **resolve dependencies** through serialized fields plus Inspector assignment; use `GetComponent<>()` plus caching, unless the dependency is so scene-specific that it must be assigned by hand, or there is a genuine need.
+- 这里的"依赖"指**子系统之间与子系统内部的依赖解析**. **持久化参数不是依赖**: `configs` 一类ScriptableObject数据通过序列化字段 + Inspector拖入, 是允许且首选的(见 §5.2.3.1), 不受上一条限制. 
+- Here "dependency" means **dependency resolution between and inside Subsystems**. **Persisted parameters are not dependencies**: ScriptableObject data such as `configs` is serialized into a field and dragged in from the Inspector; that is allowed and preferred (see §5.2.3.1) and is not restricted by the previous bullet.
 - 数据持久化优于直接序列化, 多使用ScriptableObject
 - Prefer data persistence over direct serialization; use ScriptableObjects liberally.
 - 相互耦合的多个脚本共用同一份数据时, 使用property映射, 减少inspector赋值操作
@@ -287,8 +327,10 @@ A class must state:
 
 #### 5.2.2.2    代码排版 / Layout
 
-- 一个 `.cs` 文件内只能有一个class / enum / struct / etc.
-- One `.cs` file holds exactly one class, enum, struct, or similar.
+- 一个 `.cs` 文件内只能有一个**对外可见**的 class / enum / struct / etc. Unity自行生成的脚本不受此限. 
+- One `.cs` file holds exactly one **externally visible** class, enum, struct, or similar. Scripts generated by Unity are exempt.
+- 仅供本文件使用的 `private` 嵌套类型**不拆**: 判据是"外界到底需不需要知道它的存在". 
+- `private` nested types used only inside their own file are **not split out**; the test is "does the outside world need to know it exists at all".
 - XML注解先于 Attributes
 - XML documentation precedes Attributes.
 - 代码块间空一行, 代码块内不空行

@@ -16,6 +16,10 @@ MonoBehaviour:
   - {fileID: 11400000, guid: d15e0c703738ee1458c373bc0c8be955, type: 2}
   - {fileID: 11400000, guid: 35d9bb617c495a540b8dea30430efd7c, type: 2}
   - {fileID: 11400000, guid: f9b1025f320a5494a8154983ce646c10, type: 2}
+  mixer: {fileID: 24100000, guid: a6b573f691acdc44a9421d10d0de8b7a, type: 2}
+  masterVolumeParameter: MasterVolume
+  ostVolumeParameter: OstVolume
+  sfxVolumeParameter: SfxVolume
   collectionCheck: 1
   defaultCapacity: 10
   maxPoolSize: 30
