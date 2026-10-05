@@ -1329,7 +1329,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1224379181}
   m_Layer: 0
-  m_Name: StringAnchor
+  m_Name: PlayerAnchor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
