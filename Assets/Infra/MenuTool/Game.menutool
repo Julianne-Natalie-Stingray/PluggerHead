@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "identifier": "Game",
+  "label": "Game",
+  "defaultFileName": "Default",
+  "nodes": [
+    {
+      "identifier": "BasicSettings",
+      "label": "Basic Settings",
+      "fileName": "",
+      "children": [
+        {
+          "identifier": "AudioManagerConfigs",
+          "label": "Audio Manager Configs",
+          "fileName": "DefaultAudioManagerConfigs",
+          "children": []
+        },
+        {
+          "identifier": "AudioClipData",
+          "label": "AudioClip Data",
+          "fileName": "GenericAudioClipData",
+          "children": []
+        },
+        {
+          "identifier": "SceneSwitchConfigs",
+          "label": "Scene Switch Configs",
+          "fileName": "DefaultSceneSwitchConfigs",
+          "children": []
+        }
+      ]
+    }
+  ]
+}

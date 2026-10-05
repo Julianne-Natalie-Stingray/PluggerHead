@@ -1,0 +1,174 @@
+using System.Collections.Generic;
+
+/// <summary>
+/// Tracks which pooled emitters are currently playing, in start order.
+/// Subsystem: Core (Audio).
+/// Where it lives: nowhere. It is a plain object owned by AudioManager and never attached to a GameObject.
+/// Responsibility: registration, removal, per-AudioId counting, and answering which registration is the
+/// oldest. That is the whole of its job.
+/// Does NOT own: any policy. It never decides whether to preempt, what to preempt, or whether a request
+/// may proceed; AudioManager owns every such decision and only asks this type for facts.
+/// Lifetime: created by AudioManager during InitializeInternal and lives exactly as long as the manager.
+/// Ordering: registrations carry a monotonically increasing sequence number. A sequence is used instead of
+/// a timestamp because Time.time repeats within one frame, which would make two sounds started in the same
+/// frame indistinguishable, while a sequence is always strictly ordered.
+/// Removal is deferred: Unregister only marks a slot empty, and compaction happens on the next Register.
+/// This is deliberate. Stopping a sound raises its completion callback, and that callback unregisters the
+/// sound, so a preemption pass would otherwise mutate this list while iterating it. Deferring the removal
+/// makes that safe without copying the list on every pass.
+/// Paradigms: none. It is a bookkeeping helper, not a service, and is not a singleton.
+/// 跟踪当前正在播放的池化 emitter, 按开始顺序排列.
+/// Subsystem 归属: Core (Audio).
+/// 存在位置: 无. 它是普通对象, 归 AudioManager 所有, 不贴在任何 GameObject 上.
+/// 职能: 注册, 移除, 按 AudioId 计数, 以及回答"哪个注册项最旧". 这就是它的全部工作.
+/// 不负责: 任何策略. 它永不确定是否抢占, 抢占谁, 或某个请求是否放行;
+/// 这些决策全部归 AudioManager, 它只被询问事实.
+/// 生命周期: 由 AudioManager 在 InitializeInternal 中创建, 与管理器同寿命.
+/// 顺序语义: 注册项携带单调递增的序号. 用序号而不是时间戳, 是因为 Time.time 在同一帧内会重复,
+/// 使同帧启动的两个声音无法区分, 而序号永远严格有序.
+/// 移除是延迟的: Unregister 只把槽位标记为空, 压实发生在下一次 Register.
+/// 这是刻意的. 停止一个声音会触发它的完成回调, 而该回调会注销这个声音,
+/// 否则抢占遍历就会在迭代过程中改动本列表. 延迟移除使这一过程无需每次遍历都复制列表即可安全.
+/// 使用范式: 无. 它是记账助手, 不是服务, 也不是单例.
+/// </summary>
+public sealed class AudioRegistry
+{
+    public int Count => emitters.Count;
+
+    private readonly List<AudioEmitter> emitters = new();
+    private readonly List<long> sequences = new();
+
+    private long nextSequence;
+
+    /// <summary>
+    /// Single entry point for recording that an emitter has started playing.
+    /// Implementation approach: compacts deferred removals first, then appends the emitter together with
+    /// the next sequence number, which is what establishes start order.
+    /// 记录某个 emitter 已开始播放的单一入口.
+    /// 实现思路: 先压实延迟移除, 再把 emitter 与下一个序号一起追加 —— 序号即为开始顺序的依据.
+    /// </summary>
+    public void Register(AudioEmitter emitter)
+    {
+        if (!emitter)
+            return;
+
+        Compact();
+
+        emitters.Add(emitter);
+        sequences.Add(nextSequence++);
+    }
+
+    /// <summary>
+    /// Single entry point for marking an emitter's playback as over.
+    /// Implementation approach: marks the slot empty instead of removing it, so a preemption pass that is
+    /// currently iterating this registry cannot observe a mutated list.
+    /// 把某个 emitter 的播放标记为结束的单一入口.
+    /// 实现思路: 只把槽位置空而不移除, 使正在迭代本注册表的抢占流程不会遇到被改动的列表.
+    /// </summary>
+    public void Unregister(AudioEmitter emitter)
+    {
+        if (!emitter)
+            return;
+
+        int index = emitters.IndexOf(emitter);
+        if (index < 0)
+            return;
+
+        emitters[index] = null;
+        sequences[index] = 0;
+    }
+
+    public int CountOf(AudioId audioId)
+    {
+        int count = 0;
+
+        for (int i = 0; i < emitters.Count; i++)
+        {
+            if (emitters[i] && emitters[i].AudioId == audioId)
+                count++;
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// Single entry point for asking which playback started first.
+    /// Implementation approach: scans for the smallest sequence number, optionally restricted to one
+    /// AudioId. The scan is linear, but it runs only when a limit has already been reached, so it is not
+    /// on the ordinary playback path.
+    /// 询问哪一次播放开始得最早的单一入口.
+    /// 实现思路: 找出最小序号, 可选地限定在某个 AudioId 上.
+    /// 该扫描是线性的, 但只在已经触顶时执行, 因此不在常规播放路径上.
+    /// </summary>
+    public bool TryGetOldest(AudioId audioId, out AudioEmitter emitter)
+    {
+        emitter = null;
+        long oldest = long.MaxValue;
+
+        for (int i = 0; i < emitters.Count; i++)
+        {
+            AudioEmitter candidate = emitters[i];
+
+            if (!candidate || candidate.AudioId != audioId)
+                continue;
+
+            if (sequences[i] >= oldest)
+                continue;
+
+            oldest = sequences[i];
+            emitter = candidate;
+        }
+
+        return emitter;
+    }
+
+    public bool TryGetOldest(out AudioEmitter emitter)
+    {
+        emitter = null;
+        long oldest = long.MaxValue;
+
+        for (int i = 0; i < emitters.Count; i++)
+        {
+            AudioEmitter candidate = emitters[i];
+
+            if (!candidate)
+                continue;
+
+            if (sequences[i] >= oldest)
+                continue;
+
+            oldest = sequences[i];
+            emitter = candidate;
+        }
+
+        return emitter;
+    }
+
+    /// <summary>
+    /// Single entry point for dropping the deferred removals.
+    /// Implementation approach: rebuilds both parallel lists in place, keeping the relative order of the
+    /// surviving registrations so start order is preserved.
+    /// 丢弃延迟移除项的单一入口.
+    /// 实现思路: 原地重建两个并列列表, 保持存活注册项的相对顺序, 因此开始顺序不被破坏.
+    /// </summary>
+    public void Compact()
+    {
+        int write = 0;
+
+        for (int read = 0; read < emitters.Count; read++)
+        {
+            if (!emitters[read])
+                continue;
+
+            emitters[write] = emitters[read];
+            sequences[write] = sequences[read];
+            write++;
+        }
+
+        if (write >= emitters.Count)
+            return;
+
+        emitters.RemoveRange(write, emitters.Count - write);
+        sequences.RemoveRange(write, sequences.Count - write);
+    }
+}

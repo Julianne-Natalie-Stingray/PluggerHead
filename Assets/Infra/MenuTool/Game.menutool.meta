@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 6478bb08af88fc64a9be273655519a07
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 94b8f2034fefb4d488e24bb81c3398dc, type: 3}
+  generateCSharp: 1
+  className: MenuTool
+  namespaceName: 
+  outputPath: 

@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0eba6b78ffc85814fa5be4588d0120f4, type: 3}
+  m_Name: DefaultAudioManagerConfigs
+  m_EditorClassIdentifier: 
+  audios:
+  - {fileID: 11400000, guid: d15e0c703738ee1458c373bc0c8be955, type: 2}
+  - {fileID: 11400000, guid: 35d9bb617c495a540b8dea30430efd7c, type: 2}
+  - {fileID: 11400000, guid: f9b1025f320a5494a8154983ce646c10, type: 2}
+  collectionCheck: 1
+  defaultCapacity: 10
+  maxPoolSize: 30
+  prewarmAmount: 10
+  maxSoundInstance: 30
