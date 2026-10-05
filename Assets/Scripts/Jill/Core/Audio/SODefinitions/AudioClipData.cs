@@ -21,6 +21,8 @@ public class AudioClipData : ScriptableObject
     public float MinDistance => minDistance;
     public float MaxDistance => maxDistance;
     public bool DefaultSurviveFreeze => defaultSurviveFreeze;
+    public float FadeIn => fadeIn;
+    public float FadeOut => fadeOut;
 #endregion
     
     [SerializeField] private AudioId audioId;
@@ -41,6 +43,16 @@ public class AudioClipData : ScriptableObject
     [SerializeField, Range(0.1f, 3f)]
     [Tooltip("Baseline pitch for every playback of this clip. The builder may raise or lower it live.")]
     private float pitch = 1f;
+
+    // Fades are opt-in: 0 reproduces the original hard start and hard cut exactly, so existing assets keep
+    // their current behaviour until someone asks for a ramp on that clip.
+    // 淡入淡出是选配: 0 精确复现原先的硬起与硬切, 因此既有资产在有人为某 clip 要求渐变之前, 行为完全不变.
+    [SerializeField, Min(0f), BoxGroup("Fade")]
+    [Tooltip("Seconds spent ramping this clip up from silence on every playback. 0 keeps the hard start.")]
+    private float fadeIn = 0f;
+    [SerializeField, Min(0f), BoxGroup("Fade")]
+    [Tooltip("Seconds spent ramping this clip down. Used by a graceful stop, and as the tail of a natural playback for a non-looping clip. 0 keeps the hard cut.")]
+    private float fadeOut = 0f;
 
     [SerializeField, Range(0f, 1f), BoxGroup("Spatial")]
     [Tooltip("0 is fully 2D and ignores position. Above 0 the playback needs a position, from the builder or from a follow target.")]

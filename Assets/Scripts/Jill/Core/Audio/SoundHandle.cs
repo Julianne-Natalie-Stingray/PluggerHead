@@ -58,12 +58,22 @@ public sealed class SoundHandle : ISoundHandle
         this.emitter.onAudioFinished += OnPlaybackEnded;
     }
 
+    /// <summary>
+    /// Single entry point for ending this playback early.
+    /// Implementation approach: asks the emitter for a graceful stop, so a clip that declared a fade-out
+    /// ramps down before it ends, and invalidates this handle immediately either way. Invalidation is not
+    /// delayed to the end of the ramp: the caller has asked for the sound to be over, so IsPlaying must not
+    /// keep reporting true for the length of the fade.
+    /// 提前结束本次播放的单一入口.
+    /// 实现思路: 向 emitter 请求优雅停止, 因此声明了淡出的 clip 会先渐变再结束; 两种情况都立即让本句柄失效.
+    /// 失效不推迟到渐变结束: 调用方已经要求该声音结束, 因此 IsPlaying 不应在整个淡出期间继续报真.
+    /// </summary>
     public bool Stop()
     {
         if (!isValid)
             return false;
 
-        emitter.Stop();
+        emitter.RequestStop();
         Invalidate(false);
         return true;
     }

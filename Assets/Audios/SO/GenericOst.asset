@@ -20,6 +20,8 @@ MonoBehaviour:
   maxInstances: 1
   volume: 1
   pitch: 1
+  fadeIn: 0.15
+  fadeOut: 0.3
   spatialBlend: 0
   minDistance: 1
   maxDistance: 20
