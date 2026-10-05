@@ -73,3 +73,31 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# DSH working documents: local to this checkout, never shared with collaborators.
+# DSH 工作文档: 只存在于本工作区, 不与他人共享.
+# They either describe how DSH works here, or record what it delivered: useful to this
+# worktree's owner, noise to everyone else. The write boundary lives in Assets/AGENTS.md §1.4.
+# 它们要么描述 DSH 在此如何工作, 要么记录它的交付: 对本工作区的主人有价值, 对其他人是噪音.
+# 对应的写入边界见 Assets/AGENTS.md §1.4.
+
+# The rules file and the two delivery records, each with its .meta.
+# 规则文件与两份交付记录, 连同各自的 .meta.
+/Assets/AGENTS.md
+/Assets/AGENTS.md.meta
+/Assets/CHANGELOG.md
+/Assets/CHANGELOG.md.meta
+/Assets/PENDING_INSPECTOR.md
+/Assets/PENDING_INSPECTOR.md.meta
+
+# One README per Subsystem, each with its .meta.
+# 每个 Subsystem 一份 README, 连同各自的 .meta.
+/Assets/**/README.md
+/Assets/**/README.md.meta
+
+# Assets/Packages holds third-party packages whose READMEs belong to those packages.
+# They must never be hidden by the rules above, so they are re-included explicitly.
+# Assets/Packages 下是第三方包, 其中的 README 属于那些包本身,
+# 绝不能被上面的规则遮蔽, 因此在此显式重新纳入.
+!/Assets/Packages/**/README.md
+!/Assets/Packages/**/README.md.meta
