@@ -27,10 +27,66 @@ public class PlayerMove : MonoBehaviour
 
     private Rigidbody2D body;
     private InputManager input;
+    private bool isDashInputLocked;
+    private bool isInteractionInputLocked;
+    private bool isManuallyInputLocked;
+
+    /// <summary>手动锁或动画锁任一生效时，停止处理移动和跳跃输入。</summary>
+    public bool IsInputLocked => isManuallyInputLocked || isDashInputLocked || isInteractionInputLocked;
+
+    /// <summary>设置手动输入锁；不会修改冲刺或物理系统施加的速度。</summary>
+    public void LockInput(bool locked = true)
+    {
+        isManuallyInputLocked = locked;
+        if (locked)
+        {
+            jumpRequested = false;
+        }
+    }
+
+    public void UnlockInput()
+    {
+        LockInput(false);
+    }
+
+    public void OnDashStarted()
+    {
+        SetAnimationInputLock(ref isDashInputLocked, true);
+    }
+
+    public void OnDashEnded()
+    {
+        SetAnimationInputLock(ref isDashInputLocked, false);
+    }
+
+    public void OnInteractionStarted()
+    {
+        SetAnimationInputLock(ref isInteractionInputLocked, true);
+    }
+
+    public void OnInteractionEnded()
+    {
+        SetAnimationInputLock(ref isInteractionInputLocked, false);
+    }
+
+    private void SetAnimationInputLock(ref bool source, bool locked)
+    {
+        source = locked;
+        if (locked)
+        {
+            jumpRequested = false;
+        }
+    }
 
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
+        PlayerAnimationCallbacks callbacks = GetComponent<PlayerAnimationCallbacks>();
+        if (callbacks == null)
+        {
+            callbacks = gameObject.AddComponent<PlayerAnimationCallbacks>();
+        }
+        callbacks.Synchronize();
     }
 
     private void Start()
@@ -59,7 +115,7 @@ public class PlayerMove : MonoBehaviour
     private void HandleUpPressed()
     {
         // 只缓存当前落地状态下的按下，不在空中按下后自动落地起跳。
-        jumpRequested = Time.timeScale > 0f && IsGrounded();
+        jumpRequested = !IsInputLocked && Time.timeScale > 0f && IsGrounded();
     }
 
     private bool IsGrounded()
@@ -87,6 +143,12 @@ public class PlayerMove : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (IsInputLocked)
+        {
+            jumpRequested = false;
+            return;
+        }
+
         float horizontal = input != null && input.isActiveAndEnabled
             ? Mathf.Clamp(input.MovementInput.x, -1f, 1f)
             : 0f;
