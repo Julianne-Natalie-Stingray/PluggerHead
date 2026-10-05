@@ -1,13 +1,18 @@
 using System;
 using UnityEngine;
 
+/// <summary>
+/// 将输入转换为 2D 刚体拖拽；宿主负责初始化、订阅生命周期及物理帧更新。
+/// 拖拽期间临时使用 Kinematic，结束或禁用时恢复原刚体类型。
+/// </summary>
 [Serializable]
 public class DragAndDropService2D
 {
-    private InputManager _input;
-    private Rigidbody2D _rb;
-    private Collider2D _cld;
-    private Camera _dragCamera;
+    private InputManager input;
+    private Rigidbody2D body;
+    private Collider2D dragCollider;
+    private Camera dragCamera;
+    private InputManager subscribedInput;
 
     [SerializeField] private bool allowDragging = true;
     public bool AllowDragging => allowDragging;
@@ -32,76 +37,109 @@ public class DragAndDropService2D
         Collider2D cld,
         Camera dragCamera = null)
     {
-        _input = input;
-        _rb = rb;
-        _cld = cld;
-        _dragCamera = dragCamera ?? Camera.main;
+        Disable();
+        this.input = input;
+        body = rb;
+        dragCollider = cld;
+        this.dragCamera = dragCamera != null ? dragCamera : Camera.main;
     }
 
     public void Enable()
     {
-        _input.PrimaryPressed += BeginDrag;
-        _input.PrimaryReleased += EndDrag;
+        if (subscribedInput == input)
+        {
+            return;
+        }
+
+        Disable();
+        if (input == null)
+        {
+            return;
+        }
+
+        subscribedInput = input;
+        subscribedInput.PrimaryPressed += BeginDrag;
+        subscribedInput.PrimaryReleased += EndDrag;
     }
 
     public void Disable()
     {
-        _input.PrimaryPressed -= BeginDrag;
-        _input.PrimaryReleased -= EndDrag;
+        if (subscribedInput != null)
+        {
+            subscribedInput.PrimaryPressed -= BeginDrag;
+            subscribedInput.PrimaryReleased -= EndDrag;
+        }
 
-        if (IsDragging)
-            EndDrag();
+        subscribedInput = null;
+        EndDrag();
     }
 
     public void BeginDrag()
     {
-        if (!allowDragging) return;
+        if (!allowDragging || IsDragging || input == null || body == null ||
+            dragCollider == null || dragCamera == null)
+        {
+            return;
+        }
 
         pointerWorld = GetPointerWorldPosition();
 
-        if (!_cld.OverlapPoint(pointerWorld)) return;
+        if (!dragCollider.OverlapPoint(pointerWorld))
+        {
+            return;
+        }
 
         IsDragging = true;
 
-        cachedRbType = _rb.bodyType;
+        cachedRbType = body.bodyType;
 
-        _rb.bodyType = RigidbodyType2D.Kinematic;
-        _rb.velocity = Vector2.zero;
-        _rb.angularVelocity = 0f;
+        body.bodyType = RigidbodyType2D.Kinematic;
+        body.velocity = Vector2.zero;
+        body.angularVelocity = 0f;
 
 
         dragOffset = retainDragOffset
-            ? _rb.position - pointerWorld
+            ? body.position - pointerWorld
             : Vector2.zero;
     }
 
     public void Drag()
     {
-        if (!allowDragging || !IsDragging) return;
+        if (!allowDragging || !IsDragging || input == null || body == null || dragCamera == null)
+        {
+            EndDrag();
+            return;
+        }
 
         pointerWorld = GetPointerWorldPosition();
-        _rb.MovePosition(pointerWorld + dragOffset);
+        body.MovePosition(pointerWorld + dragOffset);
     }
 
     public void EndDrag()
     {
-        if (!IsDragging) return;
+        if (!IsDragging)
+        {
+            return;
+        }
 
         IsDragging = false;
 
-        _rb.bodyType = cachedRbType;
+        if (body != null)
+        {
+            body.bodyType = cachedRbType;
+        }
     }
 
     private Vector2 GetPointerWorldPosition()
     {
-        var screen = _input.PointerPosition;
+        Vector2 screen = input.PointerPosition;
 
-        var world = _dragCamera.ScreenToWorldPoint(
+        Vector3 world = dragCamera.ScreenToWorldPoint(
             new Vector3(
                 screen.x,
                 screen.y,
-                Mathf.Abs(_dragCamera.transform.position.z -
-                    _rb.transform.position.z)));
+                Mathf.Abs(dragCamera.transform.position.z -
+                    body.transform.position.z)));
 
         return world;
     }

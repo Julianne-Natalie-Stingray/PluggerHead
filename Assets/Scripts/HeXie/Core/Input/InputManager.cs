@@ -112,23 +112,37 @@ public sealed class InputManager : MonoBehaviour
     }
 
     private void OnDestroy()
-        => controls?.Dispose();
+    {
+        controls?.Dispose();
+    }
 
     private void HandlePrimaryPressed(InputAction.CallbackContext context)
-        => PrimaryPressed?.Invoke();
+    {
+        PrimaryPressed?.Invoke();
+    }
 
     private void HandlePrimaryReleased(InputAction.CallbackContext context)
-        => PrimaryReleased?.Invoke();
+    {
+        PrimaryReleased?.Invoke();
+    }
 
     private void HandleUpPressed(InputAction.CallbackContext context)
-        => UpPressed?.Invoke();
+    {
+        UpPressed?.Invoke();
+    }
 
     private void HandleUpReleased(InputAction.CallbackContext context)
-        => UpReleased?.Invoke();
+    {
+        UpReleased?.Invoke();
+    }
 
     private void HandleSecondaryPressed(InputAction.CallbackContext context)
-        => SecondaryPressed?.Invoke();
+    {
+        SecondaryPressed?.Invoke();
+    }
 
     private void HandleTertiaryPressed(InputAction.CallbackContext context)
-        => TertiaryPressed?.Invoke();
+    {
+        TertiaryPressed?.Invoke();
+    }
 }
