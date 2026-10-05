@@ -77,3 +77,5 @@ crashlytics-build.properties
 # Global Agent settings
 /[Aa]ssets/AGENTS.md
 /[Aa]ssets/CLAUDE.md
+/[Aa]ssets/AGENTS.md.meta
+/[Aa]ssets/CLAUDE.md.meta
