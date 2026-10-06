@@ -54,6 +54,10 @@ Smoke-test affected scenes, check Console errors, and report reproduction steps 
 
 ## Commit & Pull Request Guidelines
 
+- 允许 agent 根据任务进度和验证结果，自行决定本地 Git 提交的时机与拆分方式，无需逐次征求用户许可。适合在一个完整、可审阅的改动单元完成并通过相关检查后提交。
+- 提交前检查差异，仅纳入当前任务范围内的改动，保留用户已有的无关修改；多代理协作时由主代理协调暂存和提交，避免同时操作 Git 索引。
+- 自主提交仍须遵守执行环境的权限要求；推送远端按用户已有授权或明确指令执行。
+
 Recent commits use short descriptive subjects without a consistent prefix convention. Prefer imperative subjects such as `Fix player movement input`.
 
 Describe the behavior change, affected scenes or prefabs, and validation performed. Link relevant issues and include screenshots for visible changes. Commit asset `.meta` files, preserve GUIDs, and exclude generated Unity caches.
