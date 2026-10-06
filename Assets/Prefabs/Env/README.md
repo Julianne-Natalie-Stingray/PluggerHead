@@ -23,4 +23,6 @@ CircuitDiagnostics 使用 SceneRoot、MockPlayer、插口、Live/Neutral 与 Anc
 
 GlobalUI 左上角 `GameplayHUD` 包含实时剩余线长文本与等宽空白 `ScoreText`。WireLengthDisplay 自动查询同场景当前持线，无需绑定具体 Wire；两个文本均不拦截射线，菜单及模态面板绘制在 HUD 上方。ScoreText 只预留布局空间，尚无计分行为。
 
+GlobalUI 根组件 `NextLevelScreen` 控制默认隐藏的通关面板，包含中文祝贺 TextMeshPro 文本和“下一关”按钮；同场景 Env 的 LevelCleared 事件负责触发显示，无需跨 prefab 绑定 Env。当前下一关配置为 GameplayIntegration，按钮通过 Core.SceneSwitch 重新加载。复制到其他关卡时按需修改 nextLevel，组件应保留在启用的根对象上。
+
 接入与行为边界见 [Env 实现](../../Scripts/Env/README.md)。最近场景测试已通过，但不等于每个 prefab 均已单独实例化验证；Tilemap 改造删除了 Corner prefab，保留其他 prefab 的 GUID。
