@@ -17,7 +17,7 @@
 | `PhysicsCleanupTests.cs` | 12：Tilemap/Ground 各六种情形：空卸载、异常、超时、Dispose、场景已卸载但句柄未确认、句柄完成但场景仍加载；恢复状态并保留归属供重试。 |
 | `SceneCleanupFailureTests.cs` | 10：嵌套协程超时/异常/Dispose/取消及错误聚合，四组实际清理失败，挂起加载的进度隔离和重试释放。 |
 | `FloatingTests.cs` | 2：根对象及复杂父级中的实际旋转、位置保持和暂停恢复；位移幅度设为零，不验证完整漂浮轨迹。 |
-| `GroundPolarityTests.cs` | 4：三个同步 Test 与一个 UnityTest；实际支撑接触、危险/安全位、过滤、换线、锁定与物理帧死亡。 |
+| `GroundPolarityTests.cs` | 10：九个同步展开用例与一个 UnityTest；实际支撑接触、同极持线、空手/异极/放下线死亡、独立地线、环境隔离、过滤、换线和物理帧死亡。 |
 | `MainMenuTests.cs` | 1：实际按钮事件、设置成功路径、New Game、往返菜单和 Continue 默认关卡状态；不测试真实鼠标、布局或 Exit 执行。 |
 | `SceneGameplayTests.cs` | 1：真实场景中的 Anchor 放置/收回、路由、Tilemap 落地与格子回退、换线闭合重开与超长死亡。方法名保留历史 Pickup 字样，实际没有普通道具背包拾取验证。 |
 | `SceneSwitchRecoveryTests.cs` | 4：失活、销毁、禁用及异常订阅者；重入拒绝、Single 切换完成和后续恢复。 |

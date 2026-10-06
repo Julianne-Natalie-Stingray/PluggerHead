@@ -252,8 +252,9 @@ public class PlayerMove : MonoBehaviour
             }
 
             EnvironmentFacade environment = EnvironmentFacade.ForScene(gameObject.scene);
-            Wire wire = environment != null ? environment.HeldWire : null;
-            if (wire != null && wire.IsHeld && ground.IsOppositeTo(wire.Polarity))
+            Wire poweredWire = environment != null ? environment.HeldWire : null;
+            Wire groundWire = environment != null ? environment.HeldGroundWire : null;
+            if (!ground.CanSupport(poweredWire) && !ground.CanSupport(groundWire))
             {
                 Die();
                 return true;

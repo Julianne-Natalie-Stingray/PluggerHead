@@ -21,12 +21,18 @@ public static class GroundPolarityIntegrationChecks
     private static bool hasEnvironmentSnapshot;
     private static readonly OwnedPhysicsSceneCleanup sceneCleanup = new OwnedPhysicsSceneCleanup();
 
-    public static void CheckOppositePolarities()
+    public static void CheckNonMatchingPolarities()
     {
         BeginChecks();
         CheckLethal(WirePolarity.Live, WirePolarity.Neutral, false);
         CheckLethal(WirePolarity.Neutral, WirePolarity.Live, true);
         CheckLethal(WirePolarity.Live | WirePolarity.Neutral, WirePolarity.Live, false);
+        CheckLethal(WirePolarity.None, WirePolarity.None, false);
+        CheckLethal((WirePolarity)8, (WirePolarity)8, false);
+        CheckLethal(WirePolarity.Ground, WirePolarity.Live, false);
+        CheckLethal(WirePolarity.Live, WirePolarity.Ground, false);
+        CheckLethal(WirePolarity.Live, WirePolarity.None, false);
+        CheckLethal(WirePolarity.Live, WirePolarity.Live | WirePolarity.Neutral, false);
     }
 
     public static void CheckSafeContacts()
@@ -34,24 +40,6 @@ public static class GroundPolarityIntegrationChecks
         BeginChecks();
         CheckSafe(WirePolarity.Live, WirePolarity.Live);
         CheckSafe(WirePolarity.Neutral, WirePolarity.Neutral);
-        CheckSafe(WirePolarity.None, WirePolarity.Live);
-        CheckSafe(WirePolarity.Ground, WirePolarity.Live);
-        CheckSafe(WirePolarity.Live, WirePolarity.None);
-        CheckSafe(WirePolarity.Live, WirePolarity.Ground);
-
-        Fixture noWire = new Fixture(WirePolarity.Neutral, WirePolarity.Live);
-        noWire.Wire.PlugInto(null, false);
-        Set(noWire.Environment, "heldWire", null);
-        Require(noWire.Environment.HeldWire == null, "Defensive contact test explicitly removes the held wire.");
-        noWire.EstablishContact(Vector2.down);
-        noWire.Tick();
-        Require(!noWire.Player.IsDead, "A player without a carried wire must survive polarized ground.");
-
-        Fixture released = new Fixture(WirePolarity.Neutral, WirePolarity.Live);
-        released.Wire.PlugInto(released.Outlet.transform, false);
-        released.EstablishContact(Vector2.down);
-        released.Tick();
-        Require(!released.Player.IsDead, "A wire reference whose free end is no longer held must be harmless.");
 
         Fixture ordinary = new Fixture(WirePolarity.Neutral, WirePolarity.Live, false);
         ordinary.EstablishContact(Vector2.down);
@@ -82,6 +70,78 @@ public static class GroundPolarityIntegrationChecks
             "The trigger scenario must actually overlap the player.");
         trigger.Tick();
         Require(!trigger.Player.IsDead, "A trigger volume does not count as standing on ground.");
+    }
+
+    public static void CheckMissingOrReleasedWire()
+    {
+        BeginChecks();
+        Fixture noWire = new Fixture(WirePolarity.Live, WirePolarity.Live);
+        noWire.Wire.PlugInto(null, false);
+        Set(noWire.Environment, "heldWire", null);
+        noWire.EstablishContact(Vector2.down);
+        noWire.Tick();
+        Require(noWire.Player.IsDead, "A player without a carried wire must die on polarized ground.");
+
+        Fixture released = new Fixture(WirePolarity.Live, WirePolarity.Live);
+        released.Wire.PlugInto(released.Outlet.transform, false);
+        released.EstablishContact(Vector2.down);
+        released.Tick();
+        Require(released.Player.IsDead, "A stale reference to a matching but released wire must not protect the player.");
+
+        Fixture foreign = new Fixture(WirePolarity.Live, WirePolarity.Live);
+        Fixture missingEnvironment = new Fixture(WirePolarity.Live, WirePolarity.Live);
+        UnityEngine.Object.DestroyImmediate(missingEnvironment.Environment.gameObject);
+        typeof(EnvironmentFacade).GetField("<Current>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
+            .SetValue(null, foreign.Environment);
+        missingEnvironment.EstablishContact(Vector2.down);
+        missingEnvironment.Tick();
+        Require(missingEnvironment.Player.IsDead, "A player without its own environment must not borrow a matching wire from another scene.");
+    }
+
+    public static void CheckCarriedGroundWire(bool keepPoweredWire, bool releaseGroundWire)
+    {
+        BeginChecks();
+        Fixture fixture = new Fixture(WirePolarity.Ground, WirePolarity.Live, true, true);
+        Wire ground = fixture.PickUpGroundWire();
+        Require(ground && ground.IsHeld && fixture.Environment.HeldWire == fixture.Wire,
+            "A real ground socket must provide a separate carried ground wire.");
+        if (!keepPoweredWire)
+        {
+            fixture.Dual.Interact(new InteractionDetails(fixture.Player.gameObject, fixture.Dual.gameObject));
+            fixture.Outlet.Interact(new InteractionDetails(fixture.Player.gameObject, fixture.Outlet.gameObject));
+            Require(!fixture.Environment.HeldWire && fixture.Environment.HeldGroundWire == ground,
+                "Returning the main wire must preserve independent ground carrying.");
+        }
+        if (releaseGroundWire)
+        {
+            // Retain the stale facade reference deliberately: only a held free end offers protection.
+            ground.PlugInto(fixture.Outlet.transform, false);
+        }
+        fixture.EstablishContact(Vector2.down);
+        fixture.Tick();
+        Require(fixture.Player.IsDead == releaseGroundWire,
+            "Ground terrain requires a genuinely carried ground wire, with or without a main wire.");
+
+        Fixture mismatch = new Fixture(WirePolarity.Neutral, WirePolarity.Live);
+        mismatch.PickUpGroundWire();
+        mismatch.EstablishContact(Vector2.down);
+        mismatch.Tick();
+        Require(mismatch.Player.IsDead, "Carrying a ground wire must not mask a mismatching powered wire on neutral terrain.");
+    }
+
+    public static void CheckReleaseWhileStanding()
+    {
+        BeginChecks();
+        Fixture fixture = new Fixture(WirePolarity.Neutral, WirePolarity.Live, true, true);
+        fixture.Dual.Interact(new InteractionDetails(fixture.Player.gameObject, fixture.Dual.gameObject));
+        fixture.EstablishContact(Vector2.down);
+        fixture.Tick();
+        Require(!fixture.Player.IsDead, "The matching return wire must protect the standing player.");
+        fixture.Player.LockInput();
+        fixture.Outlet.Interact(new InteractionDetails(fixture.Player.gameObject, fixture.Outlet.gameObject));
+        Require(!fixture.Environment.HeldWire, "Connecting the return wire must leave the player empty-handed.");
+        fixture.Tick();
+        Require(fixture.Player.IsDead, "Releasing the matching wire while standing must kill on the next physics check despite input lock.");
     }
 
     public static void CheckWireSwapWhileStanding()
@@ -115,7 +175,9 @@ public static class GroundPolarityIntegrationChecks
         Require(CoreFacade.Instance != null && CoreFacade.Instance.Input != null,
             "Player startup needs the real Core input service.");
 
-        Fixture fixture = new Fixture(WirePolarity.Neutral, WirePolarity.Live);
+        Fixture fixture = new Fixture(WirePolarity.Neutral, WirePolarity.Neutral);
+        fixture.Wire.PlugInto(fixture.Outlet.transform, false);
+        Set(fixture.Environment, "heldWire", null);
         int deaths = 0;
         fixture.Player.Died += () => deaths++;
         fixture.EstablishContact(Vector2.down);
@@ -124,7 +186,7 @@ public static class GroundPolarityIntegrationChecks
         // No reflection call here: Unity runs Start, then the component's own FixedUpdate.
         yield return new WaitForFixedUpdate();
         Require(fixture.Player.IsDead && !fixture.Player.gameObject.activeSelf && !fixture.Body.simulated && deaths == 1,
-            "Unity's automatic physics callback must kill on opposite ground even with input locked.");
+            "Unity's automatic physics callback must kill an empty-handed player on polarized ground even with input locked.");
         yield return new WaitForFixedUpdate();
         Require(deaths == 1, "Later real physics frames must not repeat the death notification.");
     }
@@ -303,6 +365,17 @@ public static class GroundPolarityIntegrationChecks
                 "The owned environment must initialize with its real outlet wire held.");
             // Defensive tests inject unsupported carried polarities only after valid level initialization.
             Set(Wire, "polarity", wirePolarity);
+        }
+
+        public Wire PickUpGroundWire()
+        {
+            GameObject groundSocket = Create("GroundSocket", new Vector2(25f, 0f));
+            groundSocket.AddComponent<BoxCollider2D>().isTrigger = true;
+            PolaritySocket socket = groundSocket.AddComponent<PolaritySocket>();
+            Set(socket, "accepted", WirePolarity.Ground);
+            Environment.RefreshNodes();
+            socket.Interact(new InteractionDetails(Player.gameObject, groundSocket));
+            return Environment.HeldGroundWire;
         }
 
         public void EstablishContact(Vector2 towardSurface)

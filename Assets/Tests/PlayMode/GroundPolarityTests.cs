@@ -10,9 +10,9 @@ namespace PluggerHead.Tests
     public sealed class GroundPolarityTests
     {
         [Test]
-        public void StandingOnOppositePolarity_KillsOnce()
+        public void StandingWithoutMatchingPolarity_KillsOnce()
         {
-            IntegrationCheckBridge.Invoke("GroundPolarityIntegrationChecks", "CheckOppositePolarities");
+            IntegrationCheckBridge.Invoke("GroundPolarityIntegrationChecks", "CheckNonMatchingPolarities");
         }
 
         [Test]
@@ -22,13 +22,34 @@ namespace PluggerHead.Tests
         }
 
         [Test]
+        public void MissingOrReleasedWire_DoesNotProtectPlayer()
+        {
+            IntegrationCheckBridge.Invoke("GroundPolarityIntegrationChecks", "CheckMissingOrReleasedWire");
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void GroundTerrain_RequiresCarriedGroundWire(bool keepPoweredWire, bool releaseGroundWire)
+        {
+            IntegrationCheckBridge.Invoke("GroundPolarityIntegrationChecks", "CheckCarriedGroundWire", keepPoweredWire, releaseGroundWire);
+        }
+
+        [Test]
+        public void ReleasingMatchingWireWhileStanding_KillsLockedPlayer()
+        {
+            IntegrationCheckBridge.Invoke("GroundPolarityIntegrationChecks", "CheckReleaseWhileStanding");
+        }
+
+        [Test]
         public void SwappingWireWhileStandingAndInputLocked_RechecksPolarity()
         {
             IntegrationCheckBridge.Invoke("GroundPolarityIntegrationChecks", "CheckWireSwapWhileStanding");
         }
 
         [UnityTest]
-        public IEnumerator AutomaticPhysicsCallback_OnOppositeGround_KillsLockedPlayerOnce()
+        public IEnumerator AutomaticPhysicsCallback_WithoutHeldWire_KillsLockedPlayerOnce()
         {
             yield return (IEnumerator)IntegrationCheckBridge.Invoke("GroundPolarityIntegrationChecks", "CheckAutomaticPhysicsCallback");
         }

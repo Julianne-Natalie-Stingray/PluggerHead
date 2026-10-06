@@ -67,7 +67,7 @@
 
 ## 地面极性与背包
 
-GroundPolarity 可放在非 Trigger 地面 Collider2D 所在物体或父物体上，包括 Ground Tilemap。PlayerMove 仅对向上的支撑接触及 groundLayers 中的对象判定：Live/Neutral 相反会死亡；同极、无线、None、Ground 安全。墙、顶、Trigger 不算踩地。当前场景未配置地面极性，测试动态构建。
+GroundPolarity 可放在非 Trigger 地面 Collider2D 所在物体或父物体上，包括 Ground Tilemap。PlayerMove 仅对向上的支撑接触及 groundLayers 中的对象判定：只有本场景中正在持有的主线或地线至少一根与地面单极性完全相同才安全（Live/Neutral/Ground）。无线、已放下的匹配线、仅持异极线、None 或非法组合极性均死亡；同时踩到多个极性支撑面时，每个面都须有匹配持线。普通无此组件的地面与禁用组件保持安全。墙、顶、Trigger 不算踩地。当前场景未配置地面极性，测试动态构建。
 
 普通拾取、背包及 UI 接口已移至 `feature/player-inventory`；master 的 Player 直接通过 EnvironmentFacade.ForScene 获取环境，以 IEnvironmentInteractable / InteractionDetails 交互。Anchor 放置和收回独立保留。
 
