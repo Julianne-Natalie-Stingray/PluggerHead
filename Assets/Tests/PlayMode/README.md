@@ -20,7 +20,9 @@
 
 对应 `.meta` 保留 GUID，无自定义执行顺序。检查实现和具体等待期限见[Editor 目录说明](../../Scripts/Editor/README.md)。
 
-音频包装在 finally 中 Dispose 检查协程，使其自有对象和全局设置清理可执行；测试使用静音 clip，不证明听感。场景测试通过 UnityTearDown 调用有期限的清理；失败及 Dispose 会执行同步恢复，在途操作和未卸载场景仍保留归属。
+音频包装在 finally 中 Dispose 检查协程，使其自有对象和全局设置清理可执行；测试使用静音 clip，不证明听感。Floating、Corner、Ground、Menu、Gameplay、Recovery 及 SceneCleanupFailure 包装通过 UnityTearDown 调用清理。加载仍在途时，IntegrationSceneState 只恢复 timeScale、监听器暂停和 Environment 引用，GameState 标签及两个缓存字段留待加载结束后的清理重试恢复；在途操作和未卸载场景仍保留归属。
+
+PhysicsCleanupTests 没有独立 UnityTearDown：正常路径在用例内部等待重试卸载完成；若自身断言失败，fallback 仅启动剩余卸载并立即 Dispose、保留归属，不保证用例结束前完成卸载。其故障覆盖包含场景已卸载但句柄未确认，不包含专门注入句柄完成但场景仍加载的分支。
 
 MainMenu 与 SceneGameplay 在 SetUp 替换进度存储，TearDown 请求恢复引用；加载或清理尚未完成时保留临时存储，成功重试清理后自动完成延迟恢复。菜单/切换恢复会执行真实 Single 加载，不能恢复此前场景内容；应在隔离 Runner 会话运行。Gameplay 则加载自有 Additive 场景，并要求起始无 Core、目标场景未加载且状态为 Playing。
 
