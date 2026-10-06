@@ -42,12 +42,12 @@
 
 地线与主线独立：没有地线时从空闲地线端口生成并携带地线；已有地线时只能接入另一个空闲地线端口并放下。已有连接的地线端口不能再次拾取或接入；放下主线后仍可拾取、采样、检测长度并连接地线。`HeldGroundWire` 提供查询。两线分别采样格子路径、渲染与长度检查；任一持线超出正数长度上限会触发原有死亡信号。手动 Anchor 仍只固定主线。近距离跨格交互后，每根线分别从自己的连接点补齐到玩家当前格，避免跳格。
 
-`VoltageReducer` 是带一个锚点及 `voltageDrop` 的交互组件。交互将主线接入并固定当前路径，但保留主线极性与携带状态。初始电压 `initialVoltage` 和目标电压 `targetVoltage` 配置在 EnvironmentFacade，默认分别为 220 和 190；非负有限数才有效。`CurrentVoltage` 为初始电压减所有已连接降压器的降压数，每个降压器只计算一次；未连接的不参与，相加可使结果为负，不额外钳制。连接记录随 Wire 保存，刷新节点不会重复扣压，重开清除。
+`VoltageReducer` 是带一个锚点及 `voltageDrop` 的交互组件。交互将主线接入并固定当前路径，但保留主线极性与携带状态。所需降压量 `neededVoltage` 配置在 EnvironmentFacade，通过 `NeededVoltage` 查询，默认 30；非负有限数才有效。原初始/目标电压合并为两者之差，SceneRoot 预制体同步迁移为 30。`CurrentVoltage` 表示剩余所需降压量，为 `NeededVoltage` 减所有已连接降压器的降压数，每个降压器只计算一次；未连接的不参与，相加可使结果为负，不额外钳制。连接记录随 Wire 保存，刷新节点不会重复扣压，重开清除。
 
 每次插座或降压器交互后检查成功，须同时满足：
 
 1. 所有已发现插座的全部端口有电线连接，包括初始 PowerSocket 的两个端口和地线插座。
-2. 当前电压小于等于目标电压。
+2. 累计降压大于等于 `NeededVoltage`，即 `CurrentVoltage <= 0`。
 
 不额外要求独立的闭环拓扑或同源回插；单端口占用与禁止自身回环始终有效。沿途经过端口不算接线；从端口出线也算该端口有线连接。`IsCircuitClosed` 为兼容现有玩家 UI 保留名称，现表示满足上述成功条件。`LevelCleared` 仅在判定从失败变为成功时触发，重复判定不重复通知。空场景、无效插座或非法电压配置不能通关。
 
@@ -57,7 +57,7 @@
 
 - `Assets/Prefabs/Env/Sockets/GroundSocket.prefab`：绿色地线插座，PolaritySocket.accepted=Ground，Trigger 交互碰撞体。
 - `Assets/Prefabs/Env/VoltageReducer.prefab`：黄色降压器，默认降压 30V，Trigger 交互碰撞体。
-- 在已有路由 Tilemap 的关卡中放置一个初始双极 PowerSocket、一个双极 PolaritySocket、两个地线插座和一个降压器，均对齐已绘制格子；PowerSocket 配置一条 Live Wire，环境设为 220V / 190V。运行后依次操作地线 A、降压器、地线 B、双极插座、初始插座：拾取地线、降至 190V、放下地线，最后补齐初始插座的零线端口并通关。调低目标到 189V 则不通关；需要在放下主线之前连接额外降压器。
+- 在已有路由 Tilemap 的关卡中放置一个初始双极 PowerSocket、一个双极 PolaritySocket、两个地线插座和一个降压器，均对齐已绘制格子；PowerSocket 配置一条 Live Wire，环境设为所需降压 30V。运行后依次操作地线 A、降压器、地线 B、双极插座、初始插座：拾取地线、完成 30V 降压、放下地线，最后补齐初始插座的零线端口并通关。提高所需降压量到 31V 则不通关；需要在放下主线之前连接额外降压器。
 
 示例不修改当前关卡布局。[示例预制体预览](../../Docs/Development/SuccessRuleExamples.png)：左为地线插座，右为降压器。
 

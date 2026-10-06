@@ -22,14 +22,13 @@ public class EnvironmentFacade : MonoBehaviour
 
     public Wire HeldWire => heldWire;
     public Wire HeldGroundWire => heldGroundWire;
-    public float InitialVoltage => initialVoltage;
-    public float TargetVoltage => targetVoltage;
+    /// <summary>Total voltage drop required to complete this level. 通关所需的累计降压量。</summary>
+    public float NeededVoltage => neededVoltage;
+    /// <summary>Remaining required drop; zero or less satisfies the voltage condition. 剩余所需降压量，可为负。</summary>
     public double CurrentVoltage { get; private set; }
 
-    [SerializeField, Min(0f)]
-    private float initialVoltage = 220f;
-    [SerializeField, Min(0f)]
-    private float targetVoltage = 190f;
+    [SerializeField, Min(0f), Tooltip("通关所需的累计降压量。")]
+    private float neededVoltage = 30f;
     public bool IsCircuitClosed => isCircuitClosed;
     public int SwapCount => swapCount;
     public Tilemap RoutingTilemap => routingTilemap;
@@ -440,7 +439,7 @@ public class EnvironmentFacade : MonoBehaviour
         bool wasClosed = isCircuitClosed;
         isCircuitClosed = false;
         RebuildOccupancy();
-        bool valid = IsVoltageValid(initialVoltage) && IsVoltageValid(targetVoltage);
+        bool valid = IsVoltageValid(neededVoltage);
         int socketCount = 0;
         foreach (IEnvironmentInteractable node in nodes)
         {
@@ -469,7 +468,7 @@ public class EnvironmentFacade : MonoBehaviour
             valid &= occupied.TryGetValue(component, out WirePolarity taken) &&
                 (taken & required) == required;
         }
-        CurrentVoltage = initialVoltage;
+        CurrentVoltage = neededVoltage;
         var connectedReducers = new HashSet<VoltageReducer>();
         foreach (Wire wire in wires)
         {
@@ -486,7 +485,7 @@ public class EnvironmentFacade : MonoBehaviour
                 }
             }
         }
-        isCircuitClosed = valid && socketCount > 0 && CurrentVoltage <= targetVoltage;
+        isCircuitClosed = valid && socketCount > 0 && CurrentVoltage <= 0d;
 
         GameLog.Info(this)
             .Subsystem("Environment")
@@ -1177,10 +1176,10 @@ public class EnvironmentFacade : MonoBehaviour
             }
             ReportStep("5 the carried wire or completed endpoint is consistent",
                 !heldWire || (heldWire.IsHeld && (heldWire.Polarity == WirePolarity.Live || heldWire.Polarity == WirePolarity.Neutral)),
-                $"held={Describe(heldWire)} voltage={CurrentVoltage}");
+                $"held={Describe(heldWire)} remainingVoltage={CurrentVoltage}");
             ReportStep("6 configured sample meets the success conditions",
                 IsCircuitClosed && cleared,
-                $"complete={IsCircuitClosed} voltage={CurrentVoltage} target={targetVoltage}; check socket configuration and available voltage drops if this fails");
+                $"complete={IsCircuitClosed} remainingVoltage={CurrentVoltage} needed={neededVoltage}; check socket configuration and available voltage drops if this fails");
         }
         finally
         {

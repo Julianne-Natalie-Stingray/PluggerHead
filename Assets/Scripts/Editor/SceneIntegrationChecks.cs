@@ -255,10 +255,8 @@ public static class SceneIntegrationChecks
                 foreach (EnvironmentFacade environment in FindComponents<EnvironmentFacade>(scene))
                 {
                     // Completion UI checks own this loaded copy and do not validate production voltage tuning.
-                    typeof(EnvironmentFacade).GetField("initialVoltage", BindingFlags.Instance | BindingFlags.NonPublic)
-                        .SetValue(environment, 220f);
-                    typeof(EnvironmentFacade).GetField("targetVoltage", BindingFlags.Instance | BindingFlags.NonPublic)
-                        .SetValue(environment, 220f);
+                    typeof(EnvironmentFacade).GetField("neededVoltage", BindingFlags.Instance | BindingFlags.NonPublic)
+                        .SetValue(environment, 0f);
                 }
                 foreach (Wire wire in FindComponents<Wire>(scene))
                 {

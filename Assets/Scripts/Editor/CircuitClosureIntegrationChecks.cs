@@ -69,8 +69,8 @@ public static class CircuitClosureIntegrationChecks
             Set(groundB, "accepted", WirePolarity.Ground);
             VoltageReducer reducer = fixture.AddReducer("Reducer", 1, 0, 30f);
             VoltageReducer unused = fixture.AddReducer("Unused", 1, 1, 100f);
-            Set(fixture.Environment, "initialVoltage", 220f);
-            Set(fixture.Environment, "targetVoltage", scenario == "VoltageTooHigh" ? 189f : 190f);
+            float neededVoltage = scenario == "VoltageTooHigh" ? 31f : 30f;
+            Set(fixture.Environment, "neededVoltage", neededVoltage);
             fixture.Restart();
             int cleared = 0;
             fixture.Environment.LevelCleared += () => cleared++;
@@ -82,7 +82,7 @@ public static class CircuitClosureIntegrationChecks
             Require(ground.TilePath.Cells.Count > 1, "Ground wire must follow player tile movement.");
             fixture.Interact(reducer);
             fixture.Interact(reducer);
-            Require(fixture.Environment.CurrentVoltage == 190d && fixture.Environment.HeldWire == fixture.First &&
+            Require(fixture.Environment.CurrentVoltage == neededVoltage - 30d && fixture.Environment.HeldWire == fixture.First &&
                 fixture.Environment.HeldGroundWire == ground, "Repeated reducer use must count once and retain both held wires.");
             if (scenario == "MissingGround")
             {
@@ -97,9 +97,9 @@ public static class CircuitClosureIntegrationChecks
             fixture.Interact(fixture.Outlet);
             bool expected = scenario != "VoltageTooHigh";
             Require(fixture.Environment.IsCircuitClosed == expected && cleared == (expected ? 1 : 0),
-                "Voltage equal to target succeeds; voltage one unit above target fails.");
+                "A drop equal to NeededVoltage succeeds; a drop one unit short fails.");
             fixture.Environment.RefreshNodes();
-            Require(fixture.Environment.EvaluateCircuit() == expected && fixture.Environment.CurrentVoltage == 190d,
+            Require(fixture.Environment.EvaluateCircuit() == expected && fixture.Environment.CurrentVoltage == neededVoltage - 30d,
                 "Refresh must preserve ground endpoints and deduplicated reducer connections.");
             if (scenario == "VoltageTooHigh")
             {
@@ -110,7 +110,7 @@ public static class CircuitClosureIntegrationChecks
                 fixture.Interact(unused);
                 fixture.Interact(dual);
                 fixture.Interact(fixture.Outlet);
-                Require(fixture.Environment.IsCircuitClosed && fixture.Environment.CurrentVoltage == 90d && cleared == 1,
+                Require(fixture.Environment.IsCircuitClosed && fixture.Environment.CurrentVoltage == neededVoltage - 130d && cleared == 1,
                     "A newly connected second reducer must add its drop and re-evaluate victory.");
             }
             if (scenario == "DestroyedWire")
@@ -119,8 +119,24 @@ public static class CircuitClosureIntegrationChecks
                 Require(!fixture.Environment.EvaluateCircuit(), "Destroyed ground wires must no longer satisfy socket anchors.");
             }
             fixture.Restart();
-            Require(!fixture.Environment.HeldGroundWire && fixture.Environment.CurrentVoltage == 220d &&
+            Require(!fixture.Environment.HeldGroundWire && fixture.Environment.CurrentVoltage == neededVoltage &&
                 !fixture.Environment.IsCircuitClosed, "Restart must clear ground, voltage drops and victory.");
+        }
+    }
+
+    public static void CheckNeededVoltage(float neededVoltage)
+    {
+        using (var fixture = new Fixture(false))
+        {
+            PolaritySocket dual = fixture.AddInterface("Dual", 2, 2);
+            Set(fixture.Environment, "neededVoltage", neededVoltage);
+            fixture.Restart();
+            fixture.Interact(dual);
+            fixture.Interact(fixture.Outlet);
+            Require(fixture.Environment.NeededVoltage.Equals(neededVoltage),
+                "NeededVoltage must expose the configured requirement.");
+            Require(fixture.Environment.IsCircuitClosed == (neededVoltage == 0f),
+                "Zero required drop permits completion; negative and non-finite requirements must reject it.");
         }
     }
 
@@ -336,8 +352,7 @@ public static class CircuitClosureIntegrationChecks
                 Environment = Create("Environment", 0, 0).AddComponent<EnvironmentFacade>();
                 Set(Environment, "routingTilemap", map);
                 // Explicit fixture voltages keep wiring checks independent of level tuning.
-                Set(Environment, "initialVoltage", 220f);
-                Set(Environment, "targetVoltage", 220f);
+                Set(Environment, "neededVoltage", 0f);
                 Set(Environment, "playerTransform", Player.transform);
             }
             catch

@@ -1,5 +1,7 @@
 # 整合集成测试
 
+2026-10-07 所需降压量合并：EnvironmentFacade 使用 `NeededVoltage` / `neededVoltage` 替代初始及目标电压，`CurrentVoltage` 表示剩余所需降压量，累计降压达到要求时满足电压条件。SceneRoot 从 220/190 迁移为 30；接线/UI 夹具显式配置自有降压量。补充零、负数、NaN、正负无穷配置验证，保留相等、不足、超额、重复降压及重开检查。独立审查通过；编译无错误，EditMode **69/69**（`e98e7a77a87042b1a519215b0fae467b`）、PlayMode **79/79**（`32cb10501f0640e3804c776a4ba91bcf`）顺序终态通过，无失败或跳过。测试后 Level0 恢复且未标脏，Console 仅有测试预期的音频、场景切换及 Timer 故障注入异常；EditorSettings 的运行模式差异保留，不纳入本次提交。
+
 2026-10-07 合并远端 `ffd705b`（合并提交 `d9f4163`）：新增 TestLevel，生产目标电压保留远端的 190；接线及通关 UI 测试仅在自有夹具/场景副本中显式设定电压，不依赖生产调参。独立复审通过，合并后 EditMode **64/64**（`32a88b9347194b659b351297e9151b2d`）、PlayMode **79/79**（`d20d81fc3066450890897c01d9a36fb7`）顺序终态通过。TestLevel 的初始插座加两个双极插座布局在单次占用规则下仍不可完成，由用户调整；本次未改布局。
 
 2026-10-07 地面极性配置限制：GroundPolarity 仅允许 Live/Neutral；Inspector 使用受限下拉，Awake/OnValidate/Polarity/CanSupport 对 None、Ground、组合及未知值抛出 InvalidOperationException。新增 11 项 EditMode 配置/选项验证，原地线持有测试改为验证地线不能代替匹配主线。独立复审通过，EditMode **64/64**（`6e9495fd130349daabe92d371c42d1fc`）、PlayMode **79/79**（`105f0c02ef9141b88037e8e75b8c9e41`）顺序终态通过，无失败或跳过。以下较早允许 Ground 地面等规则为历史记录。

@@ -24,6 +24,16 @@ namespace PluggerHead.Tests
             IntegrationCheckBridge.Invoke("CircuitClosureIntegrationChecks", "CheckGroundAndVoltage", scenario);
         }
 
+        [TestCase(0f)]
+        [TestCase(-1f)]
+        [TestCase(float.NaN)]
+        [TestCase(float.PositiveInfinity)]
+        [TestCase(float.NegativeInfinity)]
+        public void Circuit_ValidatesNeededVoltage(float neededVoltage)
+        {
+            IntegrationCheckBridge.Invoke("CircuitClosureIntegrationChecks", "CheckNeededVoltage", neededVoltage);
+        }
+
         [TestCase(false, false)]
         [TestCase(true, false)]
         [TestCase(false, true)]
