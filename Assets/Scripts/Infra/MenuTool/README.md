@@ -24,8 +24,10 @@
 
 现有三个类型已在特性中引用生成常量，所以删除输出会导致编译错误。“可选”只适用于新调用方是否采用这种组织方式，不能认为现有项目不依赖它。
 
+生成器的归属检查修复后，输出头部包含源 `.menutool` 的 GUID 标记；本项目迁移只增加该注释，常量和输出 meta GUID 不变。带匹配标记的输出仍允许重新生成，因此不要手工修改生成源码。旧输出迁移、路径校验和删除限制见[工具说明](../../../Packages/com.grignardreagent.menutool/README.md)。
+
 ## 修改与核查（2026-10-06）
 
 修改源 `.menutool` 后保存，包的 AssetPostprocessor 通过 delayCall 生成 C#；可用编辑器的 Save + Generate 或 importer Inspector 的 Generate C# Now 手动触发。保留源与输出的 meta GUID，一并提交源和结果。调整 identifier/生成类名需同步 C# 调用方；调整 label 会改菜单路径，不自动迁移已有资源文件。
 
-已分别检查源定义、输出及两个 meta，再核对 importer、生成器/后处理器和三个 CreateAssetMenu 调用。三个路径与默认文件名完全一致，importer GUID 对应包内真实脚本，未发现本目录行为或引用缺陷。本次仅新增文档，没有重新生成或改动代码，不重复运行 Unity 测试；生成器自身的其他输入校验不由这三个有效节点证明。
+首次目录审计已分别检查源定义、输出及两个 meta，再核对 importer、生成器/后处理器和三个 CreateAssetMenu 调用。三个路径与默认文件名完全一致，importer GUID 对应包内真实脚本，未发现本目录行为或引用缺陷。首次审计仅新增文档，没有重新生成或改动代码；后续迁移如上，专项验证记录见[测试说明](../../../Tests/README.md)。生成器自身的其他输入校验不由这三个有效节点证明。
