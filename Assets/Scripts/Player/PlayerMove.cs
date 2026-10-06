@@ -25,7 +25,7 @@ public class PlayerMove : MonoBehaviour
 
     private readonly List<ContactPoint2D> contacts = new List<ContactPoint2D>();
     private const float GroundedUpwardSpeedThreshold = 0.1f;
-    private const float MinimumGroundNormalY = 0.65f;
+    private const float MinimumGroundNormalY = 0.9f;
     private const float MovementAnimationThreshold = 0.01f;
     private bool jumpRequested;
 
