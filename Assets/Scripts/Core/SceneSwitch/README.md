@@ -20,8 +20,9 @@
 | 2 | CircuitDiagnostics | Scenes/Tests/CircuitDiagnostics.unity | 否 |
 | 3 | GameplayIntegration | Scenes/Tests/GameplayIntegration.unity | 是 |
 | 4 | MainMenuScene | Scenes/MainMenuScene.unity | 否 |
+| 5 | FinalScene | Scenes/FinalScene.unity | 否 |
 
-默认配置为 SO/SceneSwitch/DefaultSceneSwitchConfigs.asset；Core 的 Manager、LevelProgressTracker 与主菜单共享它。Build Settings 顺序为 MainMenuScene、GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget，全部启用；构建索引与枚举整数不是同一概念。退役枚举值 0 不复用。新增关卡须一起维护枚举、资源、配置和构建注册；玩法标记决定是否可由菜单进入及记录进度。
+默认配置为 SO/SceneSwitch/DefaultSceneSwitchConfigs.asset；Core 的 Manager、LevelProgressTracker 与主菜单共享它。Build Settings 顺序为 MainMenuScene、GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget、FinalScene，全部启用；构建索引与枚举整数不是同一概念。退役枚举值 0 不复用。新增关卡须一起维护枚举、资源、配置和构建注册；玩法标记决定是否可由菜单进入及记录进度。
 
 ## 查询与配置校验
 

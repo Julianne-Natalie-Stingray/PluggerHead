@@ -40,7 +40,7 @@ Read subsystem README files before changing their contracts.
 Use Unity **2022.3.43f1c1**, as recorded in `../ProjectSettings/ProjectVersion.txt`.
 
 - Open the parent project through Unity Hub. Load a development scene and press Play for local iteration.
-- Use **File > Build Settings > Build** for a player build. The startup scene is `Scenes/MainMenuScene.unity`, followed by `GameplayIntegration`, `CircuitDiagnostics`, and `SceneSwitchTarget` under `Scenes/Tests/`; review the list before building.
+- Use **File > Build Settings > Build** for a player build. The startup scene is `Scenes/MainMenuScene.unity`, followed by `GameplayIntegration`, `CircuitDiagnostics`, and `SceneSwitchTarget` under `Scenes/Tests/`, then `Scenes/FinalScene.unity`; review the list before building.
 - Use **Window > General > Test Runner** to run EditMode and PlayMode tests.
 - Run `git diff --check` before submitting to catch whitespace errors.
 

@@ -22,3 +22,6 @@ MonoBehaviour:
     sceneName: CircuitDiagnostics
   - id: 4
     sceneName: MainMenuScene
+  - id: 5
+    sceneName: FinalScene
+    isGameplayLevel: 0

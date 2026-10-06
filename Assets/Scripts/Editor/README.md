@@ -9,7 +9,7 @@
 | `TimerIntegrationChecks.cs` | `Run(scenario)`：12 项真实协程检查，覆盖时间点/条件/完成回调中的 Stop、Restart、异常与旧代隔离，零时长、Infinity＋条件完成，以及全局 Runner 替换后停止原宿主协程。 |
 | `MenuToolSafetyIntegrationChecks.cs` | `CheckOwnership/CheckPaths/CheckIdentifiers/CheckProjectCompatibility`：四个同步入口，检查生成输出归属、写删保护、路径约束、命名冲突及现有项目常量兼容性。 |
 | `EnvironmentIntegrationChecks.cs` | `Run()`、菜单 `Tools > PluggerHead > Verify Player and Environment`、`RunBatch()`；独立预览场景验证 Anchor 放置/收回、目标选择、场景隔离、锁/暂停、路由长度、插接换线、闭合重开及死亡幂等。不是实际键盘输入或完整背包道具测试。 |
-| `SceneIntegrationChecks.cs` | `CheckSceneRegistry()` 核对枚举、配置及四场景构建列表；`CheckSceneAsset(path)` 核对脚本/预制体/材质/组件与布局；`CheckGameplay()` 运行真实 GameplayIntegration，验证 J/K 处理器、回路、实际左上角挂线退绕和超长死亡。 |
+| `SceneIntegrationChecks.cs` | `CheckSceneRegistry()` 核对枚举、配置及五场景构建列表；`CheckSceneAsset(path)` 核对脚本/预制体/材质/组件与布局；`CheckGameplay()` 运行真实 GameplayIntegration，验证 J/K 处理器、回路、实际左上角挂线退绕和超长死亡。 |
 | `MainMenuIntegrationChecks.cs` | `CheckProgressStorage()` 检查临时关卡存档；`CheckMenuFlow()` 调用实际按钮事件，检查设置、菜单往返及仅恢复关卡默认状态的 Continue。提供进度存储替换/恢复与清理入口。 |
 | `SceneSwitchRecoveryChecks.cs` | `CheckRecovery(interruption)` 的失活、销毁、禁用及异常回调四条路径，检查重入拒绝、加载结束、预约释放与下一次请求；`Cleanup()` 清理服务与加载场景。 |
 | `GroundPolarityIntegrationChecks.cs` | 三个同步检查与一个帧推进协程；真实 2D 接触、极性、法向、层/Trigger/禁用过滤、换线、锁定危险及自动物理帧死亡。 |
@@ -34,7 +34,7 @@ Timer 每次等待上限 3 秒，并非整项用例统一期限。借用现有 T
 
 MenuTool 写删检查使用随机临时目录和实际生成器辅助方法，finally 删除临时目录；删除通过注入的 File.Delete 委托执行，不调用 AssetDatabase 删除、导入或触发脚本重载。元数据保留检查不代表 Unity 资产管线全过程验证。项目兼容性检查只读现有源文件、生成文件及源 meta，不改写项目输出。
 
-此前清理修复版本已通过独立审查及 EditMode 17/17、PlayMode 57/57 完整回归；该记录不包含后续 MenuTool 4、Timer 12 和 Physics 2 项。当前用例清单为 21/71；本轮编译 Console 错误为 0，EditMode job `21b6cbceec95472ca70ce3a965876b63` 已终态通过 21/21，PlayMode 重跑 job `a8881108238d4eb5860ef817658ccfdf` 已终态通过 71/71，最新结果见[测试总说明](../../Tests/README.md)。使用 IntegrationSceneWait.Finally 的路径显式推进嵌套协程，使子迭代器异常进入已开始执行的父级 finally，并保留操作、Dispose 与恢复错误。OwnedPhysicsSceneCleanup 在正常推进到末尾时聚合错误；中途 Dispose 会保留归属，但不会再抛出此前收集的失败，Corner/Ground 也没有统一聚合卸载与恢复错误。引擎在途加载不能取消：超时后保留归属和临时进度存储，阻止新夹具覆盖；成功重试清理后自动完成已请求的存储恢复。加载仍在途时，IntegrationSceneState 只恢复 timeScale、监听器暂停和 Environment 引用，GameState 标签及两个缓存字段留待加载结束后的清理重试恢复。无法完成的引擎操作需要停止该 Runner 会话并处理 Editor 状态，不把报错视作清理成功。
+此前清理修复版本已通过独立审查及 EditMode 17/17、PlayMode 57/57 完整回归；该记录不包含后续 MenuTool 4、Timer 12 和 Physics 2 项。FinalScene 加入前用例清单为 21/71；本轮编译 Console 错误为 0，EditMode job `21b6cbceec95472ca70ce3a965876b63` 已终态通过 21/21，PlayMode 重跑 job `a8881108238d4eb5860ef817658ccfdf` 已终态通过 71/71，最新结果见[测试总说明](../../Tests/README.md)。使用 IntegrationSceneWait.Finally 的路径显式推进嵌套协程，使子迭代器异常进入已开始执行的父级 finally，并保留操作、Dispose 与恢复错误。OwnedPhysicsSceneCleanup 在正常推进到末尾时聚合错误；中途 Dispose 会保留归属，但不会再抛出此前收集的失败，Corner/Ground 也没有统一聚合卸载与恢复错误。引擎在途加载不能取消：超时后保留归属和临时进度存储，阻止新夹具覆盖；成功重试清理后自动完成已请求的存储恢复。加载仍在途时，IntegrationSceneState 只恢复 timeScale、监听器暂停和 Environment 引用，GameState 标签及两个缓存字段留待加载结束后的清理重试恢复。无法完成的引擎操作需要停止该 Runner 会话并处理 Editor 状态，不把报错视作清理成功。
 
 PhysicsCleanup 正常路径在内部等待真实重试卸载完成；Run 的 finally 恢复注入设置和同步状态，剩余异步卸载由独立 UnityTearDown 调用 Cleanup 等待。Cleanup 通过 IntegrationSceneWait.Finally 恢复原 Environment 引用，仅在自有场景列表清空后释放 activeOwner；失败仍保留归属并阻止下一夹具覆盖。现已注入两个方向的终态不一致；“句柄完成但场景仍加载”使用完成代理模拟，不是制造 Unity 原生 AsyncOperation 故障。
 

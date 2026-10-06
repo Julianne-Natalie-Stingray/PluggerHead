@@ -28,5 +28,6 @@ public enum SceneId
     SceneSwitchTarget = 1,
     CircuitDiagnostics = 2,
     GameplayIntegration = 3,
-    MainMenuScene = 4
+    MainMenuScene = 4,
+    FinalScene = 5
 }

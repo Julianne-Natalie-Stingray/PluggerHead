@@ -98,6 +98,32 @@ public static class SceneIntegrationChecks
                     "Circuit diagnostics must retain its mock player and configured circuit, independent of real Player controls.");
             }
 
+            if (path.EndsWith("/FinalScene.unity", StringComparison.Ordinal))
+            {
+                FinalSceneScreen screen = FindComponents<FinalSceneScreen>(scene).Single();
+                UnityEngine.UI.Button exit = FindComponents<UnityEngine.UI.Button>(scene).Single();
+                Require(exit.interactable && exit.targetGraphic != null && exit.targetGraphic.raycastTarget &&
+                    exit.onClick.GetPersistentEventCount() == 1 &&
+                    exit.onClick.GetPersistentTarget(0) == screen &&
+                    exit.onClick.GetPersistentMethodName(0) == nameof(FinalSceneScreen.ExitGame),
+                    "FinalScene Exit must be interactive and wired to its exit action.");
+                Require(FindComponents<UnityEngine.EventSystems.EventSystem>(scene).Count == 1 &&
+                    FindComponents<UnityEngine.InputSystem.UI.InputSystemUIInputModule>(scene).Count == 1 &&
+                    FindComponents<UnityEngine.UI.GraphicRaycaster>(scene).Count == 1,
+                    "FinalScene must receive UI input.");
+                List<TMPro.TMP_Text> labels = FindComponents<TMPro.TMP_Text>(scene);
+                Require(labels.Any(label => label.name == "CongratulationsTitle" && label.text.Contains("CONGRATULATIONS")) &&
+                    labels.Any(label => label.name == "CreditsHeading" && label.text.Contains("SAMPLE")) &&
+                    labels.Any(label => label.name == "SampleCredits" && label.text.Contains("Programming")),
+                    "FinalScene must contain congratulations and clearly identified sample credits.");
+                Require(labels.All(label => label.font != null && label.gameObject.activeInHierarchy &&
+                    label.rectTransform.rect.width > 0 && label.rectTransform.rect.height > 0),
+                    "FinalScene text must have fonts and visible dimensions.");
+                SceneSwitchConfigs finalConfigs = AssetDatabase.LoadAssetAtPath<SceneSwitchConfigs>(
+                    "Assets/SO/SceneSwitch/DefaultSceneSwitchConfigs.asset");
+                Require(!finalConfigs.IsGameplayLevel(SceneId.FinalScene), "Credits must not replace saved gameplay progress.");
+            }
+
             if (path == GameplayScenePath)
             {
                 Require(FindComponents<CoreFacade>(scene).Count == 1, "Gameplay scene must contain one configured Core.");

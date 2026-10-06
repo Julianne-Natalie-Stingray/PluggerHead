@@ -2,11 +2,13 @@
 
 Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 
-本轮最终验证（2026-10-06）：代码及文档独立审查通过，编译后 Console 错误为 0；EditMode job `21b6cbceec95472ca70ce3a965876b63` 已结束并通过 21/21。首次 PlayMode job `1ba9928905c54f868d855c4d7d283532` 因 Editor 会话中断没有有效终态；连接恢复后重跑，job `a8881108238d4eb5860ef817658ccfdf` 已结束并通过 71/71，失败及跳过均为 0。测试中的预期异常由 LogAssert 接收，不能把测试后 Console 异常记录等同于编译错误。临时场景及 Test Runner 修改的 Editor 设置已清理恢复。
+FinalScene 验证（2026-10-06）：EditMode job `8895237b90a4409ab8a6455304242a01` 终态通过 22/22，随后 PlayMode job `7d775ea32d8a433397fbba0ff49acee0` 终态通过 71/71，无失败或跳过。新增场景检查覆盖祝贺标题、示例制作组、Exit 持久事件、输入组件、字体尺寸及非玩法注册；另以 MCP 验证运行画面无文本溢出、射线命中 Exit，派发左键 pointerClick 后 Editor 停止播放。Player 的 Application.Quit 分支未构建实测。独立审查未发现功能缺陷，文档遗漏已补齐，测试临时 Editor 设置已恢复。
+
+FinalScene 加入前验证（2026-10-06）：代码及文档独立审查通过，编译后 Console 错误为 0；EditMode job `21b6cbceec95472ca70ce3a965876b63` 已结束并通过 21/21。首次 PlayMode job `1ba9928905c54f868d855c4d7d283532` 因 Editor 会话中断没有有效终态；连接恢复后重跑，job `a8881108238d4eb5860ef817658ccfdf` 已结束并通过 71/71，失败及跳过均为 0。测试中的预期异常由 LogAssert 接收，不能把测试后 Console 异常记录等同于编译错误。临时场景及 Test Runner 修改的 Editor 设置已清理恢复。
 
 清理缺陷修复历史验证（2026-10-06，新增 Timer/MenuTool 及后续 Physics 用例之前）：编译后 Console 无错误，独立审查通过；按顺序运行 EditMode 17/17（job `3eb8b79ef39f415abbed40cead84b714`）和 PlayMode 57/57（job `e648646396f14d7ab119a800823a87c8`），均终态通过。新增 20 项故障注入检查覆盖失败恢复、在途句柄保留、异常聚合和临时进度存储延期释放。
 
-2026-10-06 逐文件核查：当前 EditMode 21 个、PlayMode 71 个用例；本轮 MenuTool 4 项、Timer 12 项及新增 Physics 2 项均包含在上述当前版本通过结果中。文件级职责及边界分别见 [EditMode](EditMode/README.md)、[PlayMode](PlayMode/README.md)、[Shared 反射桥](Shared/README.md)；实际断言、隔离和超时实现见 [Scripts/Editor](../Scripts/Editor/README.md)。
+2026-10-06 逐文件核查：当时 EditMode 21 个、PlayMode 71 个用例；本轮 MenuTool 4 项、Timer 12 项及新增 Physics 2 项均包含在上述当前版本通过结果中。文件级职责及边界分别见 [EditMode](EditMode/README.md)、[PlayMode](PlayMode/README.md)、[Shared 反射桥](Shared/README.md)；实际断言、隔离和超时实现见 [Scripts/Editor](../Scripts/Editor/README.md)。
 
 以下为清理修复前的审计验证记录：EditMode 17/17（job `3fa8c86afa1348cb8f60ce2d1e6faa98`），PlayMode 37/37（job `ed6e536d01d7477d941943af149956d1`）。该快照包含 `7c91a3a` 的碰撞体 offset 修复；本轮只改说明和一处检查脚本注释。独立审查已通过，后续行为改动需重新验证。
 
@@ -17,11 +19,12 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 | 场景 | 功能与使用入口 |
 | --- | --- |
 | `MainMenuScene` | 构建启动场景。New Game、Continue Game、Settings、Exit；无有效进度时 Continue 禁用。 |
+| `FinalScene` | 结尾祝贺、示例制作组和 Exit；可独立播放，通过 SceneId.FinalScene 请求切换，不记录为玩法进度。 |
 | `GameplayIntegration` | New Game 的首关。真实 Player、地面四角绕线、双线回路、背包及设置 UI；Play 后移动、J 交互/收回、K 放置 Anchor。设置面板的 Main Menu 返回主菜单。 |
 | `CircuitDiagnostics` | MockPlayer 与独立电路布局；Play 后用 EnvironmentFacade 调试按钮验证回路，拖动 MockPlayer 检查线端。含完整 Core，可用 AudioManager 的 Test Audio Request 检查音频。 |
 | `SceneSwitchTarget` | 仅保留相机与 AudioListener；从前两者调用 `CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.SceneSwitchTarget)`，确认场景切换完成、Loading 退出且原 Core 存活。单独播放只显示背景。 |
 
-2026-10-06 整理：`HeXieTestScene` → `GameplayIntegration`，`JillTestWireScene` → `CircuitDiagnostics`，`JillTestSceneSwitch` → `SceneSwitchTarget`，三者保留原 GUID。原 `JillTestScene` 仅含相机及同一个 Core prefab，其服务检查职责合并到 `CircuitDiagnostics`，删除重复场景及枚举项。现有 SceneId 的序列化值 1/2/3 保持不变，退役值 0 不复用；当时三功能场景依次为 GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget；当前构建列表已在首位加入 MainMenuScene，共四场景。
+2026-10-06 整理：`HeXieTestScene` → `GameplayIntegration`，`JillTestWireScene` → `CircuitDiagnostics`，`JillTestSceneSwitch` → `SceneSwitchTarget`，三者保留原 GUID。原 `JillTestScene` 仅含相机及同一个 Core prefab，其服务检查职责合并到 `CircuitDiagnostics`，删除重复场景及枚举项。现有 SceneId 的序列化值 1/2/3 保持不变，退役值 0 不复用；当时三功能场景依次为 GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget；当前构建列表首位为 MainMenuScene，末尾新增 FinalScene，共五场景。
 
 真实 Player 集成与 MockPlayer 电路诊断保持分开，便于区分输入/动画问题和回路问题。Core 继续随内容场景配置并通过 DontDestroyOnLoad 保活，无需额外 Bootstrap 或叠加加载。
 
@@ -34,7 +37,7 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 | EditMode | `PluggerHead.EditModeTests` | 4 个 MenuTool 安全用例 | 临时文件写删归属、路径约束、命名校验及现有项目常量兼容；不执行 AssetDatabase 导入/删除或脚本重载 |
 | PlayMode | `PluggerHead.PlayModeTests` | 12 个 Timer 用例 | 时间点/条件/完成回调重入、零时长、异常状态、旧代隔离、Infinity＋条件完成及 Runner 替换后停止原宿主协程；每次等待上限 3 秒 |
 | EditMode | `PluggerHead.EditModeTests` | 1 个 Player/Env 集成用例 | Anchor 不作为道具、无限放置/收回、无线放置、最近目标、绕线、阻力、输入锁、暂停、跨场景隔离、换线、闭环、重开、线长边界及单次死亡通知 |
-| EditMode | `PluggerHead.EditModeTests` | 4 个场景参数用例＋1 个注册表用例 | 场景枚举/白名单/构建列表一致性、主菜单构建入口、场景加载、丢失脚本/预制体、电线材质、实际 Player 与电路配置 |
+| EditMode | `PluggerHead.EditModeTests` | 5 个场景参数用例＋1 个注册表用例 | 场景枚举/白名单/构建列表一致性、主菜单构建入口、场景加载、丢失脚本/预制体、电线材质、实际 Player 与电路配置 |
 | EditMode | `PluggerHead.EditModeTests` | 1 个关卡存档用例 | 只序列化关卡、重新读盘、缺失/损坏/未知关卡、写入失败保留旧存档 |
 | EditMode | `PluggerHead.EditModeTests` | 2 个 GameState 参数用例 | Playing/Freezed 起点下加载中交错暂停/恢复，保留标签与冻结前时间倍率 |
 | EditMode | `PluggerHead.EditModeTests` | 5 个音频池配置用例 | 非正池容量在运行时和 OnValidate 后均安全，正常容量不变，真实 ObjectPool 可构造 |
