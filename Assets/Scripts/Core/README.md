@@ -1,211 +1,52 @@
-# Core 子系统
+# Core 共享服务总览
 
-## 职能
+Core 提供输入、音频请求和场景切换服务，并使用通用对象池。它不决定玩家交互规则或下一个关卡；这些由 Player、Env 与 Game 层负责。当前采用内容场景内配置 Core、由 DontDestroyOnLoad 保活、以 Single 模式切换内容的结构。
 
-Core 是本工程共享运行时基础设施的单一入口.
+## 目录与入口
 
-- 拥有共享服务门面, 其他 Subsystem 由它取得依赖.
-- 拥有输入处理, 音频播放, 场景切换与对象池.
-- 不负责游戏规则, 玩法状态, 以及任何场景专属行为.
-- 不负责生成的输入绑定资产; 那些位于 `Assets/Scripts/Infra/InputSystem/` 下.
-- 不负责"接下来该去哪个场景"; 那是调用方的决定, 以参数传入.
-
-## 构成
-
-| 路径 | 类型 | 职责 |
-| --- | --- | --- |
-| `CoreFacade.cs` | Core 预制体上的 MonoBehaviour | 单一入口; 暴露 `Input` / `Audio` / `SceneSwitch`; 提供跨场景访问点 `Instance`; 负责 `DontDestroyOnLoad` 与重复实例守卫 |
-| `Input/InputManager.cs` | MonoBehaviour | 输入服务; 发布移动、指针状态及按键事件 |
-| `Managers/AudioManager.cs` | MonoBehaviour | 音频总线; 拥有 emitter 池, 注册表与两级实例上限 |
-| `SceneSwitch/SceneSwitchManager.cs` | MonoBehaviour | 场景切换总线; 唯一的切换入口, 拥有 `Loading` 状态 |
-| `SceneSwitch/SceneId.cs` | enum | 可切换场景的键; 编译期防打错 |
-| `SceneSwitch/SceneSwitchConfigs.cs` | ScriptableObject | 白名单: `SceneId` -> 场景名 |
-| `Audio/AudioBuilder.cs` | struct | 单次播放请求的链式配置凭证, 承载实时效果参数与位置 |
-| `Audio/ISoundHandle.cs` | 接口 | 单次播放的作用域契约 |
-| `Audio/SoundHandle.cs` | class | `ISoundHandle` 的唯一实现 |
-| `Audio/AudioRegistry.cs` | class | 活跃实例的注册, 注销与顺序查询 |
-| `Audio/AudioEmitter.cs` | MonoBehaviour | 单个池化声部; 播放, 定位, 跟随, 报告结束 |
-| `Audio/SODefinitions/` | ScriptableObject | `AudioClipData` 描述单个 clip; `AudioManagerConfigs` 是音频总线配置 |
-| `Audio/Setting/` | `[Serializable]` class | `AudioSettings`, 音频总线的持久化音量 |
-| `GameObjectPool/` | class | 复用对象池; 额外提供"能否复用"的硬上限探查 |
-| `Input/` | class | `DragAndDropService2D`, 纯可序列化辅助类; 早期代码 |
-
-## 公共API
-
-- `CoreFacade.Input` -> `InputManager`: 输入服务.
-- `CoreFacade.Audio` -> `AudioManager`: 音频总线. 启动声音的唯一入口是
-  `CoreFacade.Audio.CreateBuilder().With...().Play(audioId)`, 返回 `ISoundHandle`; 请求被拒绝时返回 `null`.
-- `CoreFacade.SceneSwitch` -> `SceneSwitchManager`: 场景切换总线. 唯一的切换入口是
-  `CoreFacade.SceneSwitch.RequestSwitch(sceneId)`, 返回 `AsyncOperation`; 请求被拒绝时返回 `null`.
-- `CoreFacade.Instance` -> `CoreFacade`: **唯一**能熬过场景切换的访问点. 新场景中的代码用它取回 Core.
-- `SceneSwitchManager.IsSwitching`: 是否有一次切换在途. 调用方可以查, 但 `RequestSwitch` 无论如何都会强制该约束.
-- `AudioBuilder` 的链式项: `WithVolume` / `WithPitch` / `WithRandomPitch` / `WithPosition` / `WithFollowTarget` /
-  `WithSurviveFreeze` / `WithAllowWhileFrozen` / `WithFade`.
-- `AudioManager.Registry` -> `AudioRegistry`: 只读的事实查询, 供需要知道"现在在播什么"的代码使用.
-- `InputManager`, `AudioManager` 与 `SceneSwitchManager` 是 `CoreFacade` 的必需组件, 由 `InitializeInternal()` 通过 `GetComponent<>()` 解析.
-- `AudioClipData` 与 `AudioManagerConfigs` 是数据定义; `AudioId` 是 clip 查找键. `SceneSwitchConfigs` 是场景白名单.
-
-## 内部实现思路
-
-- 初始化在 `Awake()` 中完成; Subsystem 内部依赖由 `InitializeInternal()` 通过 `GetComponent<>()` 加缓存解决, 不需要 Inspector 接线.
-- 管理器引用缓存在私有字段中, 以只读 Property 暴露.
-- **Configs** 指**内部参数**, 由开发者维护, 放在工程内的 ScriptableObject, 初始化**之后**读取.
-- **Settings** 专指**游戏内玩家可调设置**, 由 `SettingStore<TData>` 承载, 初始化**之前**可用.
-- **不使用 `Config` 这个中间词.** 它介于两者之间, 只会制造歧义; 命名时必须在上面两者中二选一.
-- 跨场景存活的东西只有一处: `CoreFacade` 及其挂载的 Core 对象. 其余一切随场景销毁并重建.
-
-### 场景切换与跨场景访问
-
-这是本 Subsystem 里**唯一**需要打破"少用单例范式"的地方, 因此把理由写明.
-
-**为什么必须有 `CoreFacade.Instance`**: 场景切换会销毁**所有**场景内引用. 切换前, 场景里的对象可以靠 Inspector 拖拽拿到 `CoreFacade`; 切换后那个引用指向的实例早已随旧场景销毁, 于是它变成悬空引用(Unity 会把它置空). 因此**某个不属于任何场景的东西必须能在没有场景的情况下被访问到**. 这是硬约束, 不是偏好.
-
-**为什么不用其他形态**:
-
-| 形态 | 为何否决 |
+| 路径 | 职责与文档 |
 | --- | --- |
-| 每个新场景在 Inspector 里重新拖拽引用 | 漏接时表现为运行时 null 而不是编译错误; 且每个场景都要重复手工接线 |
-| 服务定位器(按类型取) | 为**恰好一个**消费者引入一张注册表 |
-| 静态门面(静态类内部持有实例) | 仍然要持有实例, 只是把单例藏起来, 并没有消除它 |
+| CoreFacade.cs | 挂在 Core GameObject 上，缓存同物体的 Input、Audio、SceneSwitch，提供静态 Instance，处理持久化与重复实例。 |
+| [Input](Input/README.md) | InputManager 适配生成的 PlayerControls，提供状态与事件；DragAndDropService2D 是需要宿主驱动的普通辅助类。 |
+| [Managers](Managers/README.md) | AudioManager 管理音频请求、池、注册表、限流、状态通知和混音器应用。 |
+| [Audio](Audio/README.md) | 请求 Builder、句柄、池化声部、注册表，以及标识、开发者配置、玩家音量数据。 |
+| [SceneSwitch](SceneSwitch/README.md) | 类型化 SceneId、场景映射与玩法标记、异步切换和 Loading 生命周期。 |
+| [GameObjectPool](GameObjectPool/README.md) | Unity ObjectPool 包装，支持借还、预热、回调及容量查询；Get 本身不强制总创建上限。 |
+| CoreFacade.cs.meta、README.md.meta、各子目录 meta | 保留资源身份；CoreFacade 没有特殊执行顺序或默认引用。 |
 
-**重复实例守卫**: Core 是 Core 预制体的实例, 而预制体可能被放进多个场景. 因此 `CoreFacade.Awake` 在发现已有实例时**销毁自己的 GameObject** 并记一条 warning. 先到者保留, 后到者退出 —— 因为只有第一个才是游戏其余部分据以解析的那个访问点.
+生成的输入绑定与菜单常量属于 [Infra](../Infra/README.md)。Configs 表示开发者维护的工程配置，Settings 表示玩家可调整的数据；不要从命名推断它们一定在所有组件初始化前或之后可用。
 
-**新场景如何与 Core 重新连接**: 依赖方向是**单向**的, 即"场景内容 -> Core", 禁止反向. 因此不需要任何"重连机制": 场景内的组件在**自己的 `Awake`** 里通过 `CoreFacade.Instance` 取回依赖即可. Unity 已在场景加载时替你把该场景的所有 `Awake` 调完.
+## CoreFacade 的初始化与生命周期
 
-- 必须遵守一条硬约束: **场景内容不得在 `Awake` 之前的时机(如字段初始化器、`OnEnable` 早于其它组件的场合)访问 `CoreFacade.Instance`**, 因为那时持久 Core 可能尚未建立.
-- 禁止反向: `CoreFacade` 与各管理器**不得**认识场景里的具体类型. 一旦反向, 每加一个场景子系统都要改 Core, 那正是"初始化与生命周期问题"的根源.
+Core 必须由场景或调用方创建，Instance 访问不会自动生成它。Awake 在已有其他存活实例时记录 Warning 并 Destroy 自己的整个 GameObject；否则先赋 Instance，再通过 GetComponent 缓存三个服务，最后对 GameObject 调用 DontDestroyOnLoad。四个 RequireComponent 分别声明 InputManager、AudioManager、SceneSwitchManager、TimerRunner。
 
-### 场景切换的实现要点
+门面只缓存组件，不负责完成各服务的 Awake，也不检查服务启用状态或资源配置。RequireComponent 不能代替配置检查；AudioManager 的 emitterPrefab/configs 和 SceneSwitchManager 的 configs 仍需装配。其他组件的 Awake 没有必然晚于 Core 的顺序，建议沿用现有 Player 的 Start 或明确初始化流程获取服务；Instance 非空本身不是所有服务就绪的信号。
 
-**场景架构**: Core 与内容**同处一个场景**, 靠 `DontDestroyOnLoad` 续命, 切换用 `LoadSceneMode.Single`. 已否决"Core 独占常驻场景 + 加法加载"的方案, 理由是**单场景无法直接播放**: 那样每个内容场景里都没有 Core, 测试单个场景时必须先播 Bootstrap 场景, 或手动把 Core 加回去 —— 而"测试时的手工接线"正是要消灭的成本.
+当前 prefab 是根对象，满足持久化使用要求，AudioRoot 子物体随它保留。切换不会使指向存活 Core 的引用自动失效；被卸载的场景对象才需要重新获取。新场景中的 Core 副本会被去重，指向该副本的序列化引用不可当作最终存活的全局服务引用，跨场景业务应从当前 Instance 取得服务。
 
-**激活时机**: 加载保持默认允许激活，在 AsyncOperation.completed 回调中退出 Loading；完成回调不依赖发起组件保持激活或存活。调用方只观察返回的操作，不修改 allowSceneActivation。
+尚需注意的边界：Destroy 是延迟操作，重复 Core 的其他组件可能已经执行 Awake/OnEnable；本类没有阻止这些初始化副作用。没有 OnDestroy 或 SubsystemRegistration 清空静态引用的钩子，销毁后的 Instance 可能保留 Unity 已销毁对象包装，按 Unity 对象有效性判断，不能把普通 C# 的 ?. 当作同等检查。运行时把 Core 放到其他物体下面也没有根对象检查。这些不是当前常规 prefab 流程已覆盖的保证。
 
-**中断与异常**: 不再由宿主协程阻止激活，失活或销毁后实际加载仍可完成。状态通知异常会被记录，完成时在 finally 清除忙碌和跨实例预留；不承诺与首个渲染帧精确同步。
+## 已装配资源与场景
 
-**为什么切换目标是参数而不是字段**: "接下来去哪个场景"是玩法决定(打完关卡 -> 下一关), 不是总线配置. 若把 `NextScene` 放在管理器上, 它就成了第二个真相来源, 且每次测试换场景都要改 Inspector.
+Assets/Prefabs/Core/Core.prefab 包含上述四个依赖组件、CoreFacade 和 LevelProgressTracker，AudioRoot 是其子物体。AudioManager 引用 AudioEmitter prefab 与 DefaultAudioManagerConfigs；SceneSwitchManager 和 LevelProgressTracker 使用同一默认场景配置。
 
-**校验顺序**（通过后才加载；禁用、失活或全局 Loading 也拒绝请求）:
+MainMenuScene、GameplayIntegration、CircuitDiagnostics 含 Core 实例；SceneSwitchTarget 不含 Core，依赖切换后保留的实例。直接运行不含 Core 的场景不会由门面自动补齐服务。构建入口和场景映射需与 [场景切换说明](SceneSwitch/README.md) 保持一致。
 
-| # | 检查 | 失败时 |
-| --- | --- | --- |
-| 1 | `configs` 已赋值 | 组件已在 `Awake` 中自禁 |
-| 2 | 本实例和全局无切换在途 | 静默返回 `null` |
-| 3 | `SceneId` 在白名单中有映射 | 记错误并返回 `null` |
-| 4 | 映射到的场景已在 Build Settings 注册 | 记错误并返回 `null` |
+## 接入契约
 
-第 4 道用的是 `SceneUtility.GetBuildIndexByScenePath`, 它把"忘了把场景加进 Build Settings"变成一条**明确日志**, 而不是引擎层的异常或静默停在当前场景.
+- 输入由 PlayerMove、PlayerInteraction 等解释为玩法行为；不是“尚无消费者”的模板。InputManager 管理生成 Controls 的生命周期，但不自动按 GameState 禁用输入，也不提供 UI 遮挡仲裁。DragAndDropService2D 当前没有业务宿主，调用约束见其目录文档。
+- 音频请求使用新的 CreateBuilder，通过 Play 返回 ISoundHandle 或 null。Builder 是可变 struct，消费状态只属于当前副本。Registry 属性没有 setter，但返回对象具有公开修改方法，不是只读集合。
+- 音频正常完成先归还池再通知句柄；带淡出的 Stop 则先使句柄失效，声部继续占槽。实例限制、回调重入、外部销毁、冻结与渐变等边界集中记录在 Managers/Audio 文档，不能把 Finished 通用地解释为“已经释放池槽”。
+- SceneSwitch.RequestSwitch 校验组件活动状态、配置、本实例/跨实例占用、Loading 和目标映射/构建注册。满足条件时可以重载当前场景，没有专门的同场景拒绝规则。返回操作供观察，不修改其 allowSceneActivation。
+- 切换以默认允许激活的异步 Single 加载推进，通过 completed 委托恢复 Loading 并清理占用；不依赖宿主协程继续活动，不承诺与首个显示帧精确同步，也不提供取消或排队。配置缺失、并发请求等并非全部输出日志。
+- AudioManager 在 Start 应用当前玩家音量；SettingsScreen 保存成功后显式应用。存储层 Save/ResetToDefault 本身不应用 Mixer。输入、音频及场景服务都不自动保存完整玩法进度，进度边界见 [Game](../Game/README.md)。
 
-**同一场景再次请求也走同一条拒绝路径**: 没有单独的"是否已在目标场景"判断, 因为那会引入一个需要维持的额外状态, 而重复加载同一场景本就是调用方的意图问题, 应当被日志暴露.
+服务可以读取 GameState、玩家设置和通用 Transform 等依赖，但不应承担具体关卡或玩家交互规则。实际功能和实现边界以各子目录文档及当前源码为准。
 
-**已否决**: 取消一次进行中的 `LoadSceneAsync`(它没有 Cancel, 只能标记忽略, 于是留下一个仍在加载的场景); 排队下一次切换(顺序自动切两个场景几乎总是发起方的 bug).
-- `CoreFacade` 是唯一调用 `DontDestroyOnLoad` 的类型; 各管理器自身不调用.
-- 跨组件协调的初始化放在 `Start`, 不放 `Awake`: `Awake` 只解析自身依赖, 凡是需要"另一个组件已完成初始化"的判断都等到 `Start`.
-- 唯一的例外是音频的**建池**: 它放在 `InitializeInternal` 而非 `Start`, 因为其他组件的 `Start` 里就可能有播放请求, 而那时池必须已经存在. 只有**预热**放在 `Start`, 因为实例化可以推迟.
+## 核查与验证（2026-10-06）
 
-### 输入的层级边界
+先逐一核查 CoreFacade.cs、现有 README、对应 meta 与子目录 meta，再结合已完成的子目录审查核对 prefab、场景和消费者。总览删除了“所有引用随切换销毁”“任意 Awake 即可安全访问”“输入无消费者”“同场景总拒绝”“没有坐标就不空间化”等失实说明；保留结构与接入约束，把详细生命周期归到对应子目录。
 
-输入只做两层, **不做语义层**:
+现有主菜单与场景测试覆盖实际跨场景流程；音频与设置测试覆盖正常播放和 Mixer 应用。没有专门覆盖嵌套 Core、重复实例的初始化副作用、销毁后的静态包装或禁用 Domain Reload 的跨会话生命周期。
 
-| 层 | 内容 | 是否在模版内 |
-| --- | --- | --- |
-| L1 设备与绑定 | 物理控件, 控制方案(control schemes), 重绑定, 多设备 | 属 asset, 归使用者; 模版不预设 |
-| L2 原始轴 | 把设备映射为无名的模拟轴与按钮 | 模版提供 |
-| L3 语义 | 哪一轴是什么, 与重力的关系, 谁拥有哪个自由度 | **刻意排除** |
-
-排除 L3 的理由: 二维输入只有两个自由度, 而"这两个自由度是什么"是玩法信息. 横版与俯视两类玩法在**某一轴上恰好重合**, 因此 asset 里那根已接线的轴与那根留空的轴不是模版的断言, 而是"当下两类玩法的重合面". 模版不对重力方向、轴向命名或额外键位做任何猜测.
-
-由此推出两条边界:
-
-- 输入不耦合重力. 重力方向是工程设置(`Physics2D`)或玩法实现, 输入层无需知道.
-- 输入不提供消费者. `MovementInput`, `PointerPosition`, `IsPrimaryPressed` 是**扩展点**, 不是功能; 读取它们并作出响应的代码属于玩法, 不属于模版.
-
-底层类型不外泄: 生成的 `PlayerControls` **不**通过 wrapper 暴露. `InputManager` 的事件与 properties 是唯一 entry point,
-因此在 asset 里新增动作时,**改动 `InputManager` 是不可避免的** —— 这一点被明确接受, 而不是用一条访问器去回避.
-理由: `controls` 属于底层, 一旦外泄, "输入如何被消费"就不再由这个包装层决定; 而输入设计一旦改变, wrapper 本来就要跟着变.
-代价: 新增一个按键需要在此处加一个成员. 这是**每次一个**的一次性成本, 换来的是消费面始终明确且封闭.
-
-### 已知的早期代码
-
-`DragAndDropService2D` 是本工程早期阶段的产物, 目前**没有任何使用者**: 它需要调用方自行 `Initialize(...)` 与 `Enable()`, 并在自己的帧循环里调用 `Drag()`, 而这些都没有发生. 它作为可复用服务保留在原处, 不在模版范围内继续演进.
-
-### 音频的限流与释放链路
-
-音频有**两个互相独立**的实例上限, 都**不是**池大小:
-
-- **每 clip 上限**: `AudioClipData.MaxInstances`, 表达设计意图.
-- **全局上限**: `AudioManagerConfigs.MaxSoundInstance`, 保护总声部数.
-- **池大小**: `AudioManagerConfigs.MaxPoolSize`, 只界定保留多少 emitter 用于复用.
-
-`MaxPoolSize` 还由预定入口限制总创建量; 建议不小于 `MaxSoundInstance`, 否则池容量会先于声部上限拒绝请求.
-
-请求路径是: 解析 `AudioId` 并检查 clip -> 检查冻结期入口 -> 应用每 clip 上限 -> 应用全局上限 -> 预定 emitter -> 注册 -> 配置 -> 定位 -> 启动.
-两级上限只抢占最旧且**非循环**的声部; 如果全是循环声则拒绝请求. 停止后统一归还池、注销注册表并使句柄失效. 注册表的总数只统计存活项, 不把延迟清理的空槽计入限制.
-
-池归还链路有**两个方向**, 必须分开, 否则会互相递归:
-
-- **归还输出**: `OnEmitterRelease` 作为池的归还回调运行, 只做清理(注销, 重置, 重挂父级, 日志), **绝不**调用池的 `Release`.
-- **归还输入**: `ReleaseEmitter` 订阅在 `AudioEmitter.onAudioFinished` 上, 只做一件事 —— 转发给 `GameObjectPool.Release`.
-
-`AudioEmitter.onAudioFinished` 是**所有**结束路径的唯一汇合点: 自然播完, 句柄 `Stop()`, 以及被抢占.
-这条链一旦断掉, emitter 就会永久滞留在池外.
-
-非循环播放由 emitter 持有的 Timer 检测自然结束, 使用 `UseUnscaledTime()`; 停止、重置和销毁都会取消它, 防止旧排程影响复用后的播放. 循环播放没有自然结束 Timer.
-
-结束先归还池和注销注册表, 再通知句柄. `IsFinished` 记录自然结束, 主动停止或抢占则为 false; emitter 在重置时保留本次结果, 到下一次 Play 才清除. `Finished` 的调用方可以立刻请求新声音. 完成回调各自隔离异常, 避免某个调用方阻断池归还.
-
-### 音频与游戏状态
-
-`AudioManager` 在 `OnEnable` / `OnDisable` 中成对订阅 `GameStateManager.Changed`, 按 `state == Freezed` 暂停或恢复 `AudioListener.pause`. 音频读取 GameState, 后者不依赖音频. 当前 Loading 不保留监听器暂停, 暂停中切场景需按实际玩法验证.
-
-`AudioClipData.DefaultSurviveFreeze` 提供静态默认值, `WithSurviveFreeze` 按次覆盖并映射到 `AudioSource.ignoreListenerPause`; 它与 Loop 无关. 不保留的音受监听器暂停, 保留的音继续播放.
-
-冻结期间的新请求必须同时允许 `WithAllowWhileFrozen(true)` 且有效的 SurviveFreeze 为 true, 否则入口拒绝并返回 null. 默认不允许冻结期间的新请求; 仅设置其中一个开关不足以放行.
-
-### 音量、音高与渐变
-
-`AudioClipData.Volume` / `Pitch` 提供默认值. Builder 未指定时保留默认值; `WithVolume` / `WithPitch` 覆盖本次播放, 不会被 Play 重置. `WithRandomPitch` 以显式音高或 1 为基准增加随机偏移. 活跃句柄可继续通过 `TrySetVolume` / `TrySetPitch` 修改.
-
-`AudioClipData.FadeIn` / `FadeOut` 定义默认渐变时长; `WithFade` 可按次覆盖, 0 保留硬起/硬切. 渐变使用非缩放时间, 乘在当前音量上. 非循环播放在尾部淡出; 句柄 `Stop()` 请求优雅淡出并立即失效, 但声部在淡出完成前仍占用池槽位. 抢占和跟随目标丢失时的循环停止立即硬切, 以同步释放槽位.
-
-### 持久化音量与 Mixer
-
-`AudioManager.Start()` 在 Mixer 初始化后调用 `ApplyAudioSettings()`, 从 `SettingBootstrap.Settings.Audio` 读取 Master/Ost/Sfx 音量. 修改设置后需再次调用该方法, 当前没有自动变更订阅; 保存设置仍由 Setting 层负责.
-
-`SO/Audio/DefaultAudioManagerConfigs.asset` 指向 `Audios/Mixers/Master.mixer`, 使用已暴露的 `MasterVolume` / `OstVolume` / `SfxVolume` 参数. 线性音量换算为 `20 * log10(volume)`, 0 使用 -80 dB. 缺少 mixer、空参数名或未暴露参数会记录日志.
-
-### 音频的位置与空间化
-
-位置来源有三种, 优先级明确:
-
-| 来源 | 入口 | 说明 |
-| --- | --- | --- |
-| 跟随目标 | `WithFollowTarget(Transform)` | 每帧同步到目标; 目标消失后按下一节规则处理 |
-| 一次性坐标 | `WithPosition(Vector3)` | 只写一次世界坐标 |
-| 都不给 | —— | emitter 停在池留下的位置, 即 `AudioRoot` |
-
-两者同时给出时**跟随胜出**, 因为跟随每帧覆盖位置.
-
-`willFollowTarget` 是本模块的关键状态: 它表示"**本次播放是否请求了跟随**", 而 `followTarget == null` 只表示"当前没有目标".
-两者必须分开 —— 否则每个不跟随的声音都会被误判为"跟丢了", 从而把循环音立刻停止.
-该标志仅在 `SetFollowTarget()` 中置真, 在 `HandleLostTarget()` 与 `ResetEmitter()` 中置假:
-跟随是**每次请求**的特性, 目标一丢失就必须重新请求, 不允许 emitter 开着跟随状态等待目标重新出现.
-
-位置同步发生在 `LateUpdate`, 且**不**改变父子关系: emitter 始终挂在 `AudioRoot` 下, 位置靠写自身世界坐标实现.
-因此跟随的声音不会随目标销毁而消失 —— 一次性音在目标最后出现的位置播完,
-循环音则在目标消失时停止, 因为循环没有自然结尾, 会永久占住一个池化 emitter.
-
-音量与位置是**互相独立**的两件事, 因此 `LateUpdate` 先写入待应用的音量, 再判断是否需要同步位置:
-用"是否跟随"去门控音量写入, 会让每个不跟随的声音静默丢失 `SoundHandle.TrySetVolume` 的改动.
-
-空间化由 `AudioClipData` 的三个字段描述, 并由 `AudioEmitter.Configure()` 写入 `AudioSource`:
-`SpatialBlend`(0 为纯 2D), `MinDistance`, `MaxDistance`.
-
-注意 `SpatialBlend == 0` 时位置**完全无影响**; 而 `SpatialBlend > 0` 时若既不跟随也不给坐标,
-声音会始终从 `AudioRoot` 发出, 空间化形同无效. 二者必须一起使用才有意义.
-
-## 音频回归检查
-
-在 Unity Test Runner 的 PlayMode 中运行程序集 `PluggerHead.PlayModeTests` 下的 `PluggerHead.Tests.AudioIntegrationTests`, 或按 `Assets/Tests/README.md` 的 MCP calls 运行对应程序集. 用例复用原 19 项检查, 自动补齐 TimerRunner, 将失败和超时直接报告给 Runner, 并在结束时清理临时对象、静音 clip 及运行状态. 不需要预先打开 Core 场景; Mixer 资产配置仍需在实际 Core 场景验证.
-
-手动诊断仍可在带 TimerRunner 的 Play Mode 场景调用 `AudioIntegrationChecks.Run()` 并读取 `LastResult`.
+本轮仅修改门面和管理器注释以及目录文档；去除注释/空白后源码与原版本一致，独立复审通过，引用与链接已检查。编译完成且 Console 无错误；依次运行 EditMode 17/17、PlayMode 27/27 通过（job `1d96f6f716264310af0df0e75726f731`、`21336b3daa794474982d80666cea66c0`）。测试包含当时并行新增的音频修复与检查，不宣称覆盖上述尚缺专项验证的生命周期组合。
