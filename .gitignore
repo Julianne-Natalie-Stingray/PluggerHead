@@ -80,3 +80,7 @@ crashlytics-build.properties
 
 # JetBrains IDE settings
 .idea/
+
+# Local Codex instruction overrides
+AGENTS.override.md
+AGENTS.override.md.meta
