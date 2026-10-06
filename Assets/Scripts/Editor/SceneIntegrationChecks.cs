@@ -82,6 +82,16 @@ public static class SceneIntegrationChecks
                         renderer.sharedMaterial.shader != null && renderer.sharedMaterial.shader.isSupported,
                         $"{path}: {wire.name} needs a supported wire material.");
                 }
+                foreach (TMPro.TMP_Text label in root.GetComponentsInChildren<TMPro.TMP_Text>(true))
+                {
+                    Require(label.font != null && label.font.material != null,
+                        $"{path}: {label.name} needs a font and material.");
+                    string characters = new string(label.text.Where(character => !char.IsControl(character)).ToArray());
+                    Require(label.font.HasCharacters(characters),
+                        $"{path}: {label.name} must have baked glyphs for its authored text.");
+                    Require(label.font.HasCharacters("剩余线长：不限--0123456789.重新开始失败，请重试。关卡加载失败，请重试。返回主菜单失败，请重试。设置已保存保存失败，请重试。"),
+                        $"{path}: {label.name} must support Chinese runtime status and error messages.");
+                }
             }
 
             Require(FindComponents<Camera>(scene).Count == 1 && FindComponents<AudioListener>(scene).Count == 1,
@@ -98,6 +108,32 @@ public static class SceneIntegrationChecks
                     "Circuit diagnostics must retain its mock player and configured circuit, independent of real Player controls.");
             }
 
+            if (path.EndsWith("/FinalScene.unity", StringComparison.Ordinal))
+            {
+                FinalSceneScreen screen = FindComponents<FinalSceneScreen>(scene).Single();
+                UnityEngine.UI.Button exit = FindComponents<UnityEngine.UI.Button>(scene).Single();
+                Require(exit.interactable && exit.targetGraphic != null && exit.targetGraphic.raycastTarget &&
+                    exit.onClick.GetPersistentEventCount() == 1 &&
+                    exit.onClick.GetPersistentTarget(0) == screen &&
+                    exit.onClick.GetPersistentMethodName(0) == nameof(FinalSceneScreen.ExitGame),
+                    "FinalScene Exit must be interactive and wired to its exit action.");
+                Require(FindComponents<UnityEngine.EventSystems.EventSystem>(scene).Count == 1 &&
+                    FindComponents<UnityEngine.InputSystem.UI.InputSystemUIInputModule>(scene).Count == 1 &&
+                    FindComponents<UnityEngine.UI.GraphicRaycaster>(scene).Count == 1,
+                    "FinalScene must receive UI input.");
+                List<TMPro.TMP_Text> labels = FindComponents<TMPro.TMP_Text>(scene);
+                Require(labels.Any(label => label.name == "CongratulationsTitle" && label.text.Contains("恭喜通关")) &&
+                    labels.Any(label => label.name == "CreditsHeading" && label.text.Contains("示例")) &&
+                    labels.Any(label => label.name == "SampleCredits" && label.text.Contains("程序")),
+                    "FinalScene must contain congratulations and clearly identified sample credits.");
+                Require(labels.All(label => label.font != null && label.gameObject.activeInHierarchy &&
+                    label.rectTransform.rect.width > 0 && label.rectTransform.rect.height > 0),
+                    "FinalScene text must have fonts and visible dimensions.");
+                SceneSwitchConfigs finalConfigs = AssetDatabase.LoadAssetAtPath<SceneSwitchConfigs>(
+                    "Assets/SO/SceneSwitch/DefaultSceneSwitchConfigs.asset");
+                Require(!finalConfigs.IsGameplayLevel(SceneId.FinalScene), "Credits must not replace saved gameplay progress.");
+            }
+
             if (path == GameplayScenePath)
             {
                 Require(FindComponents<CoreFacade>(scene).Count == 1, "Gameplay scene must contain one configured Core.");
@@ -111,23 +147,23 @@ public static class SceneIntegrationChecks
                     "Gameplay Player must reference a reclaimable anchor prefab with a collider.");
                 Require(FindComponents<PowerSocket>(scene).Any(socket => socket.StartingWire != null &&
                     socket.Wires.Count >= 2), "Gameplay outlet must reference its authored wires.");
-                BoxCollider2D ground = FindComponents<BoxCollider2D>(scene).Single(collider => collider.name == "Ground");
-                List<Corner> corners = FindComponents<Corner>(scene);
-                Require(corners.Count == 4, "Gameplay Ground must have four authored Corner instances.");
-                foreach (Corner corner in corners)
-                {
-                    Vector2 local = ground.transform.InverseTransformPoint(corner.Center);
-                    Vector2 delta = local - ground.offset;
-                    Require(Mathf.Abs(Mathf.Abs(delta.x) - ground.size.x * 0.5f) < 0.0001f &&
-                        Mathf.Abs(Mathf.Abs(delta.y) - ground.size.y * 0.5f) < 0.0001f &&
-                        (corner.transform.lossyScale - Vector3.one).sqrMagnitude < 0.0001f &&
-                        corner.DetectionCollider.isTrigger &&
-                        PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(corner.gameObject) == "Assets/Prefabs/Env/Corner.prefab",
-                        "Each Corner prefab must sit at a Ground collider corner with compensated scale.");
-                }
-                Require(FindComponents<Wire>(scene).All(wire => wire.GetComponent<EdgeCollider2D>() != null &&
-                    wire.GetComponent<EdgeCollider2D>().isTrigger), "Authored wires must include trigger EdgeCollider2D.");
+                Require(FindComponents<UnityEngine.Tilemaps.TilemapCollider2D>(scene).Count == 1,
+                    "Gameplay ground must use an authored Tilemap collider.");
             }
+            if (path == GameplayScenePath || path.EndsWith("/CircuitDiagnostics.unity", StringComparison.Ordinal))
+            {
+                EnvironmentFacade environment = FindComponents<EnvironmentFacade>(scene).Single();
+                Require(environment.RoutingTilemap != null && environment.RoutingTilemap.GetUsedTilesCount() > 0,
+                    "Both circuit scenes must bind an authored, painted routing Tilemap.");
+                foreach (Component node in FindComponents<PowerSocket>(scene).Cast<Component>()
+                    .Concat(FindComponents<PolaritySocket>(scene)).Concat(FindComponents<Anchor>(scene)))
+                {
+                    Require(environment.TryGetTilePosition(node.transform.position, out Vector3 center) &&
+                        Vector3.Distance(node.transform.position, center) < 0.0001f,
+                        "Every socket and Anchor must occupy a painted tile center.");
+                }
+            }
+
         }
         finally
         {
@@ -194,21 +230,46 @@ public static class SceneIntegrationChecks
         yield return null;
         Require(Time.frameCount > initialFrame, "Gameplay frames must advance.");
         PlayerInteraction interaction = FindComponents<PlayerInteraction>(ownedScene).Single();
-        PlayerInventory inventory = interaction.GetComponent<PlayerInventory>();
         PlayerMove movement = interaction.GetComponent<PlayerMove>();
         EnvironmentFacade environment = FindComponents<EnvironmentFacade>(ownedScene).Single();
+        RestartLevelScreen restartScreen = FindComponents<RestartLevelScreen>(ownedScene).Single();
+        Transform restartPanel = restartScreen.transform.Find("RestartLevelScreen");
+        Require(movement.GetComponents<MonoBehaviour>().All(component => component.GetType().Name != "PlayerInventory") &&
+            restartScreen.transform.Find("InventoryUI") == null,
+            "The master gameplay scene must run without inventory components or inventory UI.");
+        Require(restartPanel != null && !restartPanel.gameObject.activeSelf,
+            "The restart prompt must remain hidden while the player is alive.");
         Require(ownedCore != null && ownedCore.Input != null && ownedCore.Audio != null,
             "Authored Core services must initialize.");
         Require(interaction.isActiveAndEnabled && movement != null && movement.isActiveAndEnabled &&
-            !movement.IsDead && inventory.Environment == environment,
+            !movement.IsDead && EnvironmentFacade.ForScene(movement.gameObject.scene) == environment,
             "Player startup must bind to its real environment and keep both controllers enabled.");
         Wire initialWire = environment.HeldWire;
         Require(initialWire != null && initialWire.IsHeld && !environment.IsCircuitClosed,
             "The environment must start with an open circuit and a held wire.");
 
+        WireLengthDisplay lengthDisplay = FindComponents<WireLengthDisplay>(ownedScene).Single();
+        TMPro.TMP_Text lengthText = lengthDisplay.transform.Find("RemainingLengthText").GetComponent<TMPro.TMP_Text>();
+        TMPro.TMP_Text scoreText = lengthDisplay.transform.Find("ScoreText").GetComponent<TMPro.TMP_Text>();
+        Require(lengthText.text == "剩余线长：不限",
+            "An unrestricted carried wire must display the Chinese unlimited label.");
+        Require(scoreText.text == string.Empty && scoreText.rectTransform.rect.width >= 300f &&
+            !scoreText.raycastTarget && !lengthText.raycastTarget,
+            "The HUD must reserve an empty score column without intercepting input.");
+
+        Rigidbody2D body = movement.GetComponent<Rigidbody2D>();
+        UnityEngine.Tilemaps.TilemapCollider2D ground =
+            FindComponents<UnityEngine.Tilemaps.TilemapCollider2D>(ownedScene).Single();
+        float landingDeadline = Time.realtimeSinceStartup + 4f;
+        while (!body.IsTouching(ground) && Time.realtimeSinceStartup < landingDeadline)
+        {
+            yield return new WaitForFixedUpdate();
+        }
+        Require(body.IsTouching(ground) && !movement.IsDead,
+            "The real Player must land on the migrated Tilemap ground without falling through.");
+
         Anchor anchor = FindComponents<Anchor>(ownedScene).First(node => node.CanReclaim);
         Vector3 anchorPosition = anchor.transform.position;
-        Rigidbody2D body = movement.GetComponent<Rigidbody2D>();
         // Keep the authored Player at the target during this interaction check; movement physics
         // is covered separately. Only this test-owned scene is modified.
         body.constraints = RigidbodyConstraints2D.FreezeAll;
@@ -217,7 +278,7 @@ public static class SceneIntegrationChecks
         interaction.transform.position = anchorPosition;
         Physics2D.SyncTransforms();
         RaiseInput(ownedCore.Input, "HandleSecondaryPressed");
-        Require(inventory.Count == 0 && !anchor.gameObject.activeSelf && !anchor.CanReclaim,
+        Require(!anchor.gameObject.activeSelf && !anchor.CanReclaim,
             "Reclaim must immediately deactivate the anchor without storing an inventory item.");
         Require(!anchor.TryReclaim(new InteractionDetails(interaction.gameObject, anchor.gameObject)),
             "A reclaimed anchor must reject a second request before deferred destruction.");
@@ -229,19 +290,20 @@ public static class SceneIntegrationChecks
         Require(FindComponents<Anchor>(ownedScene).Count == existingAnchors.Count + 1,
             "The K input event must create one anchor without inventory stock.");
         anchor = FindComponents<Anchor>(ownedScene).Single(node => !existingAnchors.Contains(node));
-        Require(anchor.EngagedBy == initialWire && inventory.Count == 0 &&
+        Require(anchor.EngagedBy == initialWire &&
             (anchor.transform.position - anchorPosition).sqrMagnitude < 0.0001f,
             "Placement must immediately route the held wire at the player position.");
         yield return null;
         LineRenderer line = initialWire.GetComponent<LineRenderer>();
-        Require(line.positionCount == 3 && (line.GetPosition(1) - anchorPosition).sqrMagnitude < 0.0001f,
-            "LateUpdate must render the dynamic anchor as the wire's intermediate bend.");
+        Require(line.positionCount == initialWire.TilePath.Cells.Count &&
+            (line.GetPosition(line.positionCount - 1) - anchorPosition).sqrMagnitude < 0.0001f,
+            "LateUpdate must render the visited tile centers through the placed Anchor.");
         yield return WaitForUnlocked(movement);
         Physics2D.SyncTransforms();
         Require(interaction.TryPerformOperation() && !anchor.gameObject.activeSelf,
             "J must reclaim a dynamically placed anchor.");
         yield return null;
-        Require(anchor == null && line.positionCount == 2 && environment.HeldWire == initialWire,
+        Require(anchor == null && line.positionCount == initialWire.TilePath.Cells.Count && environment.HeldWire == initialWire,
             "Reclaiming a routed anchor must update the wire path and preserve the held wire.");
         yield return WaitForUnlocked(movement);
         existingAnchors = FindComponents<Anchor>(ownedScene);
@@ -260,9 +322,19 @@ public static class SceneIntegrationChecks
             Require(initialWire.PlugTarget == dual.transform && environment.HeldWire != null &&
                 environment.HeldWire != initialWire && environment.SwapCount == 1,
                 "The authored dual socket must hand over the second wire and count one swap.");
+            typeof(Wire).GetField("maxLength", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(environment.HeldWire, 1000f);
+            yield return null;
+            yield return null;
+            Require(lengthText.text.StartsWith("剩余线长：") && lengthText.text != "剩余线长：不限" &&
+                lengthText.text != "剩余线长：--",
+                "Swapping to a finite wire must refresh the carried wire display.");
             outlet.Interact(new InteractionDetails(interaction.gameObject, outlet.gameObject));
             Require(environment.IsCircuitClosed && environment.HeldWire == null && clearedCount == 1,
                 "Returning the second wire to its outlet must clear the scene once.");
+            yield return null;
+            yield return null;
+            Require(lengthText.text == "剩余线长：--", "A completed circuit with no held wire must clear the length.");
             environment.EvaluateCircuit();
             Require(clearedCount == 1, "Repeated evaluation must not emit another clear event.");
             typeof(EnvironmentFacade).GetMethod("DebugRestartRun", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -276,27 +348,33 @@ public static class SceneIntegrationChecks
             environment.LevelCleared -= onCleared;
         }
 
-        Corner groundCorner = FindComponents<Corner>(ownedScene).Single(node => node.name == "Corner Left Top");
-        Vector2 handOffset = (Vector2)initialWire.FreeEndPosition - body.position;
-        body.position = new Vector2(-12f, -2f) - handOffset;
-        movement.transform.position = body.position;
+        UnityEngine.Tilemaps.Tilemap map = environment.RoutingTilemap;
+        typeof(Wire).GetField("maxLength", BindingFlags.Instance | BindingFlags.NonPublic)
+            .SetValue(initialWire, 500f);
+        Vector3 routeStart = map.GetCellCenterWorld(map.WorldToCell(interaction.transform.position));
+        body.position = routeStart;
+        movement.transform.position = routeStart;
+        yield return null;
+        int startCount = initialWire.TilePath.Cells.Count;
+        float remainingAtStart = 500f - initialWire.TilePath.GetLength(map);
+        Vector3Int startCell = map.WorldToCell(routeStart);
+        Vector3 farTile = map.GetCellCenterWorld(startCell + Vector3Int.up * 4);
+        body.position = farTile;
+        movement.transform.position = farTile;
         yield return null;
         yield return null;
-        Require(!groundCorner.GetAnchor(initialWire), "Moving above Ground must not pre-hook its corner.");
-        body.position = new Vector2(-12f, -4.5f) - handOffset;
-        movement.transform.position = body.position;
+        Require(initialWire.TilePath.Cells.Count >= startCount + 4,
+            "The real scene Player must extend the wire along every crossed tile.");
+        Require(lengthText.text == "剩余线长：" + (remainingAtStart - 4f).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
+            "Moving four unit tiles must reduce the displayed remaining length by four.");
+        body.position = routeStart;
+        movement.transform.position = routeStart;
         yield return null;
         yield return null;
-        Anchor cornerAnchor = groundCorner.GetAnchor(initialWire);
-        Require(cornerAnchor && cornerAnchor.EngagedBy == initialWire && line.positionCount == 3 &&
-            groundCorner.DetectionCollider.Distance(initialWire.PathCollider).isOverlapped,
-            "The actual scene's Ground corner must automatically hook the Player's carried wire.");
-        body.position = new Vector2(-12f, -2f) - handOffset;
-        movement.transform.position = body.position;
-        yield return null;
-        yield return null;
-        Require(!cornerAnchor && !groundCorner.GetAnchor(initialWire) && line.positionCount == 2,
-            "Reversing the real scene Player must unhook and destroy the generated corner Anchor.");
+        Require(initialWire.TilePath.Cells.Count == startCount,
+            "Returning over the real scene Player's tile path must retract the same cells.");
+        Require(lengthText.text == "剩余线长：" + remainingAtStart.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
+            "Backtracking must restore the displayed remaining length.");
 
         int diedCount = 0;
         Action onDied = () => diedCount++;
@@ -311,8 +389,14 @@ public static class SceneIntegrationChecks
             yield return new WaitForFixedUpdate();
             Require(movement.IsDead && !movement.gameObject.activeSelf && !body.simulated && diedCount == 1,
                 "Exceeding the real wire limit must kill the player and notify death in a physics frame.");
+            Require(restartPanel.gameObject.activeInHierarchy &&
+                restartPanel.GetComponentInChildren<UnityEngine.UI.Button>().interactable,
+                "Player death must show an actionable restart prompt.");
             yield return new WaitForFixedUpdate();
             Require(diedCount == 1, "Later physics frames must not repeat the death notification.");
+            yield return null;
+            yield return null;
+            Require(lengthText.text == "剩余线长：0.0", "Exceeding the wire limit must display zero rather than a negative length.");
         }
         finally
         {

@@ -71,7 +71,7 @@ public sealed class SettingsScreen : MonoBehaviour
             {
                 GameStateManager.Freeze();
             }
-            saveStatus.text = "Could not open the main menu. Please try again.";
+            saveStatus.text = "返回主菜单失败，请重试。";
         }
     }
 
@@ -96,14 +96,14 @@ public sealed class SettingsScreen : MonoBehaviour
                 CoreFacade.Instance.Audio.ApplyAudioSettings();
             }
 
-            saveStatus.text = "Settings saved";
+            saveStatus.text = "设置已保存";
             return;
         }
 
         audio.MasterVolume = previousMaster;
         audio.OstVolume = previousOst;
         audio.SfxVolume = previousSfx;
-        saveStatus.text = "Save failed. Please try again.";
+        saveStatus.text = "保存失败，请重试。";
     }
 
     public void OnVolumeChanged(float value)

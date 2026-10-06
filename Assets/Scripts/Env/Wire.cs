@@ -3,10 +3,10 @@ using NaughtyAttributes;
 using UnityEngine;
 
 /// <summary>
-/// Electrical wire storing polarity, fixed/free ends, plug state and an engagement sequence counter.
-/// 电线保存极性、固定端/自由端、插入状态及接入序号计数器。
-/// WirePoint and Anchor store sequence numbers; EnvironmentFacade sorts them and supplies the rendered path.
-/// WirePoint 与 Anchor 保存序号，由 EnvironmentFacade 排序并提供渲染路径。
+/// Electrical wire storing polarity, endpoints, plug state and its independent visited tile path.
+/// 电线保存极性、端点、插入状态及独立的格子路径。
+/// EnvironmentFacade samples player cells; rendering, collision and length share those cell centers.
+/// EnvironmentFacade 采样玩家格子；渲染、碰撞及长度共用这些格子的中心。
 /// The polyline uses a query-only trigger collider, with no rope simulation. Authored or runtime-created wires need Initialize.
 /// 折线使用查询用 Trigger 碰撞体，不模拟绳索；预设或运行时创建的线均需 Initialize。
 /// </summary>
@@ -20,70 +20,39 @@ public class Wire : MonoBehaviour
     public bool IsClosed => isClosed;
     public PowerSocket Socket => socket;
     public Transform PlugTarget => plugTarget;
-    public IReadOnlyList<WirePoint> Points => points;
-    public Vector3 FixedEndPosition => fixedEnd ? fixedEnd.position : transform.position;
+    public TileWirePath TilePath { get; } = new TileWirePath();
+    public Vector3 FixedEndPosition => socket ? socket.PlugPosition : transform.position;
     public float MaxLength => maxLength;
-    public float PullStrength => pullStrength;
     public EdgeCollider2D PathCollider => pathCollider;
-
-    /// <summary>
-    /// Where this wire's free end currently is: the carrying player's attach point while held, otherwise the place
-    /// it is plugged into, otherwise the wire's own transform.
-    /// 本线自由端当前所在: 被持有时是携带者的挂点, 否则是它插入的位置, 再否则是线自身的变换.
-    /// </summary>
-    public Vector3 FreeEndPosition
-    {
-        get
-        {
-            if (isHeld)
-            {
-                return attachPoint ? attachPoint.position : transform.position;
-            }
-
-            return plugTarget ? plugTarget.position : transform.position;
-        }
-    }
 
     [SerializeField, BoxGroup("Wire")]
     [Tooltip("Electrical property of this wire. It must match the polarity of every interface it is plugged into.")]
     private WirePolarity polarity = WirePolarity.Live;
 
-    [SerializeField, BoxGroup("Wire")]
-    [Tooltip("Where the wire leaves its outlet. Left empty, the wire's own transform is used.")]
-    private Transform fixedEnd;
-
     [SerializeField, Min(0f), BoxGroup("Wire")]
     [Tooltip("Maximum routed length of the carried wire. Exceeding it kills the player; zero leaves its length unrestricted.")]
     private float maxLength;
-
-    [SerializeField, Min(0f), BoxGroup("Wire")]
-    [Tooltip("Legacy pull-force setting retained for asset compatibility. Exceeding Max Length now kills the player regardless of this value.")]
-    private float pullStrength = 10f;
-
-    private readonly List<WirePoint> points = new();
 
     private LineRenderer line;
     private EdgeCollider2D pathCollider;
     private readonly List<Vector2> colliderPoints = new();
     private readonly List<Vector2> previousColliderPoints = new();
-    private Transform attachPoint;
     private PowerSocket socket;
     private Transform plugTarget;
     private Vector3[] buffer = new Vector3[0];
     private bool isHeld;
     private bool isClosed;
-    private int engagementCounter;
 
     private void Awake()
         => Initialize();
 
     /// <summary>
-    /// Single entry point for caching this wire's own components and collecting its points.
+    /// Single entry point for caching this wire's rendering and collision components.
     /// Implementation approach: called from Awake, and again by the facade's sweep, so that a run driven from the
-    /// Editor without entering play mode still has its LineRenderer and its points. It is idempotent.
-    /// 缓存本线自身组件并收集其点的单一入口.
+    /// Editor without entering play mode still has its LineRenderer and collider. It is idempotent.
+    /// 缓存本线渲染及碰撞组件的单一入口.
     /// 实现思路: 由 Awake 调用, 也由门面的扫描再次调用, 使"不进入播放模式、直接在编辑器里驱动"的一局依然有
-    /// LineRenderer 与它的点. 它是幂等的.
+    /// LineRenderer 与碰撞体. 它是幂等的.
     /// </summary>
     public void Initialize()
     {
@@ -104,29 +73,10 @@ public class Wire : MonoBehaviour
             pathCollider.enabled = false;
         }
 
-        points.Clear();
-        points.AddRange(GetComponentsInChildren<WirePoint>());
     }
-
-    /// <summary>
-    /// Single entry point for taking the next routing order number.
-    /// Implementation approach: a monotonic counter per wire, because the path order is the order in which the
-    /// player engaged the points, and timestamps cannot express two engagements in the same frame.
-    /// 取下一个绕线顺序号的单一入口.
-    /// 实现思路: 每根线一个单调计数器, 因为路径顺序就是玩家接入各点的先后, 而时间戳无法表达同一帧内的两次接入.
-    /// </summary>
-    public int NextEngagementSequence()
-        => ++engagementCounter;
 
     public void SetSocket(PowerSocket owner)
         => socket = owner;
-
-    /// <summary>
-    /// Hand this wire the Transform its free end should follow while it is held.
-    /// 把"被持有时自由端应跟随的 Transform"交给本线的单一入口.
-    /// </summary>
-    public void SetAttachPoint(Transform point)
-        => attachPoint = point;
 
     /// <summary>
     /// Single entry point for the state "a player carries this wire's free end".

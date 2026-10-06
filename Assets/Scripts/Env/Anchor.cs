@@ -5,18 +5,17 @@ using UnityEngine;
 /// <summary>
 /// A freely placed routing fixture, never an inventory item.
 /// 无限放置、收回的绕线锚点，不是背包道具。
-/// Remembers its wire and routing order; Environment owns the circuit and polyline.
-/// 只记录绕线归属与顺序；回路及路径由 Environment 管理。
-/// Lifetime: authored, placed by Player, or created by Corner; destroyed on reclaim or automatic release.
-/// 生命周期：关卡预设、Player 放置或 Corner 自动创建，收回或自动释放时销毁。
+/// Pins the visited tile path of one wire; Environment owns circuit state.
+/// 固定一根线已经走过的格子路径；回路状态由 Environment 管理。
+/// Lifetime: authored or placed by Player; destroyed on reclaim.
+/// 生命周期：关卡预设或 Player 放置，收回时销毁。
 /// </summary>
 [DisallowMultipleComponent]
 public class Anchor : MonoBehaviour, IEnvironmentInteractable
 {
     public bool CanInteract => canInteract && CanReclaim;
-    public bool CanReclaim => isActiveAndEnabled && !isReclaimed && !cornerOwner;
+    public bool CanReclaim => isActiveAndEnabled && !isReclaimed;
     public bool IsEngaged => engagedBy != null;
-    public int EngagementSequence => engagementSequence;
 
     /// <summary>
     /// The wire currently routed around this fixture, or null.
@@ -31,48 +30,20 @@ public class Anchor : MonoBehaviour, IEnvironmentInteractable
     private bool canInteract = true;
 
     private Wire engagedBy;
-    private int engagementSequence;
     private bool isReclaimed;
-    private Corner cornerOwner;
-
-    /// <summary>Attach an automatic routing node owned exclusively by a scene corner.
-    /// Corner 自动节点仅由所属拐角管理，不参与 J/K 手动收回。</summary>
-    internal void HookAtCorner(Corner owner, Wire wire)
-    {
-        cornerOwner = owner;
-        engagedBy = wire;
-        engagementSequence = wire.NextEngagementSequence();
-    }
-
-    internal void ReleaseFromCorner()
-    {
-        isReclaimed = true;
-        ResetRouting();
-        EnvironmentFacade.ForScene(gameObject.scene)?.UnregisterAnchor(this);
-        gameObject.SetActive(false);
-        if (Application.isPlaying)
-        {
-            Destroy(gameObject);
-        }
-        else
-        {
-            DestroyImmediate(gameObject);
-        }
-    }
-
     internal void ResetRouting()
     {
+        engagedBy?.TilePath.Unpin(this);
         engagedBy = null;
-        engagementSequence = 0;
     }
 
     /// <summary>
     /// Single entry point for routing the wire around this fixture, or releasing it.
     /// Implementation approach: refuse without side effects when routing is disabled, otherwise toggle which wire
-    /// is routed here, take the next order number, and raise OnInteracted. An Anchor belongs to at most one wire
+    /// is pinned here and raise OnInteracted. An Anchor belongs to at most one wire
     /// at a time, because the player carries one wire at a time.
     /// 让线绕过本固定物或解除绕线的单一入口.
-    /// 实现思路: 禁止绕线时无副作用拒绝; 否则切换"哪根线在这里绕线", 取下一个顺序号, 并触发 OnInteracted.
+    /// 实现思路: 禁止绕线时无副作用拒绝; 否则切换"哪根线在这里绕线", 固定当前格子路径, 并触发 OnInteracted.
     /// 一个 Anchor 同时最多属于一根线, 因为玩家一次只携带一根线.
     /// </summary>
     public void Interact(InteractionDetails details)
@@ -91,8 +62,7 @@ public class Anchor : MonoBehaviour, IEnvironmentInteractable
 
         if (engagedBy != null)
         {
-            engagedBy = null;
-            engagementSequence = 0;
+            ResetRouting();
             OnInteracted?.Invoke(this);
             return;
         }
@@ -110,8 +80,12 @@ public class Anchor : MonoBehaviour, IEnvironmentInteractable
             return;
         }
 
+        EnvironmentFacade environment = EnvironmentFacade.ForScene(gameObject.scene);
+        if (!environment || !environment.TryPinAnchor(this, details.Actor.transform.position))
+        {
+            return;
+        }
         engagedBy = held;
-        engagementSequence = held.NextEngagementSequence();
         OnInteracted?.Invoke(this);
     }
 

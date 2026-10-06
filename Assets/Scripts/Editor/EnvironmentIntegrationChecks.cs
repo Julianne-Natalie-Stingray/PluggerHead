@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
 
 /// <summary>
 /// Repeatable integration checks against real Player/Env components in an isolated, unsaved preview scene.
@@ -38,20 +39,20 @@ public static class EnvironmentIntegrationChecks
         float previousTimeScale = Time.timeScale;
         Scene preview = EditorSceneManager.NewPreviewScene();
         int checks = 0;
+        Tile tile = ScriptableObject.CreateInstance<Tile>();
         try
         {
             Time.timeScale = 1f;
+            Tilemap map = AddRoutingMap(preview, tile);
             GameObject player = Create(preview, "CheckPlayer", Vector3.zero);
             player.tag = "Player";
-            PlayerInventory inventory = player.AddComponent<PlayerInventory>();
             PlayerMove movement = player.AddComponent<PlayerMove>();
             PlayerInteraction interaction = player.AddComponent<PlayerInteraction>();
             Invoke(movement, "Awake");
             Invoke(interaction, "Awake");
             player.GetComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
 
-            GameObject hand = Create(preview, "CheckHand", Vector3.zero, player.transform);
-            PowerSocket outlet = AddSocket(preview, "CheckOutlet", new Vector3(100f, 0f));
+            PowerSocket outlet = AddSocket(preview, "CheckOutlet", new Vector3(-10f, 0f));
             Wire live = Create(preview, "CheckLiveWire", Vector3.zero).AddComponent<Wire>();
             Wire neutral = Create(preview, "CheckNeutralWire", Vector3.zero).AddComponent<Wire>();
             Set(neutral, "polarity", WirePolarity.Neutral);
@@ -62,13 +63,10 @@ public static class EnvironmentIntegrationChecks
                 WirePolarity.Live | WirePolarity.Neutral);
             PolaritySocket mismatch = AddPolaritySocket(preview, "CheckMismatch", new Vector3(40f, 0f),
                 WirePolarity.Ground);
-            WirePoint point = Create(preview, "CheckWirePoint", new Vector3(0f, 2f), live.transform)
-                .AddComponent<WirePoint>();
-            Invoke(point, "Awake");
             EnvironmentFacade environment = Create(preview, "CheckEnvironment", Vector3.zero)
                 .AddComponent<EnvironmentFacade>();
-            Set(inventory, "environment", environment);
-            Set(environment, "attachPoint", hand.transform);
+            Set(environment, "playerTransform", player.transform);
+            Set(environment, "routingTilemap", map);
             environment.RefreshNodes();
             Invoke(environment, "BeginRun");
             Check(environment.HeldWire == live && live.IsHeld && !environment.IsCircuitClosed,
@@ -76,65 +74,55 @@ public static class EnvironmentIntegrationChecks
             Check(Get<List<Wire>>(environment, "wires").Count == 2,
                 "Node discovery stays in the preview scene", ref checks);
 
-            CheckSceneBindings(environment, player, inventory, anchor, live, ref checks);
+            CheckSceneBindings(environment, player, anchor, live, ref checks);
 
-            Check(!typeof(IEnvironmentPickup).IsAssignableFrom(typeof(Anchor)),
-                "Anchors do not implement the inventory pickup contract", ref checks);
             Anchor prefab = AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Prefabs/Env/Anchor.prefab");
             Check(prefab != null, "The player anchor prefab is available", ref checks);
             Set(interaction, "anchorPrefab", prefab);
-            int inventoryChanges = 0;
-            inventory.Changed += () => inventoryChanges++;
             Physics2D.SyncTransforms();
             Check(interaction.TryPerformOperation() && anchor == null && farther != null,
                 "J reclaims only the nearest anchor through its child collider", ref checks);
-            Check(inventory.Count == 0 && inventoryChanges == 0,
-                "Reclaiming anchors never adds an inventory item", ref checks);
             player.transform.position = Vector3.right;
             Check(interaction.TryPlaceAnchor(), "K places an anchor without an inventory item", ref checks);
             anchor = Get<List<Anchor>>(environment, "anchors").Find(node => node != farther);
             Check(anchor != null && anchor.transform.position == player.transform.position && anchor.EngagedBy == live,
                 "A newly placed anchor is registered and routes the held wire at the player", ref checks);
             Invoke(environment, "LateUpdate");
-            Check(live.GetComponent<LineRenderer>().positionCount == 3 &&
-                live.GetComponent<LineRenderer>().GetPosition(1) == anchor.transform.position,
-                "Routing inserts the real anchor into the rendered wire path", ref checks);
+            Check(live.TilePath.Cells[live.TilePath.Cells.Count - 1] == map.WorldToCell(anchor.transform.position),
+                "The placed Anchor fixes the currently visited tile", ref checks);
+            player.transform.position = new Vector3(5f, 0f);
+            environment.SamplePlayerPath(player.transform.position);
+            float routeLength = live.TilePath.GetLength(map);
+            Set(live, "maxLength", routeLength + 1f);
+            Check(environment.GetResistance(player.transform.position) == Vector2.zero,
+                "A carried wire below its tile path limit applies no resistance", ref checks);
+            Set(live, "maxLength", routeLength);
+            Check(environment.GetResistance(player.transform.position) == Vector2.zero,
+                "A wire exactly at its tile path length limit is not lethal", ref checks);
+            Set(live, "maxLength", routeLength - 0.01f);
+            Check(IsDeathResistance(environment.GetResistance(player.transform.position)),
+                "Strictly exceeding tile path length returns the death sentinel", ref checks);
             player.transform.position = Vector3.zero;
-
-            hand.transform.position = new Vector3(5f, 0f);
-            Set(live, "maxLength", 6f);
-            Check(environment.GetResistance(player.transform.position) == Vector2.zero,
-                "A carried wire below its length limit applies no resistance", ref checks);
-            Set(live, "maxLength", 5f);
-            Check(environment.GetResistance(player.transform.position) == Vector2.zero,
-                "A carried wire exactly at its length limit is not lethal", ref checks);
-            Set(live, "maxLength", 4.99f);
-            Check(IsDeathResistance(environment.GetResistance(player.transform.position)),
-                "Exceeding the length limit at the actual hand returns the death sentinel", ref checks);
-            hand.transform.position = Vector3.zero;
             Set(live, "maxLength", 1f);
-            Set(live, "pullStrength", 0f);
             Check(IsDeathResistance(environment.GetResistance(player.transform.position)),
-                "Routing through an anchor can exceed the limit even at the fixed end with zero pull strength", ref checks);
-            hand.transform.position = new Vector3(5f, 0f);
+                "A pinned route remains lethal while its earlier route is protected", ref checks);
             Set(live, "maxLength", 0f);
             Check(environment.GetResistance(player.transform.position) == Vector2.zero,
                 "Unrestricted wires apply no resistance", ref checks);
-
+            int retainedCells = live.TilePath.Cells.Count;
             Check(anchor.TryReclaim(new InteractionDetails(player, anchor.gameObject)) && anchor == null &&
                 environment.HeldWire == live,
-                "Reclaiming a routed anchor destroys it without losing the held wire", ref checks);
+                "Reclaim destroys an Anchor without losing the held wire", ref checks);
             Invoke(environment, "LateUpdate");
-            Check(live.GetComponent<LineRenderer>().positionCount == 2,
-                "Reclaim removes its bend from the rendered path", ref checks);
+            Check(live.TilePath.Cells.Count == retainedCells,
+                "Reclaim releases a pin without deleting the recorded movement history", ref checks);
             const int placementCount = 16;
             for (int i = 0; i < placementCount; i++)
             {
                 Check(interaction.TryPlaceAnchor(), "Repeated placement does not require inventory stock", ref checks);
             }
-            Check(Get<List<Anchor>>(environment, "anchors").Count == placementCount + 1 &&
-                inventory.Count == 0 && inventoryChanges == 0,
-                "Sixteen simultaneous anchors use no inventory slots or inventory notifications", ref checks);
+            Check(Get<List<Anchor>>(environment, "anchors").Count == placementCount + 1,
+                "Sixteen simultaneous anchors can be placed without an inventory component", ref checks);
             foreach (Anchor placed in new List<Anchor>(Get<List<Anchor>>(environment, "anchors")))
             {
                 if (placed != farther)
@@ -145,13 +133,6 @@ public static class EnvironmentIntegrationChecks
             }
             Check(Get<List<Anchor>>(environment, "anchors").Count == 1,
                 "Reclaim unregisters destroyed anchors without rescanning the scene", ref checks);
-
-            point.Interact(new WirePointDetails(player, point.gameObject));
-            Invoke(environment, "LateUpdate");
-            Check(point.IsEngaged && live.GetComponent<LineRenderer>().GetPosition(1) == point.transform.position,
-                "WirePointDetails routes an authored wire point", ref checks);
-            point.Interact(new WirePointDetails(player, point.gameObject));
-            Check(!point.IsEngaged, "A second wire-point interaction releases the bend", ref checks);
 
             CheckLocks(interaction, movement, ref checks);
             Set(farther, "canInteract", false);
@@ -183,14 +164,14 @@ public static class EnvironmentIntegrationChecks
 
             Check(interaction.TryPlaceAnchor(), "Placement succeeds with no held wire after circuit completion", ref checks);
             Anchor wireless = Get<List<Anchor>>(environment, "anchors").Find(node => node != farther);
-            Check(wireless != null && !wireless.IsEngaged && inventory.Count == 0,
+            Check(wireless != null && !wireless.IsEngaged,
                 "An anchor placed without a wire remains independently reclaimable", ref checks);
             Check(wireless.TryReclaim(new InteractionDetails(player, wireless.gameObject)),
                 "A wireless anchor can be reclaimed", ref checks);
 
             Invoke(environment, "BeginRun");
             Check(environment.HeldWire == live && live.IsHeld && !neutral.IsClosed &&
-                !environment.IsCircuitClosed && environment.SwapCount == 0 && !point.IsEngaged,
+                !environment.IsCircuitClosed && environment.SwapCount == 0,
                 "Restart clears route, plug, swap, and victory state", ref checks);
 
             Set(live, "maxLength", 1f);
@@ -221,6 +202,7 @@ public static class EnvironmentIntegrationChecks
             {
                 EditorSceneManager.ClosePreviewScene(preview);
             }
+            UnityEngine.Object.DestroyImmediate(tile);
             Time.timeScale = previousTimeScale;
             typeof(EnvironmentFacade).GetField("<Current>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
                 .SetValue(null, previousEnvironment);
@@ -232,11 +214,13 @@ public static class EnvironmentIntegrationChecks
     }
 
     private static void CheckSceneBindings(EnvironmentFacade environment, GameObject player,
-        PlayerInventory inventory, Anchor anchor, Wire live, ref int checks)
+        Anchor anchor, Wire live, ref int checks)
     {
         Scene otherScene = EditorSceneManager.NewPreviewScene();
+        Tile otherTile = ScriptableObject.CreateInstance<Tile>();
         try
         {
+            AddRoutingMap(otherScene, otherTile);
             GameObject otherPlayer = Create(otherScene, "OtherPlayer", Vector3.zero);
             Wire otherWire = Create(otherScene, "OtherWire", Vector3.zero).AddComponent<Wire>();
             PowerSocket otherOutlet = AddSocket(otherScene, "OtherOutlet", Vector3.zero);
@@ -261,21 +245,16 @@ public static class EnvironmentIntegrationChecks
                 !otherAnchor.TryReclaim(new InteractionDetails(null, otherAnchor.gameObject)),
                 "Missing actor details cannot reclaim an anchor", ref checks);
             Check(!otherAnchor.TryReclaim(new InteractionDetails(player, otherAnchor.gameObject)) &&
-                otherAnchor.gameObject.activeSelf && inventory.Count == 0,
+                otherAnchor.gameObject.activeSelf,
                 "An actor cannot reclaim an anchor from another scene", ref checks);
 
-            Check(inventory.Environment == environment,
-                "A valid explicit environment is preserved while another scene is current", ref checks);
-            Set(inventory, "environment", null);
-            Check(inventory.Environment == environment && Get<EnvironmentFacade>(inventory, "environment") == environment,
-                "An unassigned inventory resolves and caches its own scene environment", ref checks);
-            Set(inventory, "environment", otherEnvironment);
-            Check(inventory.Environment == environment,
-                "An environment reference from another scene is replaced with the local environment", ref checks);
+            Check(EnvironmentFacade.ForScene(player.scene) == environment,
+                "The player resolves its own scene environment while another scene is current", ref checks);
         }
         finally
         {
             EditorSceneManager.ClosePreviewScene(otherScene);
+            UnityEngine.Object.DestroyImmediate(otherTile);
             environment.RefreshNodes();
         }
     }
@@ -288,14 +267,31 @@ public static class EnvironmentIntegrationChecks
         movement.LockInput();
         Check(!interaction.TryPerformOperation() && !interaction.TryPlaceAnchor(),
             "The manual input lock blocks environment operations and anchor placement", ref checks);
-        movement.UnlockInput();
-        movement.OnDashStarted();
         movement.OnInteractionStarted();
-        movement.OnDashEnded();
+        movement.UnlockInput();
         Check(movement.IsInputLocked && !interaction.TryPerformOperation() && !interaction.TryPlaceAnchor(),
-            "Overlapping animation locks block anchor operations until both animations finish", ref checks);
+            "Interaction animation keeps operations locked after the manual lock is released", ref checks);
+        movement.LockInput();
         movement.OnInteractionEnded();
-        Check(!movement.IsInputLocked, "Finishing the final animation releases input", ref checks);
+        Check(movement.IsInputLocked, "Finishing interaction preserves the manual input lock", ref checks);
+        movement.UnlockInput();
+        Check(!movement.IsInputLocked, "Releasing both lock sources restores input", ref checks);
+    }
+
+    private static Tilemap AddRoutingMap(Scene scene, Tile tile)
+    {
+        GameObject grid = Create(scene, "CheckGrid", new Vector3(-0.5f, -0.5f));
+        grid.AddComponent<Grid>();
+        GameObject mapObject = Create(scene, "RoutingTilemap", grid.transform.position, grid.transform);
+        Tilemap map = mapObject.AddComponent<Tilemap>();
+        for (int x = -12; x <= 42; x++)
+        {
+            for (int y = -2; y <= 3; y++)
+            {
+                map.SetTile(new Vector3Int(x, y, 0), tile);
+            }
+        }
+        return map;
     }
 
     private static GameObject Create(Scene scene, string name, Vector3 position, Transform parent = null)

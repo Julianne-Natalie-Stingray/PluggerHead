@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using NaughtyAttributes;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
 
 /// <summary>
 /// Per-level circuit controller: scans nodes, tracks held wires and sockets, rebuilds paths and evaluates completion.
@@ -11,8 +12,8 @@ using UnityEngine.SceneManagement;
 /// 每个关卡场景应配置一个；组件不强制场景内唯一，也不主动跨场景保留自身。
 /// Current is the last instance assigned by Awake or RefreshNodes. Use ForScene for scene-specific lookup.
 /// Current 是最近经 Awake 或 RefreshNodes 赋值的实例；按场景查询应使用 ForScene。
-/// Player owns range/input checks and inventory. Sockets notify requests; routing nodes also maintain their own engagement state.
-/// Player 负责范围、输入与背包；插口通知请求，绕线节点还维护各自接入状态。
+/// Player owns range/input checks. Sockets notify requests; routing nodes also maintain their own engagement state.
+/// Player 负责范围与输入检查；插口通知请求，绕线节点还维护各自接入状态。
 /// </summary>
 [DisallowMultipleComponent]
 public class EnvironmentFacade : MonoBehaviour
@@ -22,6 +23,10 @@ public class EnvironmentFacade : MonoBehaviour
     public Wire HeldWire => heldWire;
     public bool IsCircuitClosed => isCircuitClosed;
     public int SwapCount => swapCount;
+    public Tilemap RoutingTilemap => routingTilemap;
+
+    [SerializeField, Tooltip("Painted rectangular XY tiles used by sockets, Anchors and wire paths.")]
+    private Tilemap routingTilemap;
 
     /// <summary>
     /// Return the Player death sentinel when the carried wire's routed length exceeds its configured limit.
@@ -29,26 +34,14 @@ public class EnvironmentFacade : MonoBehaviour
     /// </summary>
     public Vector2 GetResistance(Vector2 playerPosition)
     {
+        SamplePlayerPath(playerPosition);
         if (!heldWire || !heldWire.IsHeld || heldWire.MaxLength <= 0f)
         {
             return Vector2.zero;
         }
 
-        Vector2 previous = heldWire.FixedEndPosition;
-        float routedLength = 0f;
-        if (waypoints.TryGetValue(heldWire, out List<Vector3> path))
-        {
-            for (int i = 0; i < path.Count; i++)
-            {
-                Vector2 next = path[i];
-                routedLength += Vector2.Distance(previous, next);
-                previous = next;
-            }
-        }
-
-        Vector2 freeEnd = attachPoint ? (Vector2)attachPoint.position : playerPosition;
-        routedLength += Vector2.Distance(previous, freeEnd);
-        return routedLength > heldWire.MaxLength ? Vector2.negativeInfinity : Vector2.zero;
+        return routingTilemap && heldWire.TilePath.GetLength(routingTilemap) > heldWire.MaxLength
+            ? Vector2.negativeInfinity : Vector2.zero;
     }
 
     /// <summary>
@@ -58,12 +51,8 @@ public class EnvironmentFacade : MonoBehaviour
     public event Action LevelCleared;
 
     [SerializeField, BoxGroup("Player")]
-    [Tooltip("Tag of the player object, used to check that the attach point really belongs to the player.")]
+    [Tooltip("Tag of the player whose tile movement builds the held wire path.")]
     private string playerTag = "Player";
-
-    [SerializeField, BoxGroup("Player")]
-    [Tooltip("Tag of the Transform the carried wire's free end follows. It must sit under the tagged player.")]
-    private string attachPointTag = "WireAttach";
 
     [SerializeField, BoxGroup("Win condition")]
     [Tooltip("Whether this level also contains a broken ground line that must be connected.")]
@@ -76,28 +65,23 @@ public class EnvironmentFacade : MonoBehaviour
     private readonly List<IEnvironmentInteractable> nodes = new();
     private readonly List<Wire> wires = new();
     private readonly List<Anchor> anchors = new();
-    private readonly List<Corner> corners = new();
     private readonly Dictionary<PolaritySocket, WirePolarity> occupied = new();
-    private readonly Dictionary<Wire, List<Vector3>> waypoints = new();
     private readonly List<Vector3> renderBuffer = new();
-    private readonly List<Vector3> orderedBuffer = new();
-    private readonly List<int> sequenceBuffer = new();
 
-    private Transform attachPoint;
     private PowerSocket socket;
     private Wire heldWire;
     private int swapCount;
     private bool isCircuitClosed;
-    private bool reportedMissingAttachPoint;
-    private Wire sampledWire;
-    private Vector2 previousFreeEnd;
+    private Transform playerTransform;
+    private Vector3 previousPlayerPosition;
+    private bool hasPlayerSample;
 
     private void Awake()
     {
         Current = this;
 
         RefreshNodes();
-        ResolveAttachPoint();
+        ResolvePlayer();
         BeginRun();
     }
 
@@ -117,46 +101,135 @@ public class EnvironmentFacade : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Single entry point for the per-frame drawing of every wire.
-    /// Implementation approach: the free end follows the carrying player, so the polyline is rebuilt every frame
-    /// from cached waypoint positions. Corner routing and explicit node operations can also rebuild the path.
-    /// 每根线每帧绘制的单一入口.
-    /// 实现思路: 自由端跟随携带者, 因此折线每帧由缓存的绕线顺序重建, 而不是从头重算；Corner 自动绕线及节点操作也可重建路径。
-    /// </summary>
     private void LateUpdate()
     {
-        foreach (Corner corner in corners)
+        if (playerTransform && playerTransform.gameObject.activeInHierarchy && Time.timeScale > 0f)
         {
-            if (corner)
-            {
-                corner.CleanReleasedAnchors();
-            }
+            SamplePlayerPath(playerTransform.position);
         }
         RenderWires();
-        UpdateCornerRouting();
     }
 
     private void RenderWires()
     {
-        for (int i = 0; i < wires.Count; i++)
+        if (!routingTilemap)
         {
-            Wire wire = wires[i];
-            if (!wire)
+            return;
+        }
+        foreach (Wire wire in wires)
+        {
+            if (wire)
             {
-                continue;
+                wire.TilePath.CopyWorldPath(routingTilemap, renderBuffer);
+                wire.RenderPath(renderBuffer);
             }
+        }
+    }
 
-            renderBuffer.Clear();
-            renderBuffer.Add(wire.FixedEndPosition);
+    /// <summary>Resolve a painted tile's center for authored nodes and player placement.
+    /// 将节点及玩家放置位置映射到已绘制 tile 的中心。</summary>
+    public bool TryGetTilePosition(Vector3 worldPosition, out Vector3 center)
+    {
+        center = worldPosition;
+        if (!routingTilemap || routingTilemap.gameObject.scene != gameObject.scene)
+        {
+            return false;
+        }
+        Vector3Int cell = routingTilemap.WorldToCell(worldPosition);
+        cell.z = 0;
+        if (!routingTilemap.HasTile(cell))
+        {
+            return false;
+        }
+        center = routingTilemap.GetCellCenterWorld(cell);
+        return true;
+    }
 
-            if (waypoints.TryGetValue(wire, out List<Vector3> cached))
+    internal bool TryPinAnchor(Anchor anchor, Vector3 actorPosition)
+    {
+        if (!heldWire || !anchor || anchor.gameObject.scene != gameObject.scene ||
+            !TryGetTilePosition(anchor.transform.position, out Vector3 center))
+        {
+            return false;
+        }
+        SamplePlayerPath(actorPosition);
+        // Routing fixtures pin a visited tile, rather than inventing a shortcut to a nearby node.
+        // 锚点只能固定玩家当前所在格，不能远程把线拉到未经过的格子。
+        if (PathCell(actorPosition) != PathCell(center))
+        {
+            return false;
+        }
+        anchor.transform.position = center;
+        heldWire.TilePath.Pin(anchor);
+        return true;
+    }
+
+    /// <summary>Record movement through rectangular cells, including cells crossed between samples.
+    /// 记录矩形网格上的移动，补齐两次采样之间跨过的格子。</summary>
+    public void SamplePlayerPath(Vector3 worldPosition)
+    {
+        if (!routingTilemap || !heldWire || !heldWire.IsHeld ||
+            float.IsNaN(worldPosition.x) || float.IsInfinity(worldPosition.x) ||
+            float.IsNaN(worldPosition.y) || float.IsInfinity(worldPosition.y) ||
+            float.IsNaN(worldPosition.z) || float.IsInfinity(worldPosition.z))
+        {
+            return;
+        }
+        if (heldWire.TilePath.Cells.Count == 0)
+        {
+            heldWire.TilePath.Reset(PathCell(heldWire.FixedEndPosition));
+        }
+        Vector3 from = hasPlayerSample ? previousPlayerPosition : heldWire.FixedEndPosition;
+        TraceCells(heldWire.TilePath, from, worldPosition);
+        previousPlayerPosition = worldPosition;
+        hasPlayerSample = true;
+    }
+
+    private Vector3Int PathCell(Vector3 position)
+    {
+        Vector3Int cell = routingTilemap.WorldToCell(position);
+        cell.z = 0;
+        return cell;
+    }
+
+    private void TraceCells(TileWirePath path, Vector3 from, Vector3 to)
+    {
+        Vector3 origin = routingTilemap.CellToWorld(Vector3Int.zero);
+        Vector3 axisX = routingTilemap.CellToWorld(Vector3Int.right) - origin;
+        Vector3 axisY = routingTilemap.CellToWorld(Vector3Int.up) - origin;
+        Matrix4x4 basis = Matrix4x4.identity;
+        basis.SetColumn(0, new Vector4(axisX.x, axisX.y, axisX.z, 0f));
+        basis.SetColumn(1, new Vector4(axisY.x, axisY.y, axisY.z, 0f));
+        Vector3 normal = Vector3.Cross(axisX, axisY).normalized;
+        basis.SetColumn(2, new Vector4(normal.x, normal.y, normal.z, 0f));
+        Matrix4x4 inverse = basis.inverse;
+        Vector3 start = inverse.MultiplyVector(from - origin);
+        Vector3 end = inverse.MultiplyVector(to - origin);
+        double deltaX = (double)end.x - start.x;
+        double deltaY = (double)end.y - start.y;
+        Vector3Int cell = routingTilemap.WorldToCell(from);
+        Vector3Int target = routingTilemap.WorldToCell(to);
+        cell.z = target.z = 0;
+        path.Visit(cell);
+        int stepX = deltaX >= 0d ? 1 : -1;
+        int stepY = deltaY >= 0d ? 1 : -1;
+        while (cell != target)
+        {
+            double tx = cell.x == target.x ? double.PositiveInfinity :
+                ((double)cell.x + (stepX > 0 ? 1 : 0) - start.x) / deltaX;
+            double ty = cell.y == target.y ? double.PositiveInfinity :
+                ((double)cell.y + (stepY > 0 ? 1 : 0) - start.y) / deltaY;
+            // Use a reversible tie-break at exact corners so retracing a diagonal retracts the same cells.
+            bool xFirst = Math.Abs(tx - ty) <= 1e-12d ? stepX > 0 : tx < ty;
+            if (xFirst)
             {
-                renderBuffer.AddRange(cached);
+                cell.x += stepX;
             }
-
-            renderBuffer.Add(wire.FreeEndPosition);
-            wire.RenderPath(renderBuffer);
+            else
+            {
+                cell.y += stepY;
+            }
+            path.Visit(cell);
         }
     }
 
@@ -175,6 +248,14 @@ public class EnvironmentFacade : MonoBehaviour
     public void RefreshNodes()
     {
         Current = this;
+        if (!routingTilemap)
+        {
+            Tilemap[] maps = FindSceneComponents<Tilemap>();
+            if (maps.Length == 1)
+            {
+                routingTilemap = maps[0];
+            }
+        }
 
         for (int i = 0; i < nodes.Count; i++)
         {
@@ -187,17 +268,8 @@ public class EnvironmentFacade : MonoBehaviour
         nodes.Clear();
         wires.Clear();
         anchors.Clear();
-        corners.Clear();
-        corners.AddRange(FindSceneComponents<Corner>(true));
-        waypoints.Clear();
         occupied.Clear();
         socket = null;
-
-        WirePoint[] points = FindSceneComponents<WirePoint>();
-        for (int i = 0; i < points.Length; i++)
-        {
-            nodes.Add(points[i]);
-        }
 
         Anchor[] found = FindSceneComponents<Anchor>(true);
         for (int i = 0; i < found.Length; i++)
@@ -238,15 +310,15 @@ public class EnvironmentFacade : MonoBehaviour
         for (int i = 0; i < nodes.Count; i++)
         {
             nodes[i].OnInteracted += HandleInteracted;
+            Component component = nodes[i] as Component;
+            if (component && TryGetTilePosition(component.transform.position, out Vector3 center))
+            {
+                component.transform.position = center;
+            }
         }
 
         for (int i = 0; i < wires.Count; i++)
         {
-            if (attachPoint)
-            {
-                wires[i].SetAttachPoint(attachPoint);
-            }
-
             Transform target = wires[i].PlugTarget;
             PolaritySocket polaritySocket = target ? target.GetComponent<PolaritySocket>() : null;
             if (polaritySocket)
@@ -256,7 +328,7 @@ public class EnvironmentFacade : MonoBehaviour
             }
         }
 
-        RebuildWaypoints();
+        RenderWires();
     }
 
     /// <summary>Register a newly placed anchor without resetting circuit state.
@@ -268,10 +340,14 @@ public class EnvironmentFacade : MonoBehaviour
             return;
         }
 
+        if (TryGetTilePosition(anchor.transform.position, out Vector3 center))
+        {
+            anchor.transform.position = center;
+        }
         anchors.Add(anchor);
         nodes.Add(anchor);
         anchor.OnInteracted += HandleInteracted;
-        RebuildWaypoints();
+        RenderWires();
     }
 
     /// <summary>Remove a reclaimed anchor and rebuild paths immediately.
@@ -283,147 +359,16 @@ public class EnvironmentFacade : MonoBehaviour
             return;
         }
 
+        foreach (Wire wire in wires)
+        {
+            if (wire)
+            {
+                wire.TilePath.Unpin(anchor);
+            }
+        }
         nodes.Remove(anchor);
         anchor.OnInteracted -= HandleInteracted;
-        RebuildWaypoints();
-    }
-
-    internal void RegisterCorner(Corner corner)
-    {
-        if (corner && corner.gameObject.scene == gameObject.scene && !corners.Contains(corner))
-        {
-            corners.Add(corner);
-        }
-    }
-
-    internal void UnregisterCorner(Corner corner)
-    {
-        corners.Remove(corner);
-    }
-
-    // Resolve contact events in movement order, independent of Corner script execution order.
-    // 先同步线碰撞体，按活动端的运动时间依次挂线/退绕，每次修改后重新计算活动线段。
-    private void UpdateCornerRouting()
-    {
-        if (!heldWire || !heldWire.IsHeld || Time.timeScale <= 0f)
-        {
-            sampledWire = null;
-            return;
-        }
-
-        Vector2 end = heldWire.FreeEndPosition;
-        if (sampledWire != heldWire)
-        {
-            sampledWire = heldWire;
-            previousFreeEnd = end;
-            return;
-        }
-
-        Vector2 from = previousFreeEnd;
-        if ((end - from).sqrMagnitude <= 0.00000001f)
-        {
-            return;
-        }
-        previousFreeEnd = end;
-
-        Physics2D.SyncTransforms();
-        // Each corner can enter and leave at most once along a straight endpoint movement.
-        for (int step = 0; step < corners.Count * 2 + 1; step++)
-        {
-            GetRoutingTail(heldWire, out Vector2 pivot, out Vector2 predecessor, out Corner tail);
-            Corner next = null;
-            bool release = false;
-            float earliest = float.PositiveInfinity;
-            if (tail && tail.TryGetExit(heldWire, predecessor, from, end, out float exitTime))
-            {
-                next = tail;
-                earliest = exitTime;
-                release = true;
-            }
-            foreach (Corner corner in corners)
-            {
-                if (corner && corner.TryGetEntry(heldWire, pivot, from, end, out float entryTime) &&
-                    entryTime < earliest)
-                {
-                    next = corner;
-                    earliest = entryTime;
-                    release = false;
-                }
-            }
-            if (!next)
-            {
-                break;
-            }
-            if (release)
-            {
-                next.Release(heldWire);
-            }
-            else
-            {
-                next.Engage(this, heldWire, pivot, end - from);
-            }
-            from = Vector2.Lerp(from, end, earliest);
-            RenderWires();
-            Physics2D.SyncTransforms();
-        }
-    }
-
-    private void GetRoutingTail(Wire wire, out Vector2 pivot, out Vector2 predecessor, out Corner corner)
-    {
-        pivot = wire.FixedEndPosition;
-        predecessor = pivot;
-        int lastSequence = 0;
-        int previousSequence = 0;
-        Anchor lastAnchor = null;
-        foreach (WirePoint point in wire.Points)
-        {
-            if (point && point.IsEngaged)
-            {
-                ConsiderRoutingPoint(point.EngagementSequence, point.transform.position,
-                    ref lastSequence, ref previousSequence, ref pivot, ref predecessor);
-            }
-        }
-        foreach (Anchor anchor in anchors)
-        {
-            if (anchor && anchor.EngagedBy == wire)
-            {
-                if (anchor.EngagementSequence > lastSequence)
-                {
-                    lastAnchor = anchor;
-                }
-                ConsiderRoutingPoint(anchor.EngagementSequence, anchor.transform.position,
-                    ref lastSequence, ref previousSequence, ref pivot, ref predecessor);
-            }
-        }
-        corner = null;
-        if (lastAnchor)
-        {
-            foreach (Corner candidate in corners)
-            {
-                if (candidate && candidate.GetAnchor(wire) == lastAnchor)
-                {
-                    corner = candidate;
-                    break;
-                }
-            }
-        }
-    }
-
-    private static void ConsiderRoutingPoint(int sequence, Vector2 position, ref int lastSequence,
-        ref int previousSequence, ref Vector2 pivot, ref Vector2 predecessor)
-    {
-        if (sequence > lastSequence)
-        {
-            previousSequence = lastSequence;
-            predecessor = pivot;
-            lastSequence = sequence;
-            pivot = position;
-        }
-        else if (sequence > previousSequence)
-        {
-            previousSequence = sequence;
-            predecessor = position;
-        }
+        RenderWires();
     }
 
     /// <summary>
@@ -536,7 +481,11 @@ public class EnvironmentFacade : MonoBehaviour
     /// </summary>
     private void HandleInteracted(IEnvironmentInteractable node)
     {
-        sampledWire = null;
+        if (playerTransform)
+        {
+            SamplePlayerPath(playerTransform.position);
+        }
+
         switch (node)
         {
             case PolaritySocket liveInterface:
@@ -547,13 +496,13 @@ public class EnvironmentFacade : MonoBehaviour
                 break;
         }
 
-        RebuildWaypoints();
+        RenderWires();
         EvaluateCircuit();
     }
 
     private void ApplyPlug(PolaritySocket target)
     {
-        if (heldWire == null || !heldWire.IsHeld)
+        if (!routingTilemap || heldWire == null || !heldWire.IsHeld)
         {
             GameLog.Info(this)
                 .Subsystem("Environment")
@@ -590,6 +539,9 @@ public class EnvironmentFacade : MonoBehaviour
         }
 
         occupied[target] = taken | heldWire.Polarity;
+        TraceCells(heldWire.TilePath, hasPlayerSample ? previousPlayerPosition : heldWire.FixedEndPosition,
+            target.transform.position);
+        previousPlayerPosition = target.transform.position;
         heldWire.PlugInto(target.transform, false);
 
         GameLog.Info(this)
@@ -626,6 +578,7 @@ public class EnvironmentFacade : MonoBehaviour
                 continue;
             }
 
+            candidate.TilePath.CopyFrom(heldWire.TilePath);
             heldWire = candidate;
             heldWire.Hold();
             swapCount++;
@@ -662,7 +615,7 @@ public class EnvironmentFacade : MonoBehaviour
 
     private void ApplyClose(PowerSocket outlet)
     {
-        if (heldWire == null || !heldWire.IsHeld)
+        if (!routingTilemap || heldWire == null || !heldWire.IsHeld)
         {
             GameLog.Info(this)
                 .Subsystem("Environment")
@@ -686,6 +639,12 @@ public class EnvironmentFacade : MonoBehaviour
             return;
         }
 
+        if (routingTilemap)
+        {
+            TraceCells(heldWire.TilePath, hasPlayerSample ? previousPlayerPosition : heldWire.FixedEndPosition,
+                outlet.transform.position);
+            previousPlayerPosition = outlet.transform.position;
+        }
         heldWire.PlugInto(outlet.transform, true);
 
         GameLog.Info(this)
@@ -703,6 +662,7 @@ public class EnvironmentFacade : MonoBehaviour
                 continue;
             }
 
+            candidate.TilePath.CopyFrom(heldWire.TilePath);
             heldWire = candidate;
             heldWire.Hold();
 
@@ -719,104 +679,15 @@ public class EnvironmentFacade : MonoBehaviour
         heldWire = null;
     }
 
-    private void RebuildWaypoints()
+    private void ResolvePlayer()
     {
-        waypoints.Clear();
-
-        for (int i = 0; i < wires.Count; i++)
-        {
-            Wire wire = wires[i];
-            if (!wire)
-            {
-                continue;
-            }
-
-            orderedBuffer.Clear();
-            sequenceBuffer.Clear();
-
-            IReadOnlyList<WirePoint> points = wire.Points;
-            for (int p = 0; p < points.Count; p++)
-            {
-                WirePoint point = points[p];
-                if (point && point.IsEngaged)
-                {
-                    InsertOrdered(point.EngagementSequence, point.transform.position);
-                }
-            }
-
-            for (int a = 0; a < anchors.Count; a++)
-            {
-                Anchor anchor = anchors[a];
-                if (anchor && anchor.EngagedBy == wire)
-                {
-                    InsertOrdered(anchor.EngagementSequence, anchor.transform.position);
-                }
-            }
-
-            waypoints[wire] = new List<Vector3>(orderedBuffer);
-        }
-    }
-
-    private void InsertOrdered(int sequence, Vector3 position)
-    {
-        int index = 0;
-        while (index < sequenceBuffer.Count && sequenceBuffer[index] <= sequence)
-        {
-            index++;
-        }
-
-        sequenceBuffer.Insert(index, sequence);
-        orderedBuffer.Insert(index, position);
-    }
-
-    private void ResolveAttachPoint()
-    {
-        GameObject point = FindTaggedObject(attachPointTag);
-        attachPoint = point ? point.transform : null;
-
-        if (attachPoint)
-        {
-            for (int i = 0; i < wires.Count; i++)
-            {
-                wires[i].SetAttachPoint(attachPoint);
-            }
-        }
-        else if (!reportedMissingAttachPoint)
-        {
-            reportedMissingAttachPoint = true;
-
-            GameLog.Warning(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.CannotFind($"tag {attachPointTag}", "scene"))
-                .Action(LogAction.Specify("The carried wire will not follow a hand until that tag exists. "))
-                .Write();
-        }
-
         GameObject player = FindTaggedObject(playerTag);
-        if (player && attachPoint && !HasTaggedAncestor(attachPoint, playerTag))
-        {
-            GameLog.Warning(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.Specify(
-                    $"The object tagged {attachPointTag} ({attachPoint.name}) has no ancestor tagged {playerTag} " +
-                    $"(the player found was {player.name}). "))
-                .Action(LogAction.Specify("Check the hierarchy: the attach point must belong to the player. "))
-                .Write();
-        }
+        playerTransform = player ? player.transform : null;
     }
 
     private void BeginRun()
     {
-        foreach (Corner corner in corners)
-        {
-            if (corner)
-            {
-                corner.ReleaseAll();
-            }
-        }
-        sampledWire = null;
+        hasPlayerSample = false;
         swapCount = 0;
         isCircuitClosed = false;
         heldWire = null;
@@ -827,6 +698,10 @@ public class EnvironmentFacade : MonoBehaviour
             if (wires[i])
             {
                 wires[i].PlugInto(null, false);
+                if (routingTilemap)
+                {
+                    wires[i].TilePath.Reset(PathCell(wires[i].FixedEndPosition));
+                }
             }
         }
 
@@ -836,10 +711,14 @@ public class EnvironmentFacade : MonoBehaviour
             {
                 anchor.ResetRouting();
             }
-            else if (nodes[i] is WirePoint point)
-            {
-                point.ResetRouting();
-            }
+        }
+
+        if (!routingTilemap || routingTilemap.gameObject.scene != gameObject.scene ||
+            routingTilemap.cellLayout != GridLayout.CellLayout.Rectangle ||
+            routingTilemap.cellSwizzle != GridLayout.CellSwizzle.XYZ)
+        {
+            Debug.LogWarning("Environment requires a rectangular XY routing Tilemap in its own scene.", this);
+            return;
         }
 
         if (socket == null)
@@ -866,7 +745,11 @@ public class EnvironmentFacade : MonoBehaviour
                 .Write();
         }
 
-        RebuildWaypoints();
+        if (playerTransform)
+        {
+            SamplePlayerPath(playerTransform.position);
+        }
+        RenderWires();
         EvaluateCircuit();
     }
 
@@ -978,22 +861,6 @@ public class EnvironmentFacade : MonoBehaviour
         return result.ToArray();
     }
 
-    private bool HasTaggedAncestor(Transform point, string tag)
-    {
-        Transform current = point;
-        while (current)
-        {
-            if (current.CompareTag(tag))
-            {
-                return true;
-            }
-
-            current = current.parent;
-        }
-
-        return false;
-    }
-
     private void OnDrawGizmos()
     {
         for (int i = 0; i < wires.Count; i++)
@@ -1006,22 +873,21 @@ public class EnvironmentFacade : MonoBehaviour
 
             Gizmos.color = ColorFor(wire.Polarity);
 
-            renderBuffer.Clear();
-            renderBuffer.Add(wire.FixedEndPosition);
-
-            if (waypoints.TryGetValue(wire, out List<Vector3> cached))
+            if (!routingTilemap)
             {
-                renderBuffer.AddRange(cached);
+                continue;
             }
-
-            renderBuffer.Add(wire.FreeEndPosition);
+            wire.TilePath.CopyWorldPath(routingTilemap, renderBuffer);
 
             for (int p = 1; p < renderBuffer.Count; p++)
             {
                 Gizmos.DrawLine(renderBuffer[p - 1], renderBuffer[p]);
             }
 
-            Gizmos.DrawWireSphere(wire.FreeEndPosition, 0.12f);
+            if (renderBuffer.Count > 0)
+            {
+                Gizmos.DrawWireSphere(renderBuffer[renderBuffer.Count - 1], 0.12f);
+            }
         }
     }
 
@@ -1069,9 +935,7 @@ public class EnvironmentFacade : MonoBehaviour
             actor = gameObject;
         }
 
-        InteractionDetails details = node is WirePoint
-            ? new WirePointDetails(actor, debugTarget.gameObject)
-            : new InteractionDetails(actor, debugTarget.gameObject);
+        InteractionDetails details = new InteractionDetails(actor, debugTarget.gameObject);
 
         GameLog.Info(this)
             .Subsystem("Environment")
@@ -1126,7 +990,7 @@ public class EnvironmentFacade : MonoBehaviour
             return anchor;
         }
 
-        return debugTarget.GetComponentInParent<WirePoint>();
+        return null;
     }
 
     /// <summary>
@@ -1140,8 +1004,8 @@ public class EnvironmentFacade : MonoBehaviour
     private void DebugRefreshAndEvaluate()
     {
         RefreshNodes();
-        ResolveAttachPoint();
-        RebuildWaypoints();
+        ResolvePlayer();
+        RenderWires();
         EvaluateCircuit();
     }
 
@@ -1160,7 +1024,7 @@ public class EnvironmentFacade : MonoBehaviour
     private void DebugRestartRun()
     {
         RefreshNodes();
-        ResolveAttachPoint();
+        ResolvePlayer();
         BeginRun();
     }
 
@@ -1196,7 +1060,7 @@ public class EnvironmentFacade : MonoBehaviour
         else
         {
             Wire carried = heldWire;
-            anchor.Interact(new InteractionDetails(DebugActor(), anchor.gameObject));
+            DebugInteractAt(anchor);
             bool routed = anchor.IsEngaged && anchor.EngagedBy == carried;
             ReportStep("2 routing a wire around an anchor",
                 routed,
@@ -1208,7 +1072,7 @@ public class EnvironmentFacade : MonoBehaviour
             }
             else
             {
-                anchor.Interact(new InteractionDetails(DebugActor(), anchor.gameObject));
+                DebugInteractAt(anchor);
                 ReportStep("3 releasing the routing again", !anchor.IsEngaged, $"engaged={anchor.IsEngaged}");
             }
         }
@@ -1222,7 +1086,7 @@ public class EnvironmentFacade : MonoBehaviour
         {
             Wire carriedBefore = heldWire;
             WirePolarity polarityBefore = carriedBefore ? carriedBefore.Polarity : WirePolarity.None;
-            dual.Interact(new InteractionDetails(DebugActor(), dual.gameObject));
+            DebugInteractAt(dual);
             ReportStep("4 swapping the carried wire at a dual interface",
                 heldWire != null && heldWire != carriedBefore && swapCount == 1 &&
                 carriedBefore != null && carriedBefore.PlugTarget == dual.transform,
@@ -1237,7 +1101,7 @@ public class EnvironmentFacade : MonoBehaviour
         else
         {
             Transform plugTargetBefore = heldWire ? heldWire.PlugTarget : null;
-            mismatched.Interact(new InteractionDetails(DebugActor(), mismatched.gameObject));
+            DebugInteractAt(mismatched);
             bool unchanged = heldWire != null && heldWire.PlugTarget == plugTargetBefore;
             ReportStep("5 refusing a mismatched polarity", unchanged, $"state unchanged={unchanged}");
         }
@@ -1252,7 +1116,7 @@ public class EnvironmentFacade : MonoBehaviour
         }
         else
         {
-            socket.Interact(new InteractionDetails(DebugActor(), socket.gameObject));
+            DebugInteractAt(socket);
             ReportStep("6 closing the carried wire clears the level",
                 IsCircuitClosed && cleared,
                 $"closed={IsCircuitClosed} LevelCleared fired={cleared}");
@@ -1267,6 +1131,22 @@ public class EnvironmentFacade : MonoBehaviour
                 ? $"###ACCEPTANCE PASS ({acceptedSteps} passed, {skippedSteps} skipped). "
                 : $"###ACCEPTANCE FAIL ({failedSteps} failed, {acceptedSteps} passed, {skippedSteps} skipped). "))
             .Write();
+    }
+
+    // Scripted acceptance moves the actor through the same tiles before driving each node.
+    // 脚本化验收先移动角色并采样到目标格，再驱动节点；不模拟输入或物理移动。
+    private void DebugInteractAt(MonoBehaviour target)
+    {
+        GameObject actor = DebugActor();
+        actor.transform.position = target.transform.position;
+        Rigidbody2D body = actor.GetComponent<Rigidbody2D>();
+        if (body)
+        {
+            body.position = target.transform.position;
+            body.velocity = Vector2.zero;
+        }
+        SamplePlayerPath(actor.transform.position);
+        ((IEnvironmentInteractable)target).Interact(new InteractionDetails(actor, target.gameObject));
     }
 
     private void ReportStep(string step, bool passed, string detail)

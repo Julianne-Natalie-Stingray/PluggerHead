@@ -10,7 +10,6 @@ public class PlayerAnimationCallbacks : MonoBehaviour
 {
     private PlayerMove player;
     private Animator animator;
-    private bool wasDashActive;
     private bool wasInteractionActive;
 
     private void Awake()
@@ -46,7 +45,6 @@ public class PlayerAnimationCallbacks : MonoBehaviour
             animator = GetComponentInChildren<Animator>(true);
         }
 
-        bool dash = false;
         bool interact = false;
         if (CanReadAnimator())
         {
@@ -57,15 +55,15 @@ public class PlayerAnimationCallbacks : MonoBehaviour
                     continue;
                 }
 
-                AccumulateActiveActions(animator.GetCurrentAnimatorStateInfo(layer), ref dash, ref interact);
+                interact |= animator.GetCurrentAnimatorStateInfo(layer).IsTag("PlayerInteract");
                 if (animator.IsInTransition(layer))
                 {
-                    AccumulateActiveActions(animator.GetNextAnimatorStateInfo(layer), ref dash, ref interact);
+                    interact |= animator.GetNextAnimatorStateInfo(layer).IsTag("PlayerInteract");
                 }
             }
         }
 
-        DispatchAnimationCallbacks(dash, interact);
+        DispatchAnimationCallbacks(interact);
     }
 
     private bool CanReadAnimator()
@@ -74,28 +72,13 @@ public class PlayerAnimationCallbacks : MonoBehaviour
             animator.runtimeAnimatorController != null && animator.isInitialized;
     }
 
-    private void AccumulateActiveActions(AnimatorStateInfo state, ref bool dash, ref bool interact)
-    {
-        dash |= state.IsTag("PlayerDash");
-        interact |= state.IsTag("PlayerInteract");
-    }
-
-    private void DispatchAnimationCallbacks(bool dash, bool interact)
+    private void DispatchAnimationCallbacks(bool interact)
     {
         if (player != null)
         {
-            // 先开始再结束，保证两种动作相互过渡时不会出现短暂解锁。
-            if (dash && !wasDashActive)
-            {
-                player.OnDashStarted();
-            }
             if (interact && !wasInteractionActive)
             {
                 player.OnInteractionStarted();
-            }
-            if (!dash && wasDashActive)
-            {
-                player.OnDashEnded();
             }
             if (!interact && wasInteractionActive)
             {
@@ -103,12 +86,11 @@ public class PlayerAnimationCallbacks : MonoBehaviour
             }
         }
 
-        wasDashActive = dash;
         wasInteractionActive = interact;
     }
 
     private void OnDisable()
     {
-        DispatchAnimationCallbacks(false, false);
+        DispatchAnimationCallbacks(false);
     }
 }

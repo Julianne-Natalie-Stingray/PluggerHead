@@ -1,5 +1,7 @@
 # Editor PlayMode 测试
 
+2026-10-06 Tilemap 改造验证：EditMode 22/22（job `812b828e3ce84ea889c26457cc594fda`）、PlayMode 71/71（job `c12304087033435ebdf260a2b5541579`）均终态通过；以下较早 job 为历史记录。原 Corner 用例已替换为 TilemapTests，覆盖近角非格心往返、调试验收同格操作，并新增真实场景 Tilemap 落地及两个关卡的格心资源检查。
+
 程序集 `PluggerHead.PlayModeTests`，Category 均为 `Integration`。逐文件核查日期：2026-10-06；当前共 71 个用例，本轮 job `a8881108238d4eb5860ef817658ccfdf` 已结束并通过 71/71。各类通过 UnityPlatform 限定 Windows/Linux/macOS Editor；程序集本身无平台过滤，不能据此推断预定义 Editor 检查可用于独立 Player。执行方式见[测试总说明](../README.md)。
 
 | 文件 | 用例数与实际覆盖 |
@@ -9,13 +11,13 @@
 | `AudioHandleTests.cs` | 2：自然结束与淡出 Stop、参数校验、句柄失效及完成事件异常隔离；预期异常日志由 LogAssert 接收。 |
 | `AudioTailTests.cs` | 5：Values/Slow/Fast/Change/FrozenStop；Values 反射模拟包络游标，其余检查真实播放或暂停停止。FrozenStop 不进入 GameState.Freezed。 |
 | `AudioLimitTests.cs` | 10：重入、交叉限额、动态降限、正常抢占及循环/非正限额保护。 |
-| `CornerTests.cs` | 7：六个同步 Test 与一个 UnityTest；进退绕、多角、静止/微步、双线归属、清理、变换/offset 与实际帧更新。 |
-| `PhysicsCleanupTests.cs` | 12：Corner/Ground 各六种情形：空卸载、异常、超时、Dispose、场景已卸载但句柄未确认、句柄完成但场景仍加载；恢复状态并保留归属供重试。 |
+| `TilemapTests.cs` | 7：六个同步 Test 与一个 UnityTest；格子路径/长度、跨格/对角回退、微动、Anchor 固定/收回、双线独立/重开、变换/offset 与实际帧更新。 |
+| `PhysicsCleanupTests.cs` | 12：Tilemap/Ground 各六种情形：空卸载、异常、超时、Dispose、场景已卸载但句柄未确认、句柄完成但场景仍加载；恢复状态并保留归属供重试。 |
 | `SceneCleanupFailureTests.cs` | 10：嵌套协程超时/异常/Dispose/取消及错误聚合，四组实际清理失败，挂起加载的进度隔离和重试释放。 |
 | `FloatingTests.cs` | 2：根对象及复杂父级中的实际旋转、位置保持和暂停恢复；位移幅度设为零，不验证完整漂浮轨迹。 |
 | `GroundPolarityTests.cs` | 4：三个同步 Test 与一个 UnityTest；实际支撑接触、危险/安全位、过滤、换线、锁定与物理帧死亡。 |
 | `MainMenuTests.cs` | 1：实际按钮事件、设置成功路径、New Game、往返菜单和 Continue 默认关卡状态；不测试真实鼠标、布局或 Exit 执行。 |
-| `SceneGameplayTests.cs` | 1：真实场景中的 Anchor 放置/收回、路由、左上角挂线退绕、换线闭合重开与超长死亡。方法名保留历史 Pickup 字样，实际没有普通道具背包拾取验证。 |
+| `SceneGameplayTests.cs` | 1：真实场景中的 Anchor 放置/收回、路由、Tilemap 落地与格子回退、换线闭合重开与超长死亡。方法名保留历史 Pickup 字样，实际没有普通道具背包拾取验证。 |
 | `SceneSwitchRecoveryTests.cs` | 4：失活、销毁、禁用及异常订阅者；重入拒绝、Single 切换完成和后续恢复。 |
 | `PluggerHead.PlayModeTests.asmdef` | 显式引用 TestSupport，关闭自动引用，标记 TestAssemblies，无平台过滤。 |
 
@@ -23,7 +25,7 @@
 
 Timer 使用真实协程宿主，每次等待最多 3 秒；借用已有 Runner，缺失时创建。finally 停止本用例 Timer、恢复原 Runner 引用和 timeScale、销毁自建 Runner。测试临时设置 timeScale=1，不覆盖所有计时参数、非缩放模式、Runner 销毁/停用或独立 Player 行为。
 
-音频包装在 finally 中 Dispose 检查协程，使其自有对象和全局设置清理可执行；测试使用静音 clip，不证明听感。Floating、Corner、Ground、PhysicsCleanup、Menu、Gameplay、Recovery 及 SceneCleanupFailure 包装通过 UnityTearDown 调用清理。加载仍在途时，IntegrationSceneState 只恢复 timeScale、监听器暂停和 Environment 引用，GameState 标签及两个缓存字段留待加载结束后的清理重试恢复；在途操作和未卸载场景仍保留归属。
+音频包装在 finally 中 Dispose 检查协程，使其自有对象和全局设置清理可执行；测试使用静音 clip，不证明听感。Floating、Tilemap、Ground、PhysicsCleanup、Menu、Gameplay、Recovery 及 SceneCleanupFailure 包装通过 UnityTearDown 调用清理。加载仍在途时，IntegrationSceneState 只恢复 timeScale、监听器暂停和 Environment 引用，GameState 标签及两个缓存字段留待加载结束后的清理重试恢复；在途操作和未卸载场景仍保留归属。
 
 PhysicsCleanupTests 已有独立 UnityTearDown：正常路径在用例内部等待重试卸载完成；Run 的 finally 恢复注入设置与同步状态，剩余异步卸载交由 Cleanup 等待。Cleanup 恢复原 Environment 引用，仅在自有场景列表清空后释放 activeOwner；失败仍保留归属并阻止新夹具覆盖。句柄完成但场景仍加载使用注入代理模拟，不代表制造了 Unity 原生操作故障。
 
