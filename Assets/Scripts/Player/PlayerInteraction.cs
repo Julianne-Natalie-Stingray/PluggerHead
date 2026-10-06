@@ -88,6 +88,10 @@ public class PlayerInteraction : MonoBehaviour
             return false;
         }
 
+        if (!environment.TryGetTilePosition(position, out position))
+        {
+            return false;
+        }
         Anchor anchor = Instantiate(anchorPrefab, position, Quaternion.identity);
         SceneManager.MoveGameObjectToScene(anchor.gameObject, gameObject.scene);
         anchor.gameObject.SetActive(true);
@@ -170,9 +174,7 @@ public class PlayerInteraction : MonoBehaviour
             return false;
         }
 
-        InteractionDetails details = target is WirePoint
-            ? new WirePointDetails(gameObject, target.gameObject)
-            : new InteractionDetails(gameObject, target.gameObject);
+        InteractionDetails details = new InteractionDetails(gameObject, target.gameObject);
         bool performed = false;
         System.Action<IEnvironmentInteractable> onInteracted = node => performed = true;
         interactable.OnInteracted += onInteracted;

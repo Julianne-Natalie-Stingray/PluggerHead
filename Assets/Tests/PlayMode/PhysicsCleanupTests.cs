@@ -11,19 +11,19 @@ namespace PluggerHead.Tests
     public sealed class PhysicsCleanupTests
     {
         [UnityTest]
-        public IEnumerator Corner_NullUnloadStillRestoresAndCleansOtherScenes() => Run("CornerIntegrationChecks", "Null");
+        public IEnumerator Tilemap_NullUnloadStillRestoresAndCleansOtherScenes() => Run("TilemapIntegrationChecks", "Null");
 
         [UnityTest]
-        public IEnumerator Corner_ThrowingUnloadPreservesErrorAndRestores() => Run("CornerIntegrationChecks", "Exception");
+        public IEnumerator Tilemap_ThrowingUnloadPreservesErrorAndRestores() => Run("TilemapIntegrationChecks", "Exception");
 
         [UnityTest]
-        public IEnumerator Corner_TimeoutRetainsOwnershipAndRestores() => Run("CornerIntegrationChecks", "Timeout");
+        public IEnumerator Tilemap_TimeoutRetainsOwnershipAndRestores() => Run("TilemapIntegrationChecks", "Timeout");
 
         [UnityTest]
-        public IEnumerator Corner_DisposalRetainsOwnershipAndRestores() => Run("CornerIntegrationChecks", "Dispose");
+        public IEnumerator Tilemap_DisposalRetainsOwnershipAndRestores() => Run("TilemapIntegrationChecks", "Dispose");
 
         [UnityTest]
-        public IEnumerator Corner_UnloadedSceneRetainsUnconfirmedHandle() => Run("CornerIntegrationChecks", "UnloadedPending");
+        public IEnumerator Tilemap_UnloadedSceneRetainsUnconfirmedHandle() => Run("TilemapIntegrationChecks", "UnloadedPending");
 
         [UnityTest]
         public IEnumerator Ground_NullUnloadStillRestoresAndCleansOtherScenes() => Run("GroundPolarityIntegrationChecks", "Null");
@@ -41,7 +41,7 @@ namespace PluggerHead.Tests
         public IEnumerator Ground_UnloadedSceneRetainsUnconfirmedHandle() => Run("GroundPolarityIntegrationChecks", "UnloadedPending");
 
         [UnityTest]
-        public IEnumerator Corner_CompletedHandleCannotHideLoadedScene() => Run("CornerIntegrationChecks", "CompletedLoaded");
+        public IEnumerator Tilemap_CompletedHandleCannotHideLoadedScene() => Run("TilemapIntegrationChecks", "CompletedLoaded");
 
         [UnityTest]
         public IEnumerator Ground_CompletedHandleCannotHideLoadedScene() => Run("GroundPolarityIntegrationChecks", "CompletedLoaded");

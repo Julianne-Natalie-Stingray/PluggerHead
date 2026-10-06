@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>Corner/Ground teardown only: retain owned scenes and pending unloads until Unity confirms unloading.</summary>
+/// <summary>Tilemap/Ground teardown only: retain owned scenes and pending unloads until Unity confirms unloading.</summary>
 internal sealed class OwnedPhysicsSceneCleanup
 {
     private readonly Dictionary<int, Func<bool>> pending = new Dictionary<int, Func<bool>>();

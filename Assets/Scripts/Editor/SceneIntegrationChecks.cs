@@ -137,23 +137,23 @@ public static class SceneIntegrationChecks
                     "Gameplay Player must reference a reclaimable anchor prefab with a collider.");
                 Require(FindComponents<PowerSocket>(scene).Any(socket => socket.StartingWire != null &&
                     socket.Wires.Count >= 2), "Gameplay outlet must reference its authored wires.");
-                BoxCollider2D ground = FindComponents<BoxCollider2D>(scene).Single(collider => collider.name == "Ground");
-                List<Corner> corners = FindComponents<Corner>(scene);
-                Require(corners.Count == 4, "Gameplay Ground must have four authored Corner instances.");
-                foreach (Corner corner in corners)
-                {
-                    Vector2 local = ground.transform.InverseTransformPoint(corner.Center);
-                    Vector2 delta = local - ground.offset;
-                    Require(Mathf.Abs(Mathf.Abs(delta.x) - ground.size.x * 0.5f) < 0.0001f &&
-                        Mathf.Abs(Mathf.Abs(delta.y) - ground.size.y * 0.5f) < 0.0001f &&
-                        (corner.transform.lossyScale - Vector3.one).sqrMagnitude < 0.0001f &&
-                        corner.DetectionCollider.isTrigger &&
-                        PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(corner.gameObject) == "Assets/Prefabs/Env/Corner.prefab",
-                        "Each Corner prefab must sit at a Ground collider corner with compensated scale.");
-                }
-                Require(FindComponents<Wire>(scene).All(wire => wire.GetComponent<EdgeCollider2D>() != null &&
-                    wire.GetComponent<EdgeCollider2D>().isTrigger), "Authored wires must include trigger EdgeCollider2D.");
+                Require(FindComponents<UnityEngine.Tilemaps.TilemapCollider2D>(scene).Count == 1,
+                    "Gameplay ground must use an authored Tilemap collider.");
             }
+            if (path == GameplayScenePath || path.EndsWith("/CircuitDiagnostics.unity", StringComparison.Ordinal))
+            {
+                EnvironmentFacade environment = FindComponents<EnvironmentFacade>(scene).Single();
+                Require(environment.RoutingTilemap != null && environment.RoutingTilemap.GetUsedTilesCount() > 0,
+                    "Both circuit scenes must bind an authored, painted routing Tilemap.");
+                foreach (Component node in FindComponents<PowerSocket>(scene).Cast<Component>()
+                    .Concat(FindComponents<PolaritySocket>(scene)).Concat(FindComponents<Anchor>(scene)))
+                {
+                    Require(environment.TryGetTilePosition(node.transform.position, out Vector3 center) &&
+                        Vector3.Distance(node.transform.position, center) < 0.0001f,
+                        "Every socket and Anchor must occupy a painted tile center.");
+                }
+            }
+
         }
         finally
         {
@@ -232,9 +232,19 @@ public static class SceneIntegrationChecks
         Require(initialWire != null && initialWire.IsHeld && !environment.IsCircuitClosed,
             "The environment must start with an open circuit and a held wire.");
 
+        Rigidbody2D body = movement.GetComponent<Rigidbody2D>();
+        UnityEngine.Tilemaps.TilemapCollider2D ground =
+            FindComponents<UnityEngine.Tilemaps.TilemapCollider2D>(ownedScene).Single();
+        float landingDeadline = Time.realtimeSinceStartup + 4f;
+        while (!body.IsTouching(ground) && Time.realtimeSinceStartup < landingDeadline)
+        {
+            yield return new WaitForFixedUpdate();
+        }
+        Require(body.IsTouching(ground) && !movement.IsDead,
+            "The real Player must land on the migrated Tilemap ground without falling through.");
+
         Anchor anchor = FindComponents<Anchor>(ownedScene).First(node => node.CanReclaim);
         Vector3 anchorPosition = anchor.transform.position;
-        Rigidbody2D body = movement.GetComponent<Rigidbody2D>();
         // Keep the authored Player at the target during this interaction check; movement physics
         // is covered separately. Only this test-owned scene is modified.
         body.constraints = RigidbodyConstraints2D.FreezeAll;
@@ -260,14 +270,15 @@ public static class SceneIntegrationChecks
             "Placement must immediately route the held wire at the player position.");
         yield return null;
         LineRenderer line = initialWire.GetComponent<LineRenderer>();
-        Require(line.positionCount == 3 && (line.GetPosition(1) - anchorPosition).sqrMagnitude < 0.0001f,
-            "LateUpdate must render the dynamic anchor as the wire's intermediate bend.");
+        Require(line.positionCount == initialWire.TilePath.Cells.Count &&
+            (line.GetPosition(line.positionCount - 1) - anchorPosition).sqrMagnitude < 0.0001f,
+            "LateUpdate must render the visited tile centers through the placed Anchor.");
         yield return WaitForUnlocked(movement);
         Physics2D.SyncTransforms();
         Require(interaction.TryPerformOperation() && !anchor.gameObject.activeSelf,
             "J must reclaim a dynamically placed anchor.");
         yield return null;
-        Require(anchor == null && line.positionCount == 2 && environment.HeldWire == initialWire,
+        Require(anchor == null && line.positionCount == initialWire.TilePath.Cells.Count && environment.HeldWire == initialWire,
             "Reclaiming a routed anchor must update the wire path and preserve the held wire.");
         yield return WaitForUnlocked(movement);
         existingAnchors = FindComponents<Anchor>(ownedScene);
@@ -302,27 +313,26 @@ public static class SceneIntegrationChecks
             environment.LevelCleared -= onCleared;
         }
 
-        Corner groundCorner = FindComponents<Corner>(ownedScene).Single(node => node.name == "Corner Left Top");
-        Vector2 handOffset = (Vector2)initialWire.FreeEndPosition - body.position;
-        body.position = new Vector2(-12f, -2f) - handOffset;
-        movement.transform.position = body.position;
+        UnityEngine.Tilemaps.Tilemap map = environment.RoutingTilemap;
+        Vector3 routeStart = map.GetCellCenterWorld(map.WorldToCell(interaction.transform.position));
+        body.position = routeStart;
+        movement.transform.position = routeStart;
+        yield return null;
+        int startCount = initialWire.TilePath.Cells.Count;
+        Vector3Int startCell = map.WorldToCell(routeStart);
+        Vector3 farTile = map.GetCellCenterWorld(startCell + Vector3Int.up * 4);
+        body.position = farTile;
+        movement.transform.position = farTile;
         yield return null;
         yield return null;
-        Require(!groundCorner.GetAnchor(initialWire), "Moving above Ground must not pre-hook its corner.");
-        body.position = new Vector2(-12f, -4.5f) - handOffset;
-        movement.transform.position = body.position;
+        Require(initialWire.TilePath.Cells.Count >= startCount + 4,
+            "The real scene Player must extend the wire along every crossed tile.");
+        body.position = routeStart;
+        movement.transform.position = routeStart;
         yield return null;
         yield return null;
-        Anchor cornerAnchor = groundCorner.GetAnchor(initialWire);
-        Require(cornerAnchor && cornerAnchor.EngagedBy == initialWire && line.positionCount == 3 &&
-            groundCorner.DetectionCollider.Distance(initialWire.PathCollider).isOverlapped,
-            "The actual scene's Ground corner must automatically hook the Player's carried wire.");
-        body.position = new Vector2(-12f, -2f) - handOffset;
-        movement.transform.position = body.position;
-        yield return null;
-        yield return null;
-        Require(!cornerAnchor && !groundCorner.GetAnchor(initialWire) && line.positionCount == 2,
-            "Reversing the real scene Player must unhook and destroy the generated corner Anchor.");
+        Require(initialWire.TilePath.Cells.Count == startCount,
+            "Returning over the real scene Player's tile path must retract the same cells.");
 
         int diedCount = 0;
         Action onDied = () => diedCount++;

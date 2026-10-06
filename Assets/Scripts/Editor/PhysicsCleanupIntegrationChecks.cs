@@ -5,7 +5,7 @@ using System.Reflection;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>Injects unload failures into the real Corner/Ground Cleanup enumerators and then retries real unloading.</summary>
+/// <summary>Injects unload failures into the real Tilemap/Ground Cleanup enumerators and then retries real unloading.</summary>
 public static class PhysicsCleanupIntegrationChecks
 {
     private const BindingFlags PrivateStatic = BindingFlags.NonPublic | BindingFlags.Static;
@@ -15,7 +15,7 @@ public static class PhysicsCleanupIntegrationChecks
     public static IEnumerator Run(string ownerName, string failure)
     {
         Require(activeOwner == null, "Previous physics fault fixture still needs its TearDown cleanup.");
-        Type owner = typeof(CornerIntegrationChecks).Assembly.GetType(ownerName, true);
+        Type owner = typeof(TilemapIntegrationChecks).Assembly.GetType(ownerName, true);
         var scenes = (List<Scene>)owner.GetField("ownedScenes", PrivateStatic).GetValue(null);
         Require(scenes.Count == 0, "Fault injection requires a clean owner.");
         var cleanup = (OwnedPhysicsSceneCleanup)owner.GetField("sceneCleanup", PrivateStatic).GetValue(null);

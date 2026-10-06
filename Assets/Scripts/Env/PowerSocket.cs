@@ -6,8 +6,8 @@ using UnityEngine;
 /// <summary>
 /// Scene outlet owning a configured list of wires and announcing plug requests to EnvironmentFacade.
 /// 场景插座，维护配置的电线列表，并向 EnvironmentFacade 通知插入请求。
-/// LinkWires assigns ownership but does not position fixed ends or spawn a player.
-/// LinkWires 设置归属，不设置固定端位置，也不创建玩家。
+/// LinkWires assigns ownership; owned wires use this socket tile as their fixed end.
+/// LinkWires 设置归属；所属电线以本插座格子为固定端，不创建玩家。
 /// Interact checks canInteract only; Actor, Target and component enable state are not validated here.
 /// Interact 仅检查 canInteract，不校验 Actor、Target 或组件启用状态。
 /// IsGroundTerminal is retained configuration with no current gameplay consumer.

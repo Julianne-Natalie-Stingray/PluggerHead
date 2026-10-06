@@ -45,9 +45,9 @@ TryStartDashAnimation 只发 Dash trigger，未发现生产调用方、对应按
 
 J 在自身 PhysicsScene2D 中查询半径内碰撞体，包括 Trigger，排除其他场景、玩家自身子层级以及碰撞体同物体上有 Wire 的情况。对命中物体及父级 MonoBehaviour 检查拾取/交互能力，以碰撞体 ClosestPoint 到玩家的平方距离选择最近候选；相等时用较小实例 ID 稳定选择，保证只适用于当前会话。没有视线遮挡检测，也不会在最近目标操作失败后继续尝试第二个目标。
 
-Anchor 优先 TryReclaim；普通目标优先 CanPickup/PickUpItem，其次 CanInteract/Interact。WirePoint 使用 WirePointDetails，其余使用 InteractionDetails。普通交互临时订阅 OnInteracted，以同步回调是否发生作为返回成功的依据，finally 退订；这表示节点处理了请求，不保证最终插接或通关成功。异步才发事件不会被此次调用捕获，订阅者异常也可能向外传播。
+Anchor 优先 TryReclaim；普通目标优先 CanPickup/PickUpItem，其次 CanInteract/Interact。交互载荷统一使用 InteractionDetails。普通交互临时订阅 OnInteracted，以同步回调是否发生作为返回成功的依据，finally 退订；这表示节点处理了请求，不保证最终插接或通关成功。异步才发事件不会被此次调用捕获，订阅者异常也可能向外传播。
 
-K 在有限的玩家世界坐标实例化 anchorPrefab，移动到玩家场景、启用并注册；有持线时请求 Anchor.Interact。返回 true 表示完成放置，不保证 prefab 禁止绕线时也能挂线。没有库存上限、消耗、位置占用或地形重叠检查。手动 Anchor 收回会销毁节点而不产生背包物品；Corner 所有的自动 Anchor 不参与 J 收回。
+K 将玩家当前 XY 格子投影到已绘制 tile 中心，再实例化 anchorPrefab，移动到玩家场景、启用并注册；有持线时请求 Anchor.Interact。返回 true 表示完成放置，不保证 prefab 禁止绕线时也能挂线。空格拒绝放置；没有库存上限、消耗、位置占用或地形重叠检查。手动 Anchor 收回会销毁节点而不产生背包物品。Corner 自动 Anchor 已随 Tilemap 改造移除。
 
 ## 背包与 UI
 

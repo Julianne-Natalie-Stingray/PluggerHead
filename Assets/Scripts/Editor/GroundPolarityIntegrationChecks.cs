@@ -5,6 +5,7 @@ using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
 
 /// <summary>
 /// Uses real 2D contacts in owned local physics scenes without saving authored scenes; frame checks may create an owned Core.
@@ -14,6 +15,7 @@ public static class GroundPolarityIntegrationChecks
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
     private static readonly List<Scene> ownedScenes = new List<Scene>();
+    private static readonly List<Tile> ownedTiles = new List<Tile>();
     private static EnvironmentFacade previousEnvironment;
     private static GameObject ownedCore;
     private static bool hasEnvironmentSnapshot;
@@ -154,6 +156,14 @@ public static class GroundPolarityIntegrationChecks
                 }
                 finally
                 {
+                    if (ownedScenes.Count == 0)
+                    {
+                        foreach (Tile tile in ownedTiles)
+                        {
+                            UnityEngine.Object.DestroyImmediate(tile);
+                        }
+                        ownedTiles.Clear();
+                    }
                     if (hasEnvironmentSnapshot)
                     {
                         typeof(EnvironmentFacade).GetField("<Current>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
@@ -273,10 +283,25 @@ public static class GroundPolarityIntegrationChecks
             }
             Set(Outlet, "wires", wires);
 
+            GameObject gridObject = Create("Grid", new Vector2(-0.5f, -0.5f));
+            gridObject.AddComponent<Grid>();
+            GameObject mapObject = Create("RoutingTilemap", gridObject.transform.position);
+            mapObject.transform.SetParent(gridObject.transform, true);
+            Tilemap map = mapObject.AddComponent<Tilemap>();
+            Tile tile = ScriptableObject.CreateInstance<Tile>();
+            ownedTiles.Add(tile);
+            for (int x = -3; x <= 32; x++)
+            {
+                for (int y = -3; y <= 3; y++)
+                {
+                    map.SetTile(new Vector3Int(x, y, 0), tile);
+                }
+            }
             GameObject environmentObject = Create("Environment", Vector2.zero);
             environmentObject.SetActive(false);
             Environment = environmentObject.AddComponent<EnvironmentFacade>();
             Set(inventory, "environment", Environment);
+            Set(Environment, "routingTilemap", map);
             environmentObject.SetActive(true);
             Require(Environment.HeldWire == Wire && Wire.IsHeld,
                 "The owned environment must initialize with its real outlet wire held.");
