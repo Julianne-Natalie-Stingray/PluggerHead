@@ -76,7 +76,7 @@ public sealed class RestartLevelScreen : MonoBehaviour
         {
             if (deathMessage != null)
             {
-                deathMessage.text = "Restart failed. Please try again.";
+                deathMessage.text = "重新开始失败，请重试。";
             }
             return;
         }

@@ -24,7 +24,7 @@ public sealed class WireLengthDisplay : MonoBehaviour
         {
             if (wire.MaxLength <= 0f)
             {
-                value = "Unlimited";
+                value = "不限";
             }
             else if (environment.RoutingTilemap != null)
             {
@@ -34,7 +34,7 @@ public sealed class WireLengthDisplay : MonoBehaviour
             }
         }
 
-        string message = "Wire left: " + value;
+        string message = "剩余线长：" + value;
         if (remainingLengthText.text != message)
         {
             remainingLengthText.text = message;

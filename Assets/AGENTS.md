@@ -56,6 +56,13 @@ Use four-space indentation and braces on separate lines. Use PascalCase for type
 
 Preserve existing XML documentation and bilingual comments when updating behavior. Regenerate input bindings and `*.g.cs` integrations through their source tooling. No repository-specific formatter was identified.
 
+## 中文 UI 原则
+
+- 面向玩家的 UI 默认使用简体中文，包括按钮、标题、说明、状态、错误提示和运行时生成的文本；新增或修改界面时同步检查场景、Prefab 与脚本文案。
+- 游戏名称、人员姓名等专名及必要的按键标识可以保留原文；代码标识、资源名称、日志与开发工具不属于玩家 UI 文案。尚未启用的预留文本保持空白，不添加虚假的功能或数值。
+- 中文文本必须使用项目内可随构建发布的字体与 TMP 字体资产，保留字体许可。验证实际字形覆盖、换行、溢出与布局；不得以现有字体不支持中文为由改回英文。
+- 文案修改后同步相关测试断言，在受影响场景中检查正常及失败状态的显示。
+
 ## Testing Guidelines
 
 Unity Test Framework 1.1.33 is installed. Project integration tests live in `Tests/EditMode/` and `Tests/PlayMode/`; see `Tests/README.md` for Test Runner and MCP calls. No coverage threshold is defined; bundled package examples are not gameplay regression coverage. For new automated tests, use EditMode or PlayMode test assemblies and descriptive names such as `Freeze_WhenAlreadyFrozen_PreservesTimeScale`.

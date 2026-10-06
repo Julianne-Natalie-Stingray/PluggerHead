@@ -25,7 +25,7 @@ Inspector 必须配置 `configs`、`firstLevel`、四个 Button、`settingsScree
 | Settings | 调用已有 SettingsScreen.Open，由面板负责暂停及关闭后的恢复。 |
 | Exit | Player 调用 Application.Quit；Editor 设置 isPlaying 为 false。 |
 
-`LoadLevel` 对不可加载、Core 缺失或面板打开的调用直接返回；SceneSwitch 拒绝请求时才显示英文错误提示。按钮不可交互并不等于公开方法都被锁住：程序直接调用 `OpenSettings` / `ExitGame` 不检查共同条件，`LoadLevel` 的并发拒绝由 SceneSwitch 执行。状态文本没有成功后自动清空的分支，成功切换通过卸载菜单清除它。
+`LoadLevel` 对不可加载、Core 缺失或面板打开的调用直接返回；SceneSwitch 拒绝请求时才显示中文错误提示。按钮不可交互并不等于公开方法都被锁住：程序直接调用 `OpenSettings` / `ExitGame` 不检查共同条件，`LoadLevel` 的并发拒绝由 SceneSwitch 执行。状态文本没有成功后自动清空的分支，成功切换通过卸载菜单清除它。
 
 ## 核查与验证（2026-10-06）
 

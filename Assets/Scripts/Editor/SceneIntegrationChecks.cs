@@ -82,6 +82,16 @@ public static class SceneIntegrationChecks
                         renderer.sharedMaterial.shader != null && renderer.sharedMaterial.shader.isSupported,
                         $"{path}: {wire.name} needs a supported wire material.");
                 }
+                foreach (TMPro.TMP_Text label in root.GetComponentsInChildren<TMPro.TMP_Text>(true))
+                {
+                    Require(label.font != null && label.font.material != null,
+                        $"{path}: {label.name} needs a font and material.");
+                    string characters = new string(label.text.Where(character => !char.IsControl(character)).ToArray());
+                    Require(label.font.HasCharacters(characters),
+                        $"{path}: {label.name} must have baked glyphs for its authored text.");
+                    Require(label.font.HasCharacters("剩余线长：不限--0123456789.重新开始失败，请重试。关卡加载失败，请重试。返回主菜单失败，请重试。设置已保存保存失败，请重试。"),
+                        $"{path}: {label.name} must support Chinese runtime status and error messages.");
+                }
             }
 
             Require(FindComponents<Camera>(scene).Count == 1 && FindComponents<AudioListener>(scene).Count == 1,
@@ -112,9 +122,9 @@ public static class SceneIntegrationChecks
                     FindComponents<UnityEngine.UI.GraphicRaycaster>(scene).Count == 1,
                     "FinalScene must receive UI input.");
                 List<TMPro.TMP_Text> labels = FindComponents<TMPro.TMP_Text>(scene);
-                Require(labels.Any(label => label.name == "CongratulationsTitle" && label.text.Contains("CONGRATULATIONS")) &&
-                    labels.Any(label => label.name == "CreditsHeading" && label.text.Contains("SAMPLE")) &&
-                    labels.Any(label => label.name == "SampleCredits" && label.text.Contains("Programming")),
+                Require(labels.Any(label => label.name == "CongratulationsTitle" && label.text.Contains("恭喜通关")) &&
+                    labels.Any(label => label.name == "CreditsHeading" && label.text.Contains("示例")) &&
+                    labels.Any(label => label.name == "SampleCredits" && label.text.Contains("程序")),
                     "FinalScene must contain congratulations and clearly identified sample credits.");
                 Require(labels.All(label => label.font != null && label.gameObject.activeInHierarchy &&
                     label.rectTransform.rect.width > 0 && label.rectTransform.rect.height > 0),
@@ -241,8 +251,8 @@ public static class SceneIntegrationChecks
         WireLengthDisplay lengthDisplay = FindComponents<WireLengthDisplay>(ownedScene).Single();
         TMPro.TMP_Text lengthText = lengthDisplay.transform.Find("RemainingLengthText").GetComponent<TMPro.TMP_Text>();
         TMPro.TMP_Text scoreText = lengthDisplay.transform.Find("ScoreText").GetComponent<TMPro.TMP_Text>();
-        Require(lengthText.text == "Wire left: Unlimited",
-            "An unrestricted carried wire must display Unlimited.");
+        Require(lengthText.text == "剩余线长：不限",
+            "An unrestricted carried wire must display the Chinese unlimited label.");
         Require(scoreText.text == string.Empty && scoreText.rectTransform.rect.width >= 300f &&
             !scoreText.raycastTarget && !lengthText.raycastTarget,
             "The HUD must reserve an empty score column without intercepting input.");
@@ -316,15 +326,15 @@ public static class SceneIntegrationChecks
                 .SetValue(environment.HeldWire, 1000f);
             yield return null;
             yield return null;
-            Require(lengthText.text.StartsWith("Wire left: ") && lengthText.text != "Wire left: Unlimited" &&
-                lengthText.text != "Wire left: --",
+            Require(lengthText.text.StartsWith("剩余线长：") && lengthText.text != "剩余线长：不限" &&
+                lengthText.text != "剩余线长：--",
                 "Swapping to a finite wire must refresh the carried wire display.");
             outlet.Interact(new InteractionDetails(interaction.gameObject, outlet.gameObject));
             Require(environment.IsCircuitClosed && environment.HeldWire == null && clearedCount == 1,
                 "Returning the second wire to its outlet must clear the scene once.");
             yield return null;
             yield return null;
-            Require(lengthText.text == "Wire left: --", "A completed circuit with no held wire must clear the length.");
+            Require(lengthText.text == "剩余线长：--", "A completed circuit with no held wire must clear the length.");
             environment.EvaluateCircuit();
             Require(clearedCount == 1, "Repeated evaluation must not emit another clear event.");
             typeof(EnvironmentFacade).GetMethod("DebugRestartRun", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -355,7 +365,7 @@ public static class SceneIntegrationChecks
         yield return null;
         Require(initialWire.TilePath.Cells.Count >= startCount + 4,
             "The real scene Player must extend the wire along every crossed tile.");
-        Require(lengthText.text == "Wire left: " + (remainingAtStart - 4f).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
+        Require(lengthText.text == "剩余线长：" + (remainingAtStart - 4f).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
             "Moving four unit tiles must reduce the displayed remaining length by four.");
         body.position = routeStart;
         movement.transform.position = routeStart;
@@ -363,7 +373,7 @@ public static class SceneIntegrationChecks
         yield return null;
         Require(initialWire.TilePath.Cells.Count == startCount,
             "Returning over the real scene Player's tile path must retract the same cells.");
-        Require(lengthText.text == "Wire left: " + remainingAtStart.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
+        Require(lengthText.text == "剩余线长：" + remainingAtStart.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
             "Backtracking must restore the displayed remaining length.");
 
         int diedCount = 0;
@@ -386,7 +396,7 @@ public static class SceneIntegrationChecks
             Require(diedCount == 1, "Later physics frames must not repeat the death notification.");
             yield return null;
             yield return null;
-            Require(lengthText.text == "Wire left: 0.0", "Exceeding the wire limit must display zero rather than a negative length.");
+            Require(lengthText.text == "剩余线长：0.0", "Exceeding the wire limit must display zero rather than a negative length.");
         }
         finally
         {

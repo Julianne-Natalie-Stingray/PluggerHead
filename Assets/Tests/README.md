@@ -1,5 +1,7 @@
 # 整合集成测试
 
+2026-10-06 中文 UI：AGENTS 已规定玩家界面默认简体中文；MainMenuScene、FinalScene、GlobalUI 和运行时状态/错误提示已同步，ScoreText 保持空白。新增静态字体覆盖检查，顺序通过 EditMode **22/22**（`ebaeb33f53774b65b155fcf82a0c78e6`）、PlayMode **71/71**（`612aac8b531c4d368ea318ee8c6afd2a`），无失败或跳过。实际检查主菜单、设置、线长、死亡及结尾画面；运行时注入五种状态/错误文案验证字形与布局，均无溢出，未以此声称触发了全部业务失败分支。检查时 Console 无错误或警告。画面：[主菜单](../Docs/Development/ChineseUI-MainMenu.png)、[设置](../Docs/Development/ChineseUI-Settings.png)。
+
 2026-10-06 背包拆分：原功能保存在 `feature/player-inventory`（`72f22e6`），master 已解除移动/交互对背包的依赖，并使用不含 InventoryUI 的 GlobalUI prefab。最终版本顺序通过 EditMode **22/22**（`5b1dddad95e34aff8eeddfb952b7b8d6`）、PlayMode **71/71**（`90fc40b70f3e44b28a7c5a7ec7999f88`），无失败或跳过。
 
 2026-10-06 功能拆分回退：恢复原路逐格回退，保留废弃接口清理；完整新功能保存在 `feature/wire-path-overlap`。在保留工作区已有 Player/动画修改的状态下，EditMode 22/22（`425318e665924c2197934a880f634685`）、PlayMode 71/71（`3a74fa202046412c8173671e7afbac24`）顺序终态通过。

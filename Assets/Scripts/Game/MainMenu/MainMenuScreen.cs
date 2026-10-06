@@ -64,7 +64,7 @@ public sealed class MainMenuScreen : MonoBehaviour
         // The tracker commits progress after the scene has actually loaded.
         if (CoreFacade.Instance.SceneSwitch.RequestSwitch(level) == null)
         {
-            status.text = "Could not load the level. Please try again.";
+            status.text = "关卡加载失败，请重试。";
         }
         RefreshButtons();
     }

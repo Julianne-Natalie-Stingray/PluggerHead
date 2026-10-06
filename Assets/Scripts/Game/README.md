@@ -14,7 +14,7 @@
 
 根目录直接包含 `RestartLevelScreen.cs`、`WireLengthDisplay.cs` 和本 README/meta；其余实现与逐文件检查结果位于上表链接中。
 
-`WireLengthDisplay` 在环境更新路径后的 LateUpdate 查询同场景当前持线，以世界单位显示长度上限减实际绕线路径长度，保留一位小数，超限归零。不限长显示 `Wire left: Unlimited`，未持线或缺少必要环境引用显示 `Wire left: --`。GlobalUI 左上角 GameplayHUD 的右侧预留空白 ScoreText，尚未接入计分。
+`WireLengthDisplay` 在环境更新路径后的 LateUpdate 查询同场景当前持线，以世界单位显示长度上限减实际绕线路径长度，保留一位小数，超限归零。不限长显示 `剩余线长：不限`，未持线或缺少必要环境引用显示 `剩余线长：--`。GlobalUI 左上角 GameplayHUD 的右侧预留空白 ScoreText，尚未接入计分。
 
 ## 运行流程与装配
 
