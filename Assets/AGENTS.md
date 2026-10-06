@@ -56,6 +56,7 @@ Unity Test Framework 1.1.33 is installed. Project integration tests live in `Tes
 
 Smoke-test affected scenes, check Console errors, and report reproduction steps and results.
 
+- 允许 agent 根据回归价值、复用频率和维护成本，自行决定是否将临时 MCP test calls 的验证逻辑整理为可复用的 Unity Test Runner EditMode / PlayMode 测试，无需逐次征求用户许可。决定保留为自动化测试时，遵循现有测试程序集、隔离与清理约定，并验证新增测试；一次性排查可继续使用临时调用。
 - Run `PluggerHead.EditModeTests` and `PluggerHead.PlayModeTests` in Unity Test Runner, or through MCP `run_tests` / `get_test_job`; run the two modes sequentially. These Editor integration suites wrap the original Player/Env, audio and scene checks.
 - The manual menu `Tools > PluggerHead > Verify Player and Environment` and `AudioIntegrationChecks.Run()` / `LastResult` remain available. Test Runner automatically provisions the audio TimerRunner and the authored gameplay scene. See `Tests/README.md` for isolation, cleanup and timeouts.
 
@@ -100,6 +101,7 @@ Describe the behavior change, affected scenes or prefabs, and validation perform
 
 - 此状态仅为检查时的快照。操作前重新读取 `mcpforunity://instances`、`mcpforunity://custom-tools` 和 `mcpforunity://editor/state`；确认连接的是 PluggerHead，且编辑器已就绪。多个实例时使用 `set_active_instance` 明确选择目标。
 - 无会话时，先在 Unity 中打开本项目并检查 MCP 插件连接，再重新查询；不要将工具已注册视为编辑器已连接。
+- 使用 Unity MCP 时，从首次发现不可用（如连接失败、无 Editor 会话或调用无响应）起计时；持续超过 30 秒必须及时通知用户，说明当前现象、受影响的操作及下一步处理，不能一直静默重试或等待。通知后可继续执行已获授权的恢复尝试及不依赖 MCP 的工作；恢复可用时同步告知用户。
 - MCP 写操作同样遵守上方修改范围。修改对象前确认所属场景或资源路径，并保留已有未提交或未保存的用户修改。
 - 修改脚本后等待编译完成，并通过 `read_console` 检查错误；按需验证受影响场景和测试。
 
