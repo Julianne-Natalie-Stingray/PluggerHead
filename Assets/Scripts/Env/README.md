@@ -101,3 +101,5 @@ Corner 扫掠记录自由端移动，假设该采样段的拐角和前一个折�
 EnvironmentFacade 调试按钮没有 Play Mode 限制，会直接操作当前场景，绕过 Player 范围与操作锁，不提供预览场景隔离或状态恢复。脚本化验收缺少节点时允许跳过，最终 PASS 只表示执行步骤没有记录失败，不能证明全部步骤已执行；也不适用于任意多插座/地线配置。应与 Test Runner 的隔离验证区分。
 
 本轮 Test Runner：EditMode 17/17（job `bd3da355d26e4b5190a73048a9b3feb9`）、PlayMode 37/37（job `313f078e635746a795cff58eca214104`）通过。随后另一项工作开始修复上述 EdgeCollider offset 边界并补充断言；该行为改动需以其后续测试与提交为准，本轮通过结果不覆盖后写入的修复。独立审查确认本轮 Env 修改仅为说明与 Tooltip，提出的绝对表述问题已修正。
+
+Offset 修复已在 `7c91a3a` 提交并通过独立审查。为消除并行审计与修复的测试时序歧义，提交后重新编译，按顺序完成 EditMode 17/17（job `846572703e0d48248dd8396fe8b7ca1e`）、PlayMode 37/37（job `ff7225daa0af42cea17ecf378b562a3e`），两项均终态通过。这组结果覆盖非零 offset 和只改变 offset 后重绘相同路径的新增断言，作为该修复的最终验证证据。
