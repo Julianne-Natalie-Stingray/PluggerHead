@@ -129,7 +129,7 @@ public static class TilemapIntegrationChecks
         AssertCells(fixture.Wire, firstPath);
         Require(anchor.EngagedBy == fixture.Wire, "A swap must keep the first wire's Anchor ownership.");
         fixture.Outlet.Interact(new InteractionDetails(fixture.Player, fixture.Outlet.gameObject));
-        Require(fixture.SecondWire.IsClosed && fixture.Environment.HeldWire == null,
+        Require(fixture.SecondWire.IsClosed && fixture.Environment.HeldWire && fixture.Environment.HeldWire.IsHeld,
             "Closing the return wire must preserve the first wire's independent path.");
         fixture.Restart();
         Require(!anchor.IsEngaged && fixture.Environment.HeldWire == fixture.Wire && !fixture.SecondWire.IsClosed,
@@ -212,7 +212,7 @@ public static class TilemapIntegrationChecks
             AssertWirePixel(camera, pixels, overlap, firstColor, "Switching alone must leave the inherited path's color unchanged.");
             if (returnAtOutlet)
             {
-                // Retract part of the inherited loop, then lay a fresh segment on the old bottom edge.
+                // Preserve the pinned loop while laying a fresh segment on the old bottom edge.
                 fixture.Move(0, 2);
                 fixture.Move(1, 2);
                 fixture.Move(1, 0);

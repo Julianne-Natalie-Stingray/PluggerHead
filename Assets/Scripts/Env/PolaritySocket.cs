@@ -27,9 +27,8 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
 {
     public bool CanInteract => canInteract && isActiveAndEnabled && IsConfigurationValid;
     public WirePolarity Accepted => accepted;
-    public bool IsConfigurationValid => accepted != WirePolarity.None &&
-        (accepted & (WirePolarity.Live | WirePolarity.Neutral)) != WirePolarity.Live &&
-        (accepted & (WirePolarity.Live | WirePolarity.Neutral)) != WirePolarity.Neutral;
+    public bool IsConfigurationValid => accepted == (WirePolarity.Live | WirePolarity.Neutral) ||
+        accepted == WirePolarity.Ground;
 
     /// <summary>
     /// Whether this interface carries both live and neutral, which is what makes it a swap point.
@@ -54,8 +53,8 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
         Initialize();
     }
 
-    /// <summary>Reject a single live/neutral pole before subscribing or accepting interaction.
-    /// 初始化拒绝仅含火或零的单极接口；保留无火零的地线配置供后续玩法使用。</summary>
+    /// <summary>Only a dual socket or a ground socket may initialize.
+    /// 仅允许双极插座或纯地线插座初始化。</summary>
     public bool Initialize()
     {
         if (IsConfigurationValid)
@@ -67,7 +66,7 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
         if (!initializationErrorReported)
         {
             initializationErrorReported = true;
-            Debug.LogError($"PolaritySocket '{name}' cannot initialize: powered interfaces must include both Live and Neutral; None is invalid.", this);
+            Debug.LogError($"PolaritySocket '{name}' cannot initialize: expected exactly Live | Neutral or Ground.", this);
         }
         return false;
     }
@@ -116,7 +115,7 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
             .Subsystem("Environment")
             .Name(LogName.Class)
             .Issue(LogIssue.Invalid(nameof(accepted)))
-            .Action(LogAction.Specify("Powered interfaces must include both Live and Neutral; None is invalid. Initialization will be refused. "))
+            .Action(LogAction.Specify("Expected exactly Live | Neutral or Ground. Initialization will be refused. "))
             .Write();
     }
 #endif

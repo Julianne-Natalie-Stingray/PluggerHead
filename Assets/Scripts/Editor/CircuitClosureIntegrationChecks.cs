@@ -20,22 +20,9 @@ public static class CircuitClosureIntegrationChecks
             fixture.Restart();
             int cleared = 0;
             fixture.Environment.LevelCleared += () => cleared++;
-
-            if (scenario == "IndependentReturns")
-            {
-                fixture.Interact(fixture.Outlet);
-                fixture.Interact(fixture.Outlet);
-                Require(fixture.First.IsClosed && fixture.Second.IsClosed &&
-                    !fixture.Environment.IsCircuitClosed && cleared == 0,
-                    "Two wires returned independently to the source must not form a circuit.");
-                return;
-            }
-
             fixture.Interact(first);
             Require(fixture.Environment.HeldWire == fixture.Second && fixture.Second.PreviousWire == fixture.First &&
-                fixture.Second.CircuitStart == first.transform && !fixture.Environment.IsCircuitClosed,
-                "The first interface must join opposite wires without completing the return path.");
-
+                !fixture.Environment.IsCircuitClosed, "First socket must hand over the opposite wire; other sockets are still missing.");
             if (scenario == "MissingInterface" || scenario == "WalkOnly")
             {
                 if (scenario == "WalkOnly")
@@ -43,98 +30,158 @@ public static class CircuitClosureIntegrationChecks
                     fixture.Move(second.transform.position);
                 }
                 fixture.Interact(fixture.Outlet);
-                Require(!fixture.Environment.IsCircuitClosed && cleared == 0,
-                    "A closed route must not win when an interface was skipped or merely walked over.");
+                Require(!fixture.Environment.IsCircuitClosed && cleared == 0, "Walking past an unconnected socket must not complete it.");
                 return;
             }
-
             fixture.Interact(second);
-            Require(fixture.Environment.HeldWire == fixture.Second && fixture.Second.IsHeld &&
-                fixture.Second.ConnectedInterfaces.Count == 2,
-                "Connecting another interface without a spare wire must retain the carried wire.");
-            int connectionCount = fixture.Second.ConnectedInterfaces.Count;
-            fixture.Interact(second);
-            Require(fixture.Second.ConnectedInterfaces.Count == connectionCount && fixture.Environment.SwapCount == 1,
-                "Repeated interaction must not duplicate a connection or a handover.");
-            int pathCount = fixture.Second.TilePath.Cells.Count;
-            fixture.Move(first.transform.position);
-            Require(fixture.Second.TilePath.Cells.Count > pathCount,
-                "Returning behind a plugged interface must preserve its path and lay a new tail.");
+            Wire third = fixture.Environment.HeldWire;
+            Require(third && third != fixture.Second && third.Polarity == fixture.First.Polarity &&
+                third.IsHeld && fixture.Environment.SwapCount == 2, "Exhausted authored wires must still produce an opposite-polarity handover.");
+            if (scenario == "NoReturnRestriction")
+            {
+                // Same-polarity return fills the remaining source slot through its outgoing opposite wire.
+                fixture.Interact(fixture.Outlet);
+                Require(fixture.Environment.IsCircuitClosed && cleared == 1 && fixture.Environment.HeldWire.IsHeld,
+                    "All socket anchors are wired: no opposite-return or closed-loop restriction may remain.");
+            }
+            else
+            {
+                fixture.Interact(first);
+                Require(fixture.Environment.SwapCount == 3 && fixture.Environment.HeldWire.Polarity != third.Polarity,
+                    "Each repeated dual socket interaction must still switch polarity.");
+                fixture.Interact(fixture.Outlet);
+                Require(fixture.Environment.IsCircuitClosed && cleared == 1, "Every socket is connected and voltage is within target.");
+            }
             fixture.Environment.RefreshNodes();
-            Require(fixture.Second.ConnectedInterfaces.Count == connectionCount,
-                "Refreshing nodes must preserve the connection history and occupancy.");
-
-            if (scenario == "WrongOutlet")
-            {
-                PowerSocket other = fixture.AddOutlet("OtherOutlet", 0, 3);
-                fixture.Environment.RefreshNodes();
-                fixture.Interact(other);
-                Require(fixture.Second.IsHeld && !fixture.Environment.IsCircuitClosed,
-                    "Returning to another outlet must not close the source circuit.");
-            }
-            if (scenario == "IndependentTermination")
-            {
-                // Public state setters cannot manufacture the missing electrical handover.
-                fixture.Second.PlugInto(second.transform, false);
-                fixture.Environment.EvaluateCircuit();
-                Require(!fixture.Environment.IsCircuitClosed, "Two interface endpoints alone are not a closed source circuit.");
-                return;
-            }
-
-            fixture.Interact(fixture.Outlet);
-            Require(fixture.Environment.IsCircuitClosed && cleared == 1 && fixture.Environment.HeldWire == null,
-                "The connected live/neutral route through every interface must close at its source.");
-            fixture.Environment.EvaluateCircuit();
-            Require(cleared == 1, "Re-evaluation must not repeat the completion event.");
-            if (scenario == "DestroyedJunction")
-            {
-                UnityEngine.Object.DestroyImmediate(first.gameObject);
-                fixture.Environment.RefreshNodes();
-                Require(!fixture.Environment.EvaluateCircuit(), "A destroyed junction must break the circuit.");
-                return;
-            }
+            Require(fixture.Environment.EvaluateCircuit() && cleared == 1, "Refresh must retain connections without repeating victory.");
             fixture.Restart();
-            Require(!fixture.Environment.IsCircuitClosed && fixture.First.ConnectedInterfaces.Count == 0 &&
-                fixture.Second.ConnectedInterfaces.Count == 0 && fixture.Second.PreviousWire == null,
-                "Restart must clear connections, topology, and completion state.");
-            fixture.Interact(first);
-            fixture.Interact(second);
-            fixture.Interact(fixture.Outlet);
-            Require(fixture.Environment.IsCircuitClosed && cleared == 2,
-                "Restart must permit a fresh complete circuit and event.");
+            Require(!fixture.Environment.IsCircuitClosed && fixture.Environment.HeldWire == fixture.First &&
+                fixture.Second.ConnectedInterfaces.Count == 0 && !fixture.Second.CircuitStart && !third,
+                "Restart must clear authored connections and destroy generated continuations.");
         }
     }
 
-    public static void CheckMultipleWires(bool samePolarityReturn)
+    public static void CheckGroundAndVoltage(string scenario)
     {
         using (var fixture = new Fixture(false))
         {
-            fixture.AddWire(WirePolarity.Live);
-            if (!samePolarityReturn)
+            PolaritySocket groundA = fixture.AddInterface("GroundA", 3, 0);
+            PolaritySocket groundB = fixture.AddInterface("GroundB", 3, 3);
+            Set(groundA, "accepted", WirePolarity.Ground);
+            Set(groundB, "accepted", WirePolarity.Ground);
+            VoltageReducer reducer = fixture.AddReducer("Reducer", 1, 0, 30f);
+            VoltageReducer unused = fixture.AddReducer("Unused", 1, 1, 100f);
+            Set(fixture.Environment, "initialVoltage", 220f);
+            Set(fixture.Environment, "targetVoltage", scenario == "VoltageTooHigh" ? 189f : 190f);
+            fixture.Restart();
+            int cleared = 0;
+            fixture.Environment.LevelCleared += () => cleared++;
+            fixture.Interact(groundA);
+            Wire ground = fixture.Environment.HeldGroundWire;
+            Require(ground && ground.Polarity == WirePolarity.Ground && ground.IsHeld &&
+                fixture.Environment.HeldWire == fixture.First, "Ground pickup must coexist with the powered wire.");
+            fixture.Move(groundB.transform.position);
+            Require(ground.TilePath.Cells.Count > 1, "Ground wire must follow player tile movement.");
+            fixture.Interact(reducer);
+            fixture.Interact(reducer);
+            Require(fixture.Environment.CurrentVoltage == 190d && fixture.Environment.HeldWire == fixture.First &&
+                fixture.Environment.HeldGroundWire == ground, "Repeated reducer use must count once and retain both held wires.");
+            if (scenario == "MissingGround")
             {
-                fixture.AddWire(WirePolarity.Neutral);
+                fixture.Interact(fixture.Outlet);
+                Require(!fixture.Environment.IsCircuitClosed, "Every ground socket must also be wired.");
+                return;
             }
-            var interfaces = new List<PolaritySocket>
+            fixture.Interact(groundB);
+            Require(!fixture.Environment.HeldGroundWire && ground.PlugTarget == groundB.transform && !ground.IsHeld,
+                "Second ground interaction must connect and release only the ground wire.");
+            fixture.Interact(fixture.Outlet);
+            bool expected = scenario != "VoltageTooHigh";
+            Require(fixture.Environment.IsCircuitClosed == expected && cleared == (expected ? 1 : 0),
+                "Voltage equal to target succeeds; voltage one unit above target fails.");
+            fixture.Environment.RefreshNodes();
+            Require(fixture.Environment.EvaluateCircuit() == expected && fixture.Environment.CurrentVoltage == 190d,
+                "Refresh must preserve ground endpoints and deduplicated reducer connections.");
+            if (scenario == "VoltageTooHigh")
             {
-                fixture.AddInterface("First", 3, 0),
-                fixture.AddInterface("Second", 3, 3)
-            };
-            if (!samePolarityReturn)
+                fixture.Interact(unused);
+                Require(fixture.Environment.IsCircuitClosed && fixture.Environment.CurrentVoltage == 90d && cleared == 1,
+                    "A newly connected second reducer must add its drop and re-evaluate victory.");
+            }
+            if (scenario == "DestroyedWire")
             {
-                interfaces.Add(fixture.AddInterface("Third", 0, 3));
+                UnityEngine.Object.DestroyImmediate(ground.gameObject);
+                Require(!fixture.Environment.EvaluateCircuit(), "Destroyed ground wires must no longer satisfy socket anchors.");
             }
             fixture.Restart();
-            foreach (PolaritySocket target in interfaces)
-            {
-                fixture.Interact(target);
-            }
-            Require(fixture.Environment.SwapCount == interfaces.Count,
-                "Every available opposite wire must create one recorded handover.");
-            Wire returnWire = fixture.Environment.HeldWire;
+            Require(!fixture.Environment.HeldGroundWire && fixture.Environment.CurrentVoltage == 220d &&
+                !fixture.Environment.IsCircuitClosed, "Restart must clear ground, voltage drops and victory.");
+        }
+    }
+
+    public static void CheckRemoteInteraction(string kind)
+    {
+        using (var fixture = new Fixture(false))
+        {
+            PolaritySocket ground = fixture.AddInterface("Ground", 2, 0);
+            Set(ground, "accepted", WirePolarity.Ground);
+            PolaritySocket dual = fixture.AddInterface("Dual", 2, 1);
+            VoltageReducer reducer = fixture.AddReducer("Reducer", 2, 1, 30f);
+            fixture.Restart();
+            ground.Interact(new InteractionDetails(fixture.Player, ground.gameObject));
+            Wire groundWire = fixture.Environment.HeldGroundWire;
+            IEnvironmentInteractable target = kind == "Reducer" ? (IEnvironmentInteractable)reducer : dual;
+            target.Interact(new InteractionDetails(fixture.Player, ((Component)target).gameObject));
+            fixture.Environment.SamplePlayerPath(fixture.Player.transform.position);
+            AssertAdjacent(fixture.Environment.HeldWire);
+            AssertAdjacent(groundWire);
+            Vector3Int actorCell = fixture.Environment.RoutingTilemap.WorldToCell(fixture.Player.transform.position);
+            actorCell.z = 0;
+            Require(fixture.Environment.HeldWire.TilePath.Cells[fixture.Environment.HeldWire.TilePath.Cells.Count - 1] == actorCell &&
+                groundWire.TilePath.Cells[groundWire.TilePath.Cells.Count - 1] == actorCell,
+                "Both held wire paths must independently end at the actor after a remote interaction.");
+        }
+    }
+
+    public static void CheckOutletPin()
+    {
+        using (var fixture = new Fixture(false))
+        {
+            fixture.Restart();
+            fixture.Move(new Vector3(3.5f, 0.5f));
+            fixture.Move(new Vector3(3.5f, 3.5f));
+            fixture.Move(new Vector3(0.5f, 3.5f));
             fixture.Interact(fixture.Outlet);
-            Require(returnWire.IsClosed && fixture.Environment.HeldWire == null &&
-                fixture.Environment.IsCircuitClosed == !samePolarityReturn,
-                "A multi-wire source loop must return on the opposite polarity, independent of the swap count.");
+            Wire next = fixture.Environment.HeldWire;
+            int before = next.TilePath.Cells.Count;
+            fixture.Move(new Vector3(0.5f, 1.5f));
+            Require(next.TilePath.Cells.Count == before + 1,
+                "PowerSocket handover must pin the inherited route; walking back lays a new tail.");
+            AssertAdjacent(next);
+        }
+    }
+
+    public static void CheckExamples()
+    {
+        GameObject ground = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/Sockets/GroundSocket.prefab");
+        GameObject reducer = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/VoltageReducer.prefab");
+        Require(ground && ground.GetComponent<PolaritySocket>().Accepted == WirePolarity.Ground &&
+            ground.GetComponent<PolaritySocket>().IsConfigurationValid && ground.GetComponent<Collider2D>() &&
+            ground.GetComponent<SpriteRenderer>().sprite,
+            "Ground example must contain a valid ground socket and interaction collider.");
+        Require(reducer && reducer.GetComponent<VoltageReducer>().VoltageDrop == 30f && reducer.GetComponent<Collider2D>() &&
+            reducer.GetComponent<SpriteRenderer>().sprite,
+            "Reducer example must contain its configured 30 V component and interaction collider.");
+    }
+
+    private static void AssertAdjacent(Wire wire)
+    {
+        IReadOnlyList<Vector3Int> cells = wire.TilePath.Cells;
+        for (int i = 1; i < cells.Count; i++)
+        {
+            Vector3Int delta = cells[i] - cells[i - 1];
+            Require(Mathf.Abs(delta.x) + Mathf.Abs(delta.y) == 1 && delta.z == 0,
+                "Cross-cell interaction must preserve a four-connected wire route.");
         }
     }
 
@@ -229,6 +276,15 @@ public static class CircuitClosureIntegrationChecks
             GameObject root = Create(name, x, y);
             root.AddComponent<BoxCollider2D>();
             return root.AddComponent<PolaritySocket>();
+        }
+
+        public VoltageReducer AddReducer(string name, int x, int y, float drop)
+        {
+            GameObject root = Create(name, x, y);
+            root.AddComponent<BoxCollider2D>();
+            VoltageReducer reducer = root.AddComponent<VoltageReducer>();
+            Set(reducer, "voltageDrop", drop);
+            return reducer;
         }
 
         public void AddWire(WirePolarity polarity)

@@ -28,6 +28,8 @@ public class Wire : MonoBehaviour
     public Wire PreviousWire { get; private set; }
     public IReadOnlyList<PolaritySocket> ConnectedInterfaces => connectedInterfaces;
     private readonly List<PolaritySocket> connectedInterfaces = new();
+    public IReadOnlyList<VoltageReducer> ConnectedReducers => connectedReducers;
+    private readonly List<VoltageReducer> connectedReducers = new();
 
     [SerializeField, BoxGroup("Wire")]
     [Tooltip("Electrical property of this wire. It must match the polarity of every interface it is plugged into.")]
@@ -89,6 +91,35 @@ public class Wire : MonoBehaviour
         CircuitStart = start;
         PreviousWire = previous;
         connectedInterfaces.Clear();
+        connectedReducers.Clear();
+    }
+
+    internal void ConfigureContinuation(Wire source, WirePolarity value)
+    {
+        polarity = value;
+        maxLength = source ? source.MaxLength : 0f;
+        Initialize();
+        if (source)
+        {
+            LineRenderer original = source.GetComponent<LineRenderer>();
+            line.sharedMaterial = original.sharedMaterial;
+            line.widthCurve = original.widthCurve;
+            line.widthMultiplier = original.widthMultiplier;
+            line.numCornerVertices = original.numCornerVertices;
+            line.numCapVertices = original.numCapVertices;
+        }
+        Color color = value == WirePolarity.Live ? Color.red :
+            value == WirePolarity.Neutral ? Color.blue : Color.green;
+        line.startColor = line.endColor = color;
+    }
+
+    internal void ConnectReducer(VoltageReducer target)
+    {
+        if (!connectedReducers.Contains(target))
+        {
+            connectedReducers.Add(target);
+        }
+        TilePath.CommitConnection();
     }
 
     internal void ConnectInterface(PolaritySocket target)
@@ -121,9 +152,9 @@ public class Wire : MonoBehaviour
 
     /// <summary>
     /// Single entry point for the state "this wire's free end is plugged into something".
-    /// Records the endpoint and return flag; Environment separately validates the connected source loop.
+    /// Records the endpoint and legacy return flag; Environment checks socket occupancy and voltage.
     /// 状态"本线自由端已插入某处"的单一入口.
-    /// 仅记录插入点与回插标志；环境通过首尾交接关系及接口覆盖验证整个回路。
+    /// 仅记录插入点与回插标志；环境检查插座锚点接线与电压。
     /// </summary>
     public void PlugInto(Transform target, bool closesCircuit)
     {

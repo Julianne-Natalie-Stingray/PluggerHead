@@ -347,7 +347,7 @@ public static class SceneIntegrationChecks
                 lengthText.text != "剩余线长：--",
                 "Swapping to a finite wire must refresh the carried wire display.");
             outlet.Interact(new InteractionDetails(interaction.gameObject, outlet.gameObject));
-            Require(environment.IsCircuitClosed && environment.HeldWire == null && clearedCount == 1,
+            Require(environment.IsCircuitClosed && environment.HeldWire && environment.HeldWire.IsHeld && clearedCount == 1,
                 "Returning the second wire to its outlet must clear the scene once.");
             Require(nextPanel.gameObject.activeInHierarchy &&
                 nextPanel.GetComponentInChildren<UnityEngine.UI.Button>().interactable &&
@@ -355,7 +355,8 @@ public static class SceneIntegrationChecks
                 "The environment victory event must immediately show the Chinese completion prompt.");
             yield return null;
             yield return null;
-            Require(lengthText.text == "剩余线长：--", "A completed circuit with no held wire must clear the length.");
+            Require(lengthText.text.StartsWith("剩余线长：") && lengthText.text != "剩余线长：--",
+                "Completion keeps a powered wire and its length display.");
             environment.EvaluateCircuit();
             Require(clearedCount == 1, "Repeated evaluation must not emit another clear event.");
             typeof(EnvironmentFacade).GetMethod("DebugRestartRun", BindingFlags.Instance | BindingFlags.NonPublic)

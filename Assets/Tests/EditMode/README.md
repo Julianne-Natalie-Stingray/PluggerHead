@@ -1,5 +1,7 @@
 # EditMode 测试
 
+2026-10-07：当前完整程序集已通过 **55/55**。`CircuitClosureTests.cs` 的 21 个用例验证 SUCCESS_RULE：全插座覆盖、双极重复换线、独立地线、电压边界/去重、重开、跨格双持路径、PowerSocket 连接固定、示例资源引用，以及 7 种非法插座初始化配置。以下旧核查数量保留作历史记录。
+
 程序集 `PluggerHead.EditModeTests`，Category 均为 `Integration`。逐文件核查日期：2026-10-06；当前共 22 个展开后的用例，含新增 MenuTool 4 项；FinalScene 版本 EditMode 已通过 22/22，job 见测试总说明。执行方式见[测试总说明](../README.md)，检查实现见[Editor 目录](../../Scripts/Editor/README.md)。
 
 | 文件 | 用例数与实际覆盖 |
