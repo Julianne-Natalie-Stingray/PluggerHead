@@ -24,19 +24,21 @@ GameplayIntegration 中移动速度为 5、跳跃速度为 8、重力倍率为 1
 
 当前输入绑定为 A/D 水平移动、Space 跳跃、J 操作、K 放 Anchor。PlayerMove 在 FixedUpdate 将输入 X 钳到 -1..1，乘非负 moveSpeed 写入水平速度，保留竖直速度；不再乘 fixedDeltaTime。随后通过 AddForce 施加 GetResistance 返回值。移动动画 tryMoving 依据输入幅度，不是实际位移。
 
+Player 预制体的 BoxCollider2D 使用 `Assets/Prefabs/Player.physicsMaterial2D`（摩擦 0、弹性 0）。持续向墙设置水平速度会产生法向碰撞冲量，默认摩擦会抵消重力，导致贴墙悬停或削弱跳跃；零摩擦保留墙面阻挡，同时让竖直运动由重力与跳跃速度决定。水平停止仍由 PlayerMove 设置速度完成。新增玩家碰撞体时也应使用该材质。
+
 Visual 上的 PlayerVisual 同样由物理帧已接受的输入驱动：A 朝左、D 朝右，输入幅度不超过 0.01 时保持最后朝向；暂停、输入锁定、死亡及 PlayerMove 禁用时不更新朝向。只翻转 SpriteRenderer，不改变 Player 根缩放、碰撞体或 PlayerAnchor。当前占位精灵左右对称，因此 Visual 内附带深色 FacingMarker 标记并随翻转移动；替换为有明确朝向的美术后可移除标记并清空引用。spriteFacesRight 表示原始未翻转精灵的朝向，默认右；标记位置应与未翻转原图匹配。已有 Animator 仍负责 tryMoving/Interact。
 
 跳跃仅缓存按下时已落地的请求，执行物理帧再次检查落地；没有空中按下后自动落地起跳的缓冲。接地需要 groundLayers 内非 Trigger 接触、法线 Y≥0.65，且当前竖直速度≤0.1。有效跳跃将竖直速度设为非负 jumpSpeed。没有有效阻力查询时，正常分支将水平置零并保留原竖直速度，计算出的跳跃也不会应用。
 
 FixedUpdate 先检查地面极性，再查询阻力，再处理输入锁。踩到与持线相反的有效 GroundPolarity 会死亡；阻力 X/Y 同时为负无穷也会死亡，普通非有限值不属于完整校验范围。线长规则与地面极性组合详见 Env 文档。
 
-Die 首次设置 IsDead、手动锁输入、清空线速度/角速度、关闭刚体模拟、停用玩家，最后同步触发 Died。重复调用不重复通知；没有复活 API，也不自动重开关卡。Died 订阅者异常没有逐项隔离。Die 假定 Awake 已完成，不能当作可在任意初始化阶段调用的无依赖函数。
+Die 首次设置 IsDead、手动锁输入、清空线速度/角速度、关闭刚体模拟。Animator 可用时清除 tryMoving 和 Interact，触发 Die，并使用非缩放时间、保持玩家激活以在死亡面板冻结游戏后继续播放死亡动画；没有可用 Animator 时停用玩家。最后同步触发 Died。重复调用不重复触发动画或通知；没有复活 API，也不自动重开关卡。Died 订阅者异常没有逐项隔离。Die 假定 Awake 已完成，不能当作可在任意初始化阶段调用的无依赖函数。
 
 ## 输入锁与动画
 
 手动锁、交互动画锁为两个独立布尔来源，任一个生效即 IsInputLocked。锁会清除待跳跃请求并停止用输入覆盖速度，但保留当前速度、继续施加阻力；它不是冻结物理，地面与线长危险也不会被免除。禁用 PlayerMove 才会清除水平速度并保留竖直运动。
 
-Animator 需要 bool 参数 tryMoving、trigger 参数 Interact；交互状态标签为 PlayerInteract。Callbacks 在 OnEnable、FixedUpdate 和 LateUpdate 同步，聚合当前及过渡目标状态；基础层始终检查，其他层仅权重>0 时检查。聚合后仅在交互状态变化时通知输入锁；禁用回调组件释放它跟踪的动画锁，不清除手动锁。Animator 引用仅在为空/已销毁时重新查询，替换控制器对象布局后应重新确认绑定。
+Animator 需要 bool 参数 tryMoving、trigger 参数 Interact 和 Die；交互状态标签为 PlayerInteract。Callbacks 在 OnEnable、FixedUpdate 和 LateUpdate 同步，聚合当前及过渡目标状态；基础层始终检查，其他层仅权重>0 时检查。聚合后仅在交互状态变化时通知输入锁；禁用回调组件释放它跟踪的动画锁，不清除手动锁。Animator 引用仅在为空/已销毁时重新查询，替换控制器对象布局后应重新确认绑定。
 
 TryStartInteractionAnimation 在 J 操作被认为成功后请求；操作本身先执行，动画请求失败不会回滚操作。K 放置不主动请求交互动画。
 

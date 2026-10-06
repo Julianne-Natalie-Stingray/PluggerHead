@@ -410,20 +410,24 @@ public static class SceneIntegrationChecks
             movement.transform.position = body.position;
             Physics2D.SyncTransforms();
             yield return new WaitForFixedUpdate();
-            Require(movement.IsDead && !movement.gameObject.activeSelf && !body.simulated && diedCount == 1,
+            Require(movement.IsDead && movement.IsInputLocked && movement.gameObject.activeSelf && !body.simulated && diedCount == 1,
                 "Exceeding the real wire limit must kill the player and notify death in a physics frame.");
             Require(restartPanel.gameObject.activeInHierarchy &&
                 restartPanel.GetComponentInChildren<UnityEngine.UI.Button>().interactable,
                 "Player death must show an actionable restart prompt.");
+            Require(GameStateManager.Current == GameState.Freezed && Time.timeScale == 0f,
+                "The visible restart prompt must freeze gameplay.");
             restartScreen.enabled = false;
             Require(!restartPanel.gameObject.activeSelf, "Disabling the restart screen must hide its prompt.");
+            Require(GameStateManager.Current == GameState.Playing && Time.timeScale > 0f,
+                "Hiding the only visible prompt must release its freeze request.");
             typeof(RestartLevelScreen).GetField("player", BindingFlags.Instance | BindingFlags.NonPublic)
                 .SetValue(restartScreen, null);
             restartScreen.enabled = true;
             Require(restartPanel.gameObject.activeInHierarchy,
-                "Re-enabling GlobalUI must find the inactive dead Player and restore its prompt.");
-            yield return new WaitForFixedUpdate();
-            Require(diedCount == 1, "Later physics frames must not repeat the death notification.");
+                "Re-enabling GlobalUI must find the dead Player and restore its prompt.");
+            yield return null;
+            Require(diedCount == 1, "Later frames must not repeat the death notification.");
             yield return null;
             yield return null;
             Require(lengthText.text == "剩余线长：0.0", "Exceeding the wire limit must display zero rather than a negative length.");

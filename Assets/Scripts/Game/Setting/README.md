@@ -47,7 +47,7 @@ Load 先 new 数据并 ResetToDefault，再读取文件并覆盖默认实例，�
 
 MainMenuScene 和 GameplayIntegration 都包含初始 inactive 的 SettingsScreen。Inspector 需配置三条音量 Slider（当前范围 0–1）、返回主菜单 Button 和保存状态 TMP 文本。GameplayIntegration 的 MenuButton 持久事件直接调用 Open；主菜单通过 MainMenuScreen.OpenSettings 间接调用 Open。面板按钮和滑块连接 ContinueGame/SaveSettings/ReturnToMainMenu/OnVolumeChanged。
 
-Open 在对象 activeSelf 已为 true 或全局 Loading 时直接返回，否则校验引用，使用 SetValueWithoutNotify 填滑块并清空状态文本。只有从 Playing 打开时取得暂停所有权。关闭面板只释放自己取得的暂停；原先已 Freezed 时打开不会擅自恢复别人的暂停。主菜单场景禁用返回主菜单按钮，但公开 ReturnToMainMenu 方法没有同名场景保护，外部调用仍应遵循 UI 约束。
+Open 在对象 activeSelf 已为 true 或全局 Loading 时直接返回，否则校验引用，使用 SetValueWithoutNotify 填滑块并清空状态文本。OnEnable 独立请求冻结，OnDisable 释放，包括直接激活、父对象停用和场景卸载。关闭面板仅释放自身请求；其他面板请求或手动暂停仍存在时保持冻结。主菜单场景禁用返回主菜单按钮，但公开 ReturnToMainMenu 方法没有同名场景保护，外部调用仍应遵循 UI 约束。
 
 SaveSettings 只在面板 activeInHierarchy 且引用齐全时执行：先把滑块写入设置，再 Save。成功后调用现有 Core.Audio.ApplyAudioSettings 立即应用三个混音器总线音量并显示提示；失败恢复先前内存音量并显示失败提示，不改变实际混音器音量。移动滑块只清空提示，关闭未保存的面板会丢弃滑块修改。返回主菜单先关闭面板释放暂停，再请求切换；请求被拒时重新打开并恢复本面板原有的暂停。
 

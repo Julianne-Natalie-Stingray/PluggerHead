@@ -23,6 +23,7 @@ public sealed class RestartLevelScreen : MonoBehaviour
         if (panel != null)
         {
             panel.SetActive(false);
+            FreezeWhileVisible.Attach(panel);
         }
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -17,6 +18,7 @@ using UnityEngine;
 /// Idempotence: repeated Freeze or repeated Resume are no-ops. Freeze records the time scale in force when it
 /// is entered and restores exactly that value, and it must not overwrite the record while already frozen --
 /// otherwise a slow-motion game would either lose its scale permanently or restore to zero.
+/// Panels use RequestFreeze/ReleaseFreeze for independent ownership; Resume only clears manual pause.
 /// Paradigms: static accessor. A Singleton Component was rejected because the state must be correct before the
 /// first scene object awakes, and a Component would need a hand-placed object to guarantee that.
 /// 全局游戏状态的拥有者, 也是唯一可以改变它并同时施加其后果的地方.
@@ -52,6 +54,38 @@ public static class GameStateManager
 
     private static float timeScaleBeforeFreeze = 1f;
     private static GameState stateBeforeLoading = GameState.Playing;
+    private static readonly HashSet<object> freezeOwners = new HashSet<object>();
+    private static bool manualFreeze;
+    private static bool restoreTimeAfterLoading;
+
+    /// <summary>持有者独立请求冻结；重复请求不会增加计数，加载期间保留请求。</summary>
+    public static void RequestFreeze(object owner)
+    {
+        if (owner == null) throw new ArgumentNullException(nameof(owner));
+        if (freezeOwners.Add(owner) && Current != GameState.Loading)
+        {
+            ApplyFreeze();
+        }
+    }
+
+    /// <summary>释放自身请求；其他持有者或手动暂停仍存在时保持冻结。</summary>
+    public static void ReleaseFreeze(object owner)
+    {
+        if (owner == null || !freezeOwners.Remove(owner) || freezeOwners.Count > 0 || manualFreeze)
+        {
+            return;
+        }
+        if (Current == GameState.Loading)
+        {
+            if (stateBeforeLoading == GameState.Freezed)
+            {
+                stateBeforeLoading = GameState.Playing;
+                restoreTimeAfterLoading = true;
+            }
+            return;
+        }
+        Resume();
+    }
 
     /// <summary>
     /// Single entry point for suspending play.
@@ -71,6 +105,12 @@ public static class GameStateManager
             return;
         }
 
+        manualFreeze = true;
+        ApplyFreeze();
+    }
+
+    private static void ApplyFreeze()
+    {
         if (Current == GameState.Freezed)
         {
             GameLog.Info()
@@ -103,6 +143,12 @@ public static class GameStateManager
     public static void Resume()
     {
         if (Current == GameState.Loading)
+        {
+            return;
+        }
+
+        manualFreeze = false;
+        if (freezeOwners.Count > 0)
         {
             return;
         }
@@ -144,6 +190,7 @@ public static class GameStateManager
         }
 
         stateBeforeLoading = Current;
+        restoreTimeAfterLoading = false;
 
         Apply(GameState.Loading);
     }
@@ -153,11 +200,12 @@ public static class GameStateManager
     /// Implementation approach: restores the state recorded by EnterLoading instead of assuming Playing, because
     /// a switch may have been requested while the game was frozen; forcing Playing would silently unfreeze a
     /// game that nobody asked to unfreeze. It is a no-op whenever Current is not Loading, even if an async
-    /// scene operation is still in flight. Only the label is restored; subscribers handle their own effects.
+    /// scene operation is still in flight. Owner requests changed during loading are reconciled here,
+    /// restoring time when old panels close or freezing when a new panel remains visible.
     /// 宣布场景切换已结束的单一入口.
     /// 实现思路: 还原 EnterLoading 记录的状态, 而不是假定 Playing, 因为切换可能在游戏已冻结时被请求;
     /// 强制回到 Playing 会静默解冻一个没人要求解冻的游戏. Current 不为 Loading 时为空操作,
-    /// 不检查异步场景操作是否仍在进行. 这里只恢复标签, 订阅者负责自己的响应.
+    /// 不检查异步场景操作是否仍在进行. 加载中面板请求变化时同步时间和监听器，避免遗留冻结.
     /// </summary>
     public static void ExitLoading()
     {
@@ -166,7 +214,23 @@ public static class GameStateManager
             return;
         }
 
-        Apply(stateBeforeLoading);
+        if (restoreTimeAfterLoading)
+        {
+            Time.timeScale = timeScaleBeforeFreeze;
+            AudioListener.pause = false;
+            restoreTimeAfterLoading = false;
+        }
+        if (freezeOwners.Count > 0 && stateBeforeLoading == GameState.Playing)
+        {
+            timeScaleBeforeFreeze = Time.timeScale;
+            Time.timeScale = 0f;
+            AudioListener.pause = true;
+            Apply(GameState.Freezed);
+        }
+        else
+        {
+            Apply(stateBeforeLoading);
+        }
     }
 
     /// <summary>
