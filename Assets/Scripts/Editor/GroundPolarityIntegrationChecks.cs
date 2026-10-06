@@ -238,7 +238,6 @@ public static class GroundPolarityIntegrationChecks
 
             GameObject playerObject = Create("Player", Vector2.zero);
             playerObject.tag = "Player";
-            PlayerInventory inventory = playerObject.AddComponent<PlayerInventory>();
             Player = playerObject.AddComponent<PlayerMove>();
             // Drive only the physics logic explicitly; no Core, input bindings or automatic Start is needed.
             Player.enabled = false;
@@ -297,7 +296,6 @@ public static class GroundPolarityIntegrationChecks
             GameObject environmentObject = Create("Environment", Vector2.zero);
             environmentObject.SetActive(false);
             Environment = environmentObject.AddComponent<EnvironmentFacade>();
-            Set(inventory, "environment", Environment);
             Set(Environment, "routingTilemap", map);
             environmentObject.SetActive(true);
             Require(Environment.HeldWire == Wire && Wire.IsHeld,

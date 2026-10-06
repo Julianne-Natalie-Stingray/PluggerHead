@@ -220,17 +220,19 @@ public static class SceneIntegrationChecks
         yield return null;
         Require(Time.frameCount > initialFrame, "Gameplay frames must advance.");
         PlayerInteraction interaction = FindComponents<PlayerInteraction>(ownedScene).Single();
-        PlayerInventory inventory = interaction.GetComponent<PlayerInventory>();
         PlayerMove movement = interaction.GetComponent<PlayerMove>();
         EnvironmentFacade environment = FindComponents<EnvironmentFacade>(ownedScene).Single();
         RestartLevelScreen restartScreen = FindComponents<RestartLevelScreen>(ownedScene).Single();
         Transform restartPanel = restartScreen.transform.Find("RestartLevelScreen");
+        Require(movement.GetComponents<MonoBehaviour>().All(component => component.GetType().Name != "PlayerInventory") &&
+            restartScreen.transform.Find("InventoryUI") == null,
+            "The master gameplay scene must run without inventory components or inventory UI.");
         Require(restartPanel != null && !restartPanel.gameObject.activeSelf,
             "The restart prompt must remain hidden while the player is alive.");
         Require(ownedCore != null && ownedCore.Input != null && ownedCore.Audio != null,
             "Authored Core services must initialize.");
         Require(interaction.isActiveAndEnabled && movement != null && movement.isActiveAndEnabled &&
-            !movement.IsDead && inventory.Environment == environment,
+            !movement.IsDead && EnvironmentFacade.ForScene(movement.gameObject.scene) == environment,
             "Player startup must bind to its real environment and keep both controllers enabled.");
         Wire initialWire = environment.HeldWire;
         Require(initialWire != null && initialWire.IsHeld && !environment.IsCircuitClosed,
@@ -257,7 +259,7 @@ public static class SceneIntegrationChecks
         interaction.transform.position = anchorPosition;
         Physics2D.SyncTransforms();
         RaiseInput(ownedCore.Input, "HandleSecondaryPressed");
-        Require(inventory.Count == 0 && !anchor.gameObject.activeSelf && !anchor.CanReclaim,
+        Require(!anchor.gameObject.activeSelf && !anchor.CanReclaim,
             "Reclaim must immediately deactivate the anchor without storing an inventory item.");
         Require(!anchor.TryReclaim(new InteractionDetails(interaction.gameObject, anchor.gameObject)),
             "A reclaimed anchor must reject a second request before deferred destruction.");
@@ -269,7 +271,7 @@ public static class SceneIntegrationChecks
         Require(FindComponents<Anchor>(ownedScene).Count == existingAnchors.Count + 1,
             "The K input event must create one anchor without inventory stock.");
         anchor = FindComponents<Anchor>(ownedScene).Single(node => !existingAnchors.Contains(node));
-        Require(anchor.EngagedBy == initialWire && inventory.Count == 0 &&
+        Require(anchor.EngagedBy == initialWire &&
             (anchor.transform.position - anchorPosition).sqrMagnitude < 0.0001f,
             "Placement must immediately route the held wire at the player position.");
         yield return null;

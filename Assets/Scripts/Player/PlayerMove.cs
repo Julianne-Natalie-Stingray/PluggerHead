@@ -82,7 +82,7 @@ public class PlayerMove : MonoBehaviour
         LockInput(false);
     }
 
-    /// <summary>在收回、拾取或交互请求成功后调用。</summary>
+    /// <summary>在收回或交互请求成功后调用。</summary>
     public bool TryStartInteractionAnimation()
     {
         if (!isActiveAndEnabled || IsInputLocked || Time.timeScale <= 0f || !CanUseAnimator())
@@ -142,13 +142,13 @@ public class PlayerMove : MonoBehaviour
 
     private void Start()
     {
-        // 复用交互系统的 Env 关联，由环境提供具体移动规则。
+        // 直接查询玩家所在场景，由环境提供具体移动规则。
         if (GetResistance == null)
         {
-            PlayerInventory inventory = GetComponent<PlayerInventory>();
-            if (inventory != null && inventory.Environment != null)
+            EnvironmentFacade environment = EnvironmentFacade.ForScene(gameObject.scene);
+            if (environment != null)
             {
-                GetResistance = inventory.Environment.GetResistance;
+                GetResistance = environment.GetResistance;
             }
             else
             {
@@ -237,10 +237,7 @@ public class PlayerMove : MonoBehaviour
                 continue;
             }
 
-            PlayerInventory inventory = GetComponent<PlayerInventory>();
-            EnvironmentFacade environment = inventory != null
-                ? inventory.Environment
-                : EnvironmentFacade.ForScene(gameObject.scene);
+            EnvironmentFacade environment = EnvironmentFacade.ForScene(gameObject.scene);
             Wire wire = environment != null ? environment.HeldWire : null;
             if (wire != null && wire.IsHeld && ground.IsOppositeTo(wire.Polarity))
             {

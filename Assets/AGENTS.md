@@ -156,6 +156,6 @@ Describe the behavior change, affected scenes or prefabs, and validation perform
 ### Env 与 Player
 
 - `Scripts/Env/EnvironmentFacade.cs` 是真实关卡环境实现，管理绕线、插接、换线和通关；旧 `EnvFacade`、示例目标分类与请求数据已移除。先阅读 `Scripts/Env/README.md`。
-- Player 通过 `IEnvironmentInteractable`、`IEnvironmentPickup`、`InteractionDetails` 和 `IPickupInstance` 交互。背包保存拾取接口返回的实例，放下委托 `TryDrop`，成功后移除条目；场景对象恢复由实例实现负责，UI 从 `SourceObject` 读取图标。当前项目业务脚本没有具体拾取实例实现，Anchor 放置/收回不进入背包。
+- Player 通过 `IEnvironmentInteractable` / `InteractionDetails` 交互，移动、地面危险与 J/K 操作直接查询 `EnvironmentFacade.ForScene`。背包、拾取接口和 InventoryUI 保存在 `feature/player-inventory`（拆分前 `72f22e6`），master 已移除；Anchor 放置/收回独立保留。
 - `MainMenuScene` 是构建入口，New Game 进入 `GameplayIntegration`；Continue 重载上次关卡的默认状态。`Game/Progress/` 只保存关卡标识，玩法状态不落盘，详见其 README。
 - `GameplayIntegration` 集成真实 Player、UI 与电路；`CircuitDiagnostics` 保留独立电路诊断布局和 MockPlayer，并承接 Core 服务检查；`SceneSwitchTarget` 仅含相机，用于验证切换后 Core 保活。环境沿真实持线的绕线路径累计长度，严格超过正数长度上限时返回 `Vector2.negativeInfinity`，由 PlayerMove 在物理帧触发死亡；其余情况返回零，当前不产生连续拉力。

@@ -12,8 +12,8 @@ using UnityEngine.Tilemaps;
 /// 每个关卡场景应配置一个；组件不强制场景内唯一，也不主动跨场景保留自身。
 /// Current is the last instance assigned by Awake or RefreshNodes. Use ForScene for scene-specific lookup.
 /// Current 是最近经 Awake 或 RefreshNodes 赋值的实例；按场景查询应使用 ForScene。
-/// Player owns range/input checks and inventory. Sockets notify requests; routing nodes also maintain their own engagement state.
-/// Player 负责范围、输入与背包；插口通知请求，绕线节点还维护各自接入状态。
+/// Player owns range/input checks. Sockets notify requests; routing nodes also maintain their own engagement state.
+/// Player 负责范围与输入检查；插口通知请求，绕线节点还维护各自接入状态。
 /// </summary>
 [DisallowMultipleComponent]
 public class EnvironmentFacade : MonoBehaviour

@@ -3,10 +3,9 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// 接收 Core 输入，寻找最近的环境组件并调用真实拾取或交互契约。
+/// 接收 Core 输入，寻找最近的环境组件并调用真实交互契约。
 /// K 放置不限数量的 Anchor，J 收回最近的 Anchor 或操作其他环境目标。
 /// </summary>
-[RequireComponent(typeof(PlayerInventory))]
 [DisallowMultipleComponent]
 public class PlayerInteraction : MonoBehaviour
 {
@@ -14,21 +13,19 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField, Min(0f)] private float interactionRadius = 2f;
     [SerializeField] private LayerMask interactionLayers = ~0;
 
-    private PlayerInventory inventory;
     private InputManager input;
     private PlayerMove playerMove;
     private readonly List<Collider2D> hits = new List<Collider2D>();
 
     private void Awake()
     {
-        inventory = GetComponent<PlayerInventory>();
         playerMove = GetComponent<PlayerMove>();
     }
 
     private void Start()
     {
         CoreFacade core = CoreFacade.Instance;
-        if (core == null || core.Input == null || inventory.Environment == null)
+        if (core == null || core.Input == null || EnvironmentFacade.ForScene(gameObject.scene) == null)
         {
             Debug.LogError("PlayerInteraction 需要 Core 输入服务和所在关卡的 EnvironmentFacade。", this);
             enabled = false;
@@ -132,11 +129,7 @@ public class PlayerInteraction : MonoBehaviour
             return false;
         }
 
-        if (inventory == null)
-        {
-            inventory = GetComponent<PlayerInventory>();
-        }
-        if (inventory.Environment == null)
+        if (EnvironmentFacade.ForScene(gameObject.scene) == null)
         {
             return false;
         }
@@ -161,11 +154,6 @@ public class PlayerInteraction : MonoBehaviour
         if (target is Anchor anchor)
         {
             return anchor.TryReclaim(new InteractionDetails(gameObject, anchor.gameObject));
-        }
-
-        if (target is IEnvironmentPickup pickup && pickup.CanPickup)
-        {
-            return inventory.PickUpItem(pickup);
         }
 
         IEnvironmentInteractable interactable = target as IEnvironmentInteractable;
@@ -215,12 +203,10 @@ public class PlayerInteraction : MonoBehaviour
                     continue;
                 }
 
-                bool canPickup = candidate is IEnvironmentPickup pickup && pickup.CanPickup;
                 bool canInteract = candidate is Anchor anchor
                     ? anchor.CanReclaim
                     : candidate is IEnvironmentInteractable interactable && interactable.CanInteract;
-                if ((!canPickup && !canInteract) ||
-                    (canPickup && inventory.Contains(candidate.gameObject)))
+                if (!canInteract)
                 {
                     continue;
                 }

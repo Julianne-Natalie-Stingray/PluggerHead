@@ -1,5 +1,7 @@
 # 整合集成测试
 
+2026-10-06 背包拆分：原功能保存在 `feature/player-inventory`（`72f22e6`），master 已解除移动/交互对背包的依赖，并使用不含 InventoryUI 的 GlobalUI prefab。最终版本顺序通过 EditMode **22/22**（`5b1dddad95e34aff8eeddfb952b7b8d6`）、PlayMode **71/71**（`90fc40b70f3e44b28a7c5a7ec7999f88`），无失败或跳过。
+
 2026-10-06 功能拆分回退：恢复原路逐格回退，保留废弃接口清理；完整新功能保存在 `feature/wire-path-overlap`。在保留工作区已有 Player/动画修改的状态下，EditMode 22/22（`425318e665924c2197934a880f634685`）、PlayMode 71/71（`3a74fa202046412c8173671e7afbac24`）顺序终态通过。
 
 2026-10-06 Tilemap 改造验证：EditMode 22/22（job `812b828e3ce84ea889c26457cc594fda`）、PlayMode 71/71（job `c12304087033435ebdf260a2b5541579`）均终态通过；以下较早 job 为历史记录。原 Corner 用例已替换为 TilemapTests，覆盖近角非格心往返、调试验收同格操作，并新增真实场景 Tilemap 落地及两个关卡的格心资源检查。
@@ -24,7 +26,7 @@ FinalScene 加入前验证（2026-10-06）：代码及文档独立审查通过�
 | --- | --- |
 | `MainMenuScene` | 构建启动场景。New Game、Continue Game、Settings、Exit；无有效进度时 Continue 禁用。 |
 | `FinalScene` | 结尾祝贺、示例制作组和 Exit；可独立播放，通过 SceneId.FinalScene 请求切换，不记录为玩法进度。 |
-| `GameplayIntegration` | New Game 的首关。真实 Player、Tilemap 格子路径、双线回路、背包及设置 UI；Play 后移动、J 交互/收回、K 放置 Anchor。设置面板的 Main Menu 返回主菜单。 |
+| `GameplayIntegration` | New Game 的首关。真实 Player、Tilemap 格子路径、双线回路、设置及死亡重开 UI；Play 后移动、J 交互/收回、K 放置 Anchor。设置面板的 Main Menu 返回主菜单。 |
 | `CircuitDiagnostics` | MockPlayer 与独立电路布局；Play 后用 EnvironmentFacade 调试按钮验证回路，拖动 MockPlayer 检查线端。含完整 Core，可用 AudioManager 的 Test Audio Request 检查音频。 |
 | `SceneSwitchTarget` | 仅保留相机与 AudioListener；从前两者调用 `CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.SceneSwitchTarget)`，确认场景切换完成、Loading 退出且原 Core 存活。单独播放只显示背景。 |
 
@@ -50,7 +52,7 @@ FinalScene 加入前验证（2026-10-06）：代码及文档独立审查通过�
 | EditMode | `PluggerHead.EditModeTests` | 1 个 Debug 按钮用例 | EditMode 调用不访问未初始化设置 |
 | PlayMode | `PluggerHead.PlayModeTests` | 2 个 Floating 用例 | 实际 Update 下根对象/复杂父级旋转位置保持、暂停与恢复 |
 | PlayMode | `PluggerHead.PlayModeTests` | 4 个切换恢复用例 | 宿主失活/销毁、组件禁用、状态回调异常、重入拒绝与后续请求恢复 |
-| PlayMode | `PluggerHead.PlayModeTests` | 1 个主菜单流程用例 | 实际按钮引用、无存档禁用 Continue、Settings 暂停恢复、保存后实际混音器即时更新、New Game、返回菜单、重新读盘 Continue、默认位置/空背包/默认电路、非玩法场景不覆盖存档 |
+| PlayMode | `PluggerHead.PlayModeTests` | 1 个主菜单流程用例 | 实际按钮引用、无存档禁用 Continue、Settings 暂停恢复、保存后实际混音器即时更新、New Game、返回菜单、重新读盘 Continue、默认位置/默认电路、非玩法场景不覆盖存档 |
 | PlayMode | `PluggerHead.PlayModeTests` | 5 个音频尾部＋2 个公开接口用例 | 变速尾部包络、淡入重叠、时间和监听器暂停时停止（未进入 Freezed 标签）、自然完成与归池复用、NaN 拒绝及 Finished 异常隔离 |
 | PlayMode | `PluggerHead.PlayModeTests` | 10 个音频限流用例 | 完成回调重入、跨上限补位、运行时降低上限、普通最旧声部抢占、循环保护及非正上限拒绝 |
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个音频生命周期用例 | 原有 19 项断言：默认参数、Builder 覆盖、停止、自然结束、池复用、旧 Timer 隔离、循环及淡出 |

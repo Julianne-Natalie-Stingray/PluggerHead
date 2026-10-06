@@ -15,7 +15,9 @@
 
 三个 Wire 均含 Wire、LineRenderer 和初始禁用的 Trigger EdgeCollider2D；共用 `Visual/Env/Wire.mat`，线宽0.045、世界坐标、不闭合。maxLength=0（不限），没有 WirePoint 子物体；固定端取所属 PowerSocket 的格子位置。保存的线段是占位数据，环境重绘实际路径后更新碰撞体；颜色不会随 polarity 自动改变。
 
-CircuitDiagnostics 使用 SceneRoot、MockPlayer、插口、Live/Neutral 与 Anchor，并以场景覆盖填写电线列表和绑定路由 Tilemap。GameplayIntegration 使用 Anchor prefab，但其环境、插口和线直接写在场景内；修改这些 prefab 不会自动同步那些场景对象。
+CircuitDiagnostics 使用 SceneRoot、MockPlayer、插口、Live/Neutral 与 Anchor，并以场景覆盖填写电线列表和绑定路由 Tilemap。GameplayIntegration 使用新提取的 Env、Environment Grid、GlobalUI 和 EventSystem prefab，仍通过 Anchor prefab 动态放置锚点。Env 内的插座和线是整体关卡预制体的一部分，与上表独立插口/线 prefab 没有继承关系。
+
+新增 `Env.prefab` 保存本关电路布局；`Environment Grid.prefab` 保存路由与地面 Tilemap；场景为 Env 绑定该实例的 Routing Tiles。`GlobalUI.prefab` 包含菜单按钮、SettingsScreen 和 RestartLevelScreen，已移除 InventoryUI；场景覆盖绑定 RestartLevelScreen.player。`EventSystem.prefab` 配置 InputSystemUIInputModule。复制这些预制体到其他关卡时，需重新绑定跨预制体的场景引用。
 
 这些资源不是全都只用于查询：Socket 的非 Trigger 碰撞体可能形成实体阻挡。实例化时检查位置与父级缩放，不将保存的 Transform 当作通用关卡坐标；PowerSocket 不会创建线；已归属电线以插座格子为固定端。MockPlayer 对第三方示例图片有依赖，移除包示例前需同步替换引用。
 

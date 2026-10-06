@@ -108,7 +108,6 @@ public static class TilemapIntegrationChecks
             "Reclaim must release the pin without adding inventory.");
         fixture.Move(0, 0);
         AssertCells(fixture.Wire, Vector3Int.zero);
-        Require(fixture.Player.GetComponent<PlayerInventory>().Count == 0, "Anchor reclaim must not fill inventory.");
     }
 
     public static void CheckWireSwapAndRestart()
@@ -311,7 +310,6 @@ public static class TilemapIntegrationChecks
             }
             Player = Create("Player", Center(0, 0));
             Player.tag = "Player";
-            PlayerInventory inventory = Player.AddComponent<PlayerInventory>();
             GameObject outlet = Create("Outlet", Center(0, 0));
             outlet.AddComponent<BoxCollider2D>().isTrigger = true;
             Outlet = outlet.AddComponent<PowerSocket>();
@@ -335,7 +333,6 @@ public static class TilemapIntegrationChecks
             environment.SetActive(false);
             Environment = environment.AddComponent<EnvironmentFacade>();
             Set(Environment, "routingTilemap", Map);
-            Set(inventory, "environment", Environment);
             environment.SetActive(true);
             Environment.enabled = false;
             Require(Environment.HeldWire == Wire, "The real outlet must initialize the fixture's held wire.");

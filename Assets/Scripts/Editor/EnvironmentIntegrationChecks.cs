@@ -46,7 +46,6 @@ public static class EnvironmentIntegrationChecks
             Tilemap map = AddRoutingMap(preview, tile);
             GameObject player = Create(preview, "CheckPlayer", Vector3.zero);
             player.tag = "Player";
-            PlayerInventory inventory = player.AddComponent<PlayerInventory>();
             PlayerMove movement = player.AddComponent<PlayerMove>();
             PlayerInteraction interaction = player.AddComponent<PlayerInteraction>();
             Invoke(movement, "Awake");
@@ -66,7 +65,6 @@ public static class EnvironmentIntegrationChecks
                 WirePolarity.Ground);
             EnvironmentFacade environment = Create(preview, "CheckEnvironment", Vector3.zero)
                 .AddComponent<EnvironmentFacade>();
-            Set(inventory, "environment", environment);
             Set(environment, "playerTransform", player.transform);
             Set(environment, "routingTilemap", map);
             environment.RefreshNodes();
@@ -76,20 +74,14 @@ public static class EnvironmentIntegrationChecks
             Check(Get<List<Wire>>(environment, "wires").Count == 2,
                 "Node discovery stays in the preview scene", ref checks);
 
-            CheckSceneBindings(environment, player, inventory, anchor, live, ref checks);
+            CheckSceneBindings(environment, player, anchor, live, ref checks);
 
-            Check(!typeof(IEnvironmentPickup).IsAssignableFrom(typeof(Anchor)),
-                "Anchors do not implement the inventory pickup contract", ref checks);
             Anchor prefab = AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Prefabs/Env/Anchor.prefab");
             Check(prefab != null, "The player anchor prefab is available", ref checks);
             Set(interaction, "anchorPrefab", prefab);
-            int inventoryChanges = 0;
-            inventory.Changed += () => inventoryChanges++;
             Physics2D.SyncTransforms();
             Check(interaction.TryPerformOperation() && anchor == null && farther != null,
                 "J reclaims only the nearest anchor through its child collider", ref checks);
-            Check(inventory.Count == 0 && inventoryChanges == 0,
-                "Reclaiming anchors never adds an inventory item", ref checks);
             player.transform.position = Vector3.right;
             Check(interaction.TryPlaceAnchor(), "K places an anchor without an inventory item", ref checks);
             anchor = Get<List<Anchor>>(environment, "anchors").Find(node => node != farther);
@@ -129,9 +121,8 @@ public static class EnvironmentIntegrationChecks
             {
                 Check(interaction.TryPlaceAnchor(), "Repeated placement does not require inventory stock", ref checks);
             }
-            Check(Get<List<Anchor>>(environment, "anchors").Count == placementCount + 1 &&
-                inventory.Count == 0 && inventoryChanges == 0,
-                "Sixteen simultaneous anchors use no inventory slots or inventory notifications", ref checks);
+            Check(Get<List<Anchor>>(environment, "anchors").Count == placementCount + 1,
+                "Sixteen simultaneous anchors can be placed without an inventory component", ref checks);
             foreach (Anchor placed in new List<Anchor>(Get<List<Anchor>>(environment, "anchors")))
             {
                 if (placed != farther)
@@ -173,7 +164,7 @@ public static class EnvironmentIntegrationChecks
 
             Check(interaction.TryPlaceAnchor(), "Placement succeeds with no held wire after circuit completion", ref checks);
             Anchor wireless = Get<List<Anchor>>(environment, "anchors").Find(node => node != farther);
-            Check(wireless != null && !wireless.IsEngaged && inventory.Count == 0,
+            Check(wireless != null && !wireless.IsEngaged,
                 "An anchor placed without a wire remains independently reclaimable", ref checks);
             Check(wireless.TryReclaim(new InteractionDetails(player, wireless.gameObject)),
                 "A wireless anchor can be reclaimed", ref checks);
@@ -223,7 +214,7 @@ public static class EnvironmentIntegrationChecks
     }
 
     private static void CheckSceneBindings(EnvironmentFacade environment, GameObject player,
-        PlayerInventory inventory, Anchor anchor, Wire live, ref int checks)
+        Anchor anchor, Wire live, ref int checks)
     {
         Scene otherScene = EditorSceneManager.NewPreviewScene();
         Tile otherTile = ScriptableObject.CreateInstance<Tile>();
@@ -254,17 +245,11 @@ public static class EnvironmentIntegrationChecks
                 !otherAnchor.TryReclaim(new InteractionDetails(null, otherAnchor.gameObject)),
                 "Missing actor details cannot reclaim an anchor", ref checks);
             Check(!otherAnchor.TryReclaim(new InteractionDetails(player, otherAnchor.gameObject)) &&
-                otherAnchor.gameObject.activeSelf && inventory.Count == 0,
+                otherAnchor.gameObject.activeSelf,
                 "An actor cannot reclaim an anchor from another scene", ref checks);
 
-            Check(inventory.Environment == environment,
-                "A valid explicit environment is preserved while another scene is current", ref checks);
-            Set(inventory, "environment", null);
-            Check(inventory.Environment == environment && Get<EnvironmentFacade>(inventory, "environment") == environment,
-                "An unassigned inventory resolves and caches its own scene environment", ref checks);
-            Set(inventory, "environment", otherEnvironment);
-            Check(inventory.Environment == environment,
-                "An environment reference from another scene is replaced with the local environment", ref checks);
+            Check(EnvironmentFacade.ForScene(player.scene) == environment,
+                "The player resolves its own scene environment while another scene is current", ref checks);
         }
         finally
         {

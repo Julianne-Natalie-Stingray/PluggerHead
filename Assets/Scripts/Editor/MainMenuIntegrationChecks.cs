@@ -172,8 +172,8 @@ public static class MainMenuIntegrationChecks
         player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
         Require((player.transform.position - defaultPosition).sqrMagnitude < 1f,
             "Continue must use the authored spawn, not the last player position.");
-        Require(GameObject.Find("UnsavedRuntimeObject") == null && player.GetComponent<PlayerInventory>().Count == 0,
-            "Continue must discard runtime objects and inventory.");
+        Require(GameObject.Find("UnsavedRuntimeObject") == null,
+            "Continue must discard runtime objects.");
         Require(EnvironmentFacade.Current.HeldWire != null && EnvironmentFacade.Current.HeldWire.gameObject.activeSelf &&
             !EnvironmentFacade.Current.IsCircuitClosed, "Continue must restore the default circuit.");
 

@@ -39,7 +39,7 @@ PolaritySocket 按电性拒绝错误或已占用的插入。双电性接口接�
 
 GroundPolarity 可放在非 Trigger 地面 Collider2D 所在物体或父物体上，包括 Ground Tilemap。PlayerMove 仅对向上的支撑接触及 groundLayers 中的对象判定：Live/Neutral 相反会死亡；同极、无线、None、Ground 安全。墙、顶、Trigger 不算踩地。当前场景未配置地面极性，测试动态构建。
 
-普通拾取仍通过 IEnvironmentPickup / IPickupInstance 交给 PlayerInventory，放下由实例 TryDrop 负责。Anchor 不属于该通道；当前没有具体普通拾取实例实现。
+普通拾取、背包及 UI 接口已移至 `feature/player-inventory`；master 的 Player 直接通过 EnvironmentFacade.ForScene 获取环境，以 IEnvironmentInteractable / InteractionDetails 交互。Anchor 放置和收回独立保留。
 
 ## 场景与验证
 

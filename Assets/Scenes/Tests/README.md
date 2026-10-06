@@ -2,7 +2,7 @@
 
 | 场景 | 配置与用途 |
 | --- | --- |
-| `GameplayIntegration.unity` | 真实 Player、Core、背包/设置 UI、双线回路、Routing Tiles 和 Ground Tiles。主菜单 New Game 的首关。 |
+| `GameplayIntegration.unity` | 真实 Player、Core、设置/死亡重开 UI、双线回路、Routing Tiles 和 Ground Tiles。主菜单 New Game 的首关。背包与 InventoryUI 保存在 feature/player-inventory。 |
 | `CircuitDiagnostics.unity` | Core、MockPlayer、双线回路与 Routing Tiles；用于独立电路诊断，没有真实玩家控制器。 |
 | `SceneSwitchTarget.unity` | 相机和 AudioListener，无 Core；验证切换后共享服务保活。 |
 
