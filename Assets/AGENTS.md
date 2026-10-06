@@ -114,25 +114,25 @@ Describe the behavior change, affected scenes or prefabs, and validation perform
 
 ## 共享工具脚本：抽象与功能
 
-以下基于 2026-10-05 的源码静态检查，路径已按 2026-10-06 的目录整理更新为相对于 `Assets/Scripts/`。用于接入现有服务，不代表运行时验证通过。README 与实现不一致时，以当前代码为准。上方 MCP 检查快照中的旧路径仅为历史记录。
+以下基于 2026-10-06 的源码静态复核，Core、Game、Debug、Infra 表中的路径相对于 `Assets/Scripts/`。用于接入现有服务，不代表运行时验证通过；详细行为与验证记录见各目录 README。README 与实现不一致时，以当前代码为准。上方 MCP 检查快照中的旧路径仅为历史记录。
 
 ### Core：共享运行时服务
 
 | 模块 / 路径 | 抽象、功能与使用方式 |
 | --- | --- |
 | `Core/CoreFacade.cs` | 服务门面 MonoBehaviour。`Instance` 提供全局入口，实例属性 `Input`、`Audio`、`SceneSwitch` 暴露服务；`Awake` 缓存同物体组件，销毁重复 Core，并通过 `DontDestroyOnLoad` 保留自身。依赖 InputManager、AudioManager、SceneSwitchManager、TimerRunner；不会自动生成 Core 物体。 |
-| `Core/Input/InputManager.cs` | 输入适配层，持有并管理生成的 `PlayerControls` 生命周期。公开 `PointerPosition`、`MovementInput`、`IsPrimaryPressed`，以及 `PrimaryPressed` / `PrimaryReleased` 事件。调用方解释玩法含义；当前不公开完整 Controls 对象，也不自动按游戏状态禁用输入。 |
+| `Core/Input/InputManager.cs` | 输入适配层，持有并管理生成的 `PlayerControls` 生命周期。公开 `PointerPosition`、`MovementInput`、`IsPrimaryPressed`、`IsUpPressed`，以及 `PrimaryPressed/Released`、`UpPressed/Released`、`SecondaryPressed`、`TertiaryPressed` 事件；当前 Up/Secondary/Tertiary 分别绑定 Space/J/K。调用方解释玩法含义；不公开完整 Controls 对象，也不自动按游戏状态禁用输入。 |
 | `Core/Input/DragAndDropService2D.cs` | 可序列化的普通 C# 辅助类，不是组件。`Initialize` 注入输入、Rigidbody2D、Collider2D、相机；`Enable` / `Disable` 订阅与释放输入事件。命中碰撞体后临时切为 Kinematic，保留可选拖拽偏移，结束时恢复原刚体类型。宿主需主动调用 `Drag()`，建议置于 `FixedUpdate`。 |
 | `Core/Managers/AudioManager.cs` 与 `Core/Audio/` | 音频请求服务。通过 `CreateBuilder().With...().Play(AudioId)` 请求播放；`AudioBuilder` 描述一次请求，`AudioEmitter` 封装实际 AudioSource，`AudioRegistry` 记录声部及先后顺序，`ISoundHandle` 提供 `Stop`、`TrySetVolume`、`TrySetPitch` 和 `Finished` 事件。请求被拒绝时返回 `null`。 |
 | `Core/Audio/SODefinitions/` | `AudioClipData` 定义 clip、混音组、循环、空间参数及默认冻结行为；`AudioManagerConfigs` 保存 AudioId 映射、预热量、池容量和实例限制。Inspector 需配置 emitterPrefab 和 configs；emitterRoot 未指定时回退到自身 Transform。 |
 | `Core/GameObjectPool/GameObjectPool.cs` | `GameObjectPool<TPooled>` 包装 Unity ObjectPool，支持 `Get`、`Release`、`Prewarm`、计数和回调。需要硬性创建上限时，调用者先检查 `CanReuse(maxSize)`；`Get()` 本身没有该限制。`Clear()` 不负责销毁仍借出的活跃对象。 |
-| `Core/SceneSwitch/` | `SceneId` 为类型化场景键，`SceneSwitchConfigs` 映射到场景名。`RequestSwitch(id)` 校验配置与 Build Settings，以 Single 模式异步加载并管理 Loading 状态；`IsSwitching` 防止并发请求，拒绝时返回 `null`。调用方决定目标场景。 |
+| `Core/SceneSwitch/` | `SceneId` 为类型化场景键，`SceneSwitchConfigs` 映射到场景名。`RequestSwitch(id)` 校验组件启用状态、配置与 Build Settings，通过实例状态、跨实例静态预留及 Loading 守卫拒绝并发，拒绝时返回 `null`；以 Single 模式异步加载并管理 Loading。完成回调不依赖组件保持激活或存活；状态通知异常会记录但不取消已启动的加载，同步启动异常清理预留后向调用方传播。调用方决定目标场景。 |
 
 ### Game：状态与设置
 
-- `Game/GameState/`：静态 `GameStateManager` 持有 `Playing`、`Freezed`、`Loading`，通过 `Changed` 通知订阅方。`Freeze()` 暂停时间与监听器，`Resume()` 恢复此前时间倍率；`EnterLoading()` / `ExitLoading()` 记录并恢复加载前状态。业务方应成对订阅与退订事件。
-- `Game/Setting/`：`ISettingData` 定义默认值重置；`SettingStore<TData>` 负责文件存取；`FileSettingStore` 使用 JsonUtility；`SettingBootstrap` 在首个场景加载前初始化，并在退出时保存。数据路径为 `Application.persistentDataPath/GameSettings.json`。
-- 当前 `GameSettings.Audio` 已包含 Master/Ost/Sfx 音量，默认值分别为 `1`、`0.5`、`0.5`。`ResetToDefault()` 只更新内存，需要立即落盘时调用 `Save()` 并检查返回值。AudioManager 在 Start 应用这些值；运行时更改设置后调用 `ApplyAudioSettings()` 更新混音器。
+- `Game/GameState/`：静态 `GameStateManager` 持有 `Playing`、`Freezed`、`Loading`，通过 `Changed` 通知订阅方。`Freeze()` 暂停时间与监听器，`Resume()` 恢复此前时间倍率；Loading 期间两者均为空操作。`EnterLoading()` / `ExitLoading()` 记录并恢复加载前标签，不直接改倍率或监听器。业务方应成对订阅与退订事件。
+- `Game/Setting/`：`ISettingData` 定义默认值重置；`SettingStore<TData>` 负责文件存取，保存先写同目录临时文件，再替换旧文件或移动为新文件，失败返回 false；`FileSettingStore` 使用 JsonUtility，并校验 Audio 非空及三个音量为 0–1 有限数值。`SettingBootstrap` 在首个场景加载前初始化，并在退出时尝试保存。数据路径为 `Application.persistentDataPath/GameSettings.json`，读写边界见该目录 README。
+- 当前 `GameSettings.Audio` 已包含 Master/Ost/Sfx 音量，默认值分别为 `1`、`0.5`、`0.5`。`ResetToDefault()` 只更新内存，需要立即落盘时调用 `Save()` 并检查返回值。AudioManager 在 Start 应用这些值；SettingsScreen 保存成功后调用现有 AudioManager 的 `ApplyAudioSettings()`，失败则恢复先前内存音量。直接调用存储 Save/Reset 不会应用混音器，其他业务修改设置后需自行调用 `ApplyAudioSettings()`。
 - 命名区分：`Configs` 是开发者维护的 ScriptableObject 参数；`Settings` 是玩家可调且可持久化的数据。
 
 ### Debug、Infra 与工具依赖
@@ -153,6 +153,6 @@ Describe the behavior change, affected scenes or prefabs, and validation perform
 ### Env 与 Player
 
 - `Scripts/Env/EnvironmentFacade.cs` 是真实关卡环境实现，管理绕线、插接、换线和通关；旧 `EnvFacade`、示例目标分类与请求数据已移除。先阅读 `Scripts/Env/README.md`。
-- Player 通过 `IEnvironmentInteractable`、`IEnvironmentPickup`、`InteractionDetails` 和 `IPickupInstance` 交互。背包持有真实实例，放下恢复原场景对象；UI 从实例的 `SourceObject` 读取图标。
+- Player 通过 `IEnvironmentInteractable`、`IEnvironmentPickup`、`InteractionDetails` 和 `IPickupInstance` 交互。背包保存拾取接口返回的实例，放下委托 `TryDrop`，成功后移除条目；场景对象恢复由实例实现负责，UI 从 `SourceObject` 读取图标。当前项目业务脚本没有具体拾取实例实现，Anchor 放置/收回不进入背包。
 - `MainMenuScene` 是构建入口，New Game 进入 `GameplayIntegration`；Continue 重载上次关卡的默认状态。`Game/Progress/` 只保存关卡标识，玩法状态不落盘，详见其 README。
-- `GameplayIntegration` 集成真实 Player、UI 与电路；`CircuitDiagnostics` 保留独立电路诊断布局和 MockPlayer，并承接 Core 服务检查；`SceneSwitchTarget` 仅含相机，用于验证切换后 Core 保活。移动阻力来自真实持线的绕线路径及长度配置，未持线或未设置长度上限时为零。
+- `GameplayIntegration` 集成真实 Player、UI 与电路；`CircuitDiagnostics` 保留独立电路诊断布局和 MockPlayer，并承接 Core 服务检查；`SceneSwitchTarget` 仅含相机，用于验证切换后 Core 保活。环境沿真实持线的绕线路径累计长度，严格超过正数长度上限时返回 `Vector2.negativeInfinity`，由 PlayerMove 在物理帧触发死亡；其余情况返回零，当前不产生连续拉力。
