@@ -23,6 +23,12 @@
 
 `PlayerMove.Died` 在玩家死亡、锁定输入、清零速度、关闭物理模拟并停用物体后触发一次。Env 当前没有订阅该事件，也没有死亡处理回调；超限死亡不会自动重置回路或重开关卡。
 
+## 地面极性
+
+在 Ground 的非 Trigger `Collider2D` 所在物体或其父物体上添加 `GroundPolarity`，在 Inspector 设置 `Polarity`，并确保碰撞体所在层包含在 `PlayerMove.groundLayers` 中。无需为普通地面添加组件；禁用组件即可关闭该地面的极性判定。
+
+`PlayerMove` 每个物理帧检查脚下向上的支撑接触，并从自身关卡环境读取当前持线：`Live`（火线）与 `Neutral`（零线）互为相反极性，踩到相反极性的地面时调用现有 `Die()`。同极、未持线、`None` 和 `Ground`（地线）安全；组合极性包含相反电性时仍会死亡。侧墙、天花板和 Trigger 不算踩地。站立期间换线会在下一次物理帧重新判定，输入锁不免除危险；死亡沿用单次 `Died` 通知，不自动重开关卡。
+
 ## 场景与验证
 
 在 Unity Test Runner 运行 `PluggerHead.EditModeTests` 和 `PluggerHead.PlayModeTests` 可自动复用下方检查及实际场景流程；MCP 调用、用例范围和隔离规则见 `Assets/Tests/README.md`。

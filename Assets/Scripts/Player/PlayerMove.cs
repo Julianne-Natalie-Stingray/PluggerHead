@@ -220,10 +220,7 @@ public class PlayerMove : MonoBehaviour
             return false;
         }
 
-        ContactFilter2D filter = new ContactFilter2D();
-        filter.SetLayerMask(groundLayers);
-        filter.useTriggers = false;
-        body.GetContacts(filter, contacts);
+        ReadGroundContacts();
         foreach (ContactPoint2D contact in contacts)
         {
             // 仅接受向上的支撑面，避免墙壁或天花板被判定为地面。
@@ -236,9 +233,58 @@ public class PlayerMove : MonoBehaviour
         return false;
     }
 
+    private void ReadGroundContacts()
+    {
+        ContactFilter2D filter = new ContactFilter2D();
+        filter.SetLayerMask(groundLayers);
+        filter.useTriggers = false;
+        body.GetContacts(filter, contacts);
+    }
+
+    private bool CheckGroundPolarity()
+    {
+        ReadGroundContacts();
+        foreach (ContactPoint2D contact in contacts)
+        {
+            // 与跳跃接地使用相同的支撑面标准；墙壁与天花板不算踩到地面。
+            if (contact.normal.y < MinimumGroundNormalY)
+            {
+                continue;
+            }
+
+            Collider2D surface = contact.collider.attachedRigidbody == body
+                ? contact.otherCollider
+                : contact.collider;
+            GroundPolarity ground = surface.GetComponentInParent<GroundPolarity>();
+            if (ground == null || !ground.isActiveAndEnabled)
+            {
+                continue;
+            }
+
+            PlayerInventory inventory = GetComponent<PlayerInventory>();
+            EnvironmentFacade environment = inventory != null
+                ? inventory.Environment
+                : EnvironmentFacade.ForScene(gameObject.scene);
+            Wire wire = environment != null ? environment.HeldWire : null;
+            if (wire != null && wire.IsHeld && ground.IsOppositeTo(wire.Polarity))
+            {
+                Die();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void FixedUpdate()
     {
         if (IsDead)
+        {
+            return;
+        }
+
+        // 站立时换线也要重新检查；输入锁不会免除地面危险。
+        if (CheckGroundPolarity())
         {
             return;
         }
