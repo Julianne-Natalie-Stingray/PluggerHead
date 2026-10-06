@@ -3,41 +3,17 @@ using UnityEngine;
 using UnityEngine.Serialization;
 
 /// <summary>
-/// Audio bus of the Core subsystem. It owns the emitter pool, the active registry, and the two concurrency
-/// limits, and it is the only entry point for starting a sound.
-/// Subsystem: Core (Audio).
-/// Where it lives: on the Core GameObject, required by CoreFacade and reached through CoreFacade.Audio.
-/// Responsibility: resolve an AudioId to its clip data, enforce the per-clip and global instance limits by
-/// preempting the oldest eligible sound, own the emitter pool and the registry, and refuse a request with a
-/// log entry when it cannot be served.
-/// Does NOT own: the live-effect parameters of a request (AudioBuilder carries them), the static
-/// characteristics of a clip (AudioClipData owns them), the playback itself (AudioEmitter), or the start
-/// order bookkeeping (AudioRegistry).
-/// Lifetime: created with the Core GameObject. The pool is built in InitializeInternal, together with the
-/// registry, and merely prewarmed in Start; emitters live until this manager is destroyed.
-/// Limits model: two independent limits. The global cap protects the total voice count and comes from
-/// AudioManagerConfigs.MaxSoundInstance; the per-clip cap expresses design intent and comes from
-/// AudioClipData.MaxInstances. Neither is the pool size: maxPoolSize bounds only how many emitters are kept
-/// for reuse, so it must be at least as large as the global cap, otherwise surplus emitters are destroyed
-/// instead of recycled. A looping sound is never preempted, because it is usually music or ambience and
-/// should not be cut off by ordinary sound effects. When a limit is reached and every candidate is looping,
-/// the request is refused rather than allowed to exceed the limit.
-/// Paradigms: none. It is a plain MonoBehaviour service, reached through CoreFacade rather than a Singleton.
-/// Core 子系统的音频总线. 它拥有 emitter 池, 活跃注册表与两级并发上限, 并且是启动声音的唯一入口.
-/// Subsystem 归属: Core (Audio).
-/// 存在位置: Core GameObject 上, 由 CoreFacade 要求, 并通过 CoreFacade.Audio 访问.
-/// 职能: 把 AudioId 解析为 clip 数据; 通过抢占最旧且可抢占的声音执行每 clip 与全局两级实例上限;
-/// 拥有 emitter 池与注册表; 无法服务某请求时记录日志并拒绝.
-/// 不负责: 请求的实时效果参数(由 AudioBuilder 承载), clip 的静态特征(归 AudioClipData),
-/// 播放本身(归 AudioEmitter), 以及开始顺序记账(归 AudioRegistry).
-/// 生命周期: 随 Core GameObject 创建. 池与注册表同在 InitializeInternal 中构建, Start 只做预热;
-/// emitter 存活到本管理器销毁.
-/// 上限模型: 两个互相独立的上限. 全局上限保护总声部数, 来自 AudioManagerConfigs.MaxSoundInstance;
-/// 每 clip 上限表达设计意图, 来自 AudioClipData.MaxInstances. 两者都不是池大小:
-/// maxPoolSize 只界定保留多少 emitter 用于复用, 因此它必须不小于全局上限,
-/// 否则多余的 emitter 会被销毁而不是回收. 循环音永不被抢占, 因为它通常是音乐或环境音,
-/// 不应被普通音效打断; 当某条上限触顶且候选全是循环音时, 请求被**拒绝**, 而不是被允许突破上限.
-/// 使用范式: 无. 它是普通 MonoBehaviour 服务, 通过 CoreFacade 而非单例访问.
+/// Core audio request service, normally accessed through CoreFacade and AudioBuilder.
+/// Awake validates references and builds the registry/pool; Start prewarms and applies player volumes.
+/// Requests resolve clip data, check frozen entry, apply per-ID/global limits, then reserve an emitter.
+/// MaxPoolSize controls idle retention and also limits normal request growth through CanReuse.
+/// Limit checks each preempt at most one non-looping voice; they do not normalize a dynamically lowered cap.
+/// Rejections return null; some early exits intentionally have no log.
+/// Core 音频请求服务, 通常经 CoreFacade 与 AudioBuilder 使用.
+/// Awake 检查引用并创建注册表/池, Start 预热并应用玩家音量.
+/// 请求依次解析数据、检查冻结入口、每 ID/全局上限, 再借出声部.
+/// MaxPoolSize 同时控制闲置保留量与正常请求的扩容; 每级至多抢占一个非循环声部, 不负责归一化动态降低的上限.
+/// 拒绝时返回 null, 部分前置退出不输出日志. 清理与播放生命周期边界见本目录 README.
 /// </summary>
 [DisallowMultipleComponent]
 public class AudioManager : MonoBehaviour
@@ -65,13 +41,12 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Single entry point for warming the pool.
+    /// Prewarm the pool and apply current player volumes.
     /// Implementation approach: the pool itself is built in InitializeInternal so that a playback requested
-    /// from another component's Start already works; only the prewarm is deferred to here, because prewarming
-    /// instantiates objects and is not needed for correctness.
-    /// 预热对象池的单一入口.
+    /// from another component's Start already works. Prewarming and mixer application are deferred here.
+    /// 预热对象池并应用当前玩家音量.
     /// 实现思路: 池本身在 InitializeInternal 中构建, 以便其他组件的 Start 里发起的播放已经可用;
-    /// 只有预热放到这里, 因为预热会实例化对象, 且并非正确性所需.
+    /// 预热和混音器音量应用放到 Start.
     /// </summary>
     private void Start()
     {
@@ -80,13 +55,8 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Single entry point for subscribing to the global state.
-    /// Implementation approach: subscribes here rather than at initialization, because a whole-lifetime
-    /// subscription belongs in OnEnable/OnDisable. Audio is the first subsystem to react to a game state, and
-    /// it does so without GameState knowing anything about audio.
-    /// 订阅全局状态的单一入口.
-    /// 实现思路: 在此订阅而不是在初始化时, 因为贯穿整个生命周期的订阅属于 OnEnable/OnDisable.
-    /// 音频是第一个响应游戏状态的 Subsystem, 且 GameState 对此一无所知.
+    /// Subscribe while enabled; OnDisable unsubscribes. This does not immediately synchronize current state.
+    /// 启用时订阅状态, 禁用时退订; 此处不立即同步当前状态.
     /// </summary>
     private void OnEnable()
     {
@@ -114,32 +84,15 @@ public class AudioManager : MonoBehaviour
         => new AudioBuilder(this);
 
     /// <summary>
-    /// Single entry point for starting a sound. Called by AudioBuilder.Play, not by gameplay code.
-    /// Implementation approach: refuses the request while the pool does not exist, which covers the case where
-    /// initialization failed, for example over an unassigned configs, leaving no pool at all. It then resolves the
-    /// clip, applies the frozen-entry gate, applies both instance limits by preempting the oldest eligible sound,
-    /// reserves an emitter, registers it, applies the freeze decision and the live-effect values, and starts it.
-    /// Returns null and logs when the request is refused, rather than silently dropping it.
-    /// Two freeze questions meet here, and they are not independent in the frozen case.
-    /// Whether a sound is kept once a freeze begins is SurviveFreeze: the clip supplies it as a static initial and
-    /// the builder may override it per call, and it has nothing to do with whether the clip loops.
-    /// Whether a request arriving during a freeze is served at all is the gate, and the gate consults SurviveFreeze:
-    /// entry is granted only when the request both permits it and would actually be kept. A playback the freeze will
-    /// silence must not take a pooled emitter, because while frozen its completion check cannot advance and the
-    /// emitter would stay checked out, invisible in the hierarchy, producing nothing. So a freeze-time request that
-    /// is audible is one that both allowed entry and survives; `WithAllowWhileFrozen(true)` alone is therefore not
-    /// enough to hear anything while frozen.
-    /// 启动声音的单一入口. 由 AudioBuilder.Play 调用, 不由玩法代码调用.
-    /// 实现思路: 池尚不存在时直接拒绝 —— 覆盖初始化失败的情况, 例如 configs 未赋值, 于是根本没有池.
-    /// 之后解析 clip, 应用"冻结期入口"这道门, 通过抢占最旧且可抢占的声音执行两级实例上限,
-    /// 预定 emitter, 注册它, 应用冻结决定与实时效果值, 然后启动. 请求被拒绝时返回 null 并记录日志, 而不是静默丢弃.
-    /// 此处涉及两个冻结问题, 而在冻结情形下它们**并非互相独立**.
-    /// "一旦开始冻结, 某个音是否被保留"是 SurviveFreeze: clip 提供静态初值, Builder 可以按次覆盖,
-    /// 且它与 clip 是否循环毫无关系.
-    /// "冻结期间到达的请求是否被服务"是那道门, 而**门会参考 SurviveFreeze**:
-    /// 只有既允许进入、又确实会被保留的请求才被放行. 一个无论如何都会被冻结静音的播放不应占用池化 emitter ——
-    /// 因为冻结期间它的结束判定无法推进, emitter 会一直处于被占用状态, 在 Hierarchy 中不可见, 也不产生任何声音.
-    /// 因此冻结期真能听到的请求 = 允许进入 且 熬过冻结; 单用 `WithAllowWhileFrozen(true)` 并不足以在冻结期出声.
+    /// Submit a request, normally through AudioBuilder. Returns null when unavailable or refused.
+    /// Checks enabled/configs/pool, clip, frozen entry, limits, then pool capacity; missing clip and unavailable
+    /// service exits do not all log. Registers and configures the reserved voice before starting it.
+    /// During Freezed, both AllowWhileFrozen and effective SurviveFreeze must be true.
+    /// SurviveFreeze maps to ignoreListenerPause, independently of looping; it does not directly release voices.
+    /// 提交播放请求, 正常由 AudioBuilder 调用. 服务不可用或拒绝时返回 null.
+    /// 依次检查 enabled/configs/pool、clip、冻结入口、实例上限与池容量; 部分前置退出不记录日志.
+    /// 借出后先注册和配置, 再启动. Freezed 期间需 AllowWhileFrozen 与有效 SurviveFreeze 同为 true.
+    /// SurviveFreeze 对应 ignoreListenerPause, 与循环独立, 不直接停止或归还声部.
     /// </summary>
     public ISoundHandle Play(
         AudioId requested,
@@ -161,6 +114,22 @@ public class AudioManager : MonoBehaviour
 
         if (!data || !data.Clip)
         {
+            return null;
+        }
+
+        // Validate before preemption or checkout: an invalid request must not interrupt a live voice.
+        // 抢占或借出前校验, 无效请求不得打断正在播放的声部.
+        if (float.IsNaN(volume ?? data.Volume) || float.IsNaN(pitch ?? data.Pitch) ||
+            float.IsNaN(data.Volume) || float.IsNaN(data.Pitch) ||
+            !IsFiniteDuration(fadeIn ?? data.FadeIn) || !IsFiniteDuration(fadeOut ?? data.FadeOut) ||
+            !IsFiniteDuration(data.FadeIn) || !IsFiniteDuration(data.FadeOut))
+        {
+            GameLog.Warning(this)
+                .Subsystem("Core")
+                .Name(LogName.Class)
+                .Issue(LogIssue.Specify("Audio request contains NaN volume/pitch or a non-finite fade duration."))
+                .Action(LogAction.Ignore)
+                .Write();
             return null;
         }
 
@@ -223,17 +192,11 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Single entry point for pushing the persisted player volumes onto the mixer's buses.
-    /// Implementation approach: reads the Setting subsystem's live data -- which is loaded before any scene
-    /// object awakes -- and writes one decibel value per exposed parameter from Start, after mixer initialization.
-    /// The dependency direction is one way: audio reads Setting, and Setting knows nothing about audio. This is
-    /// called once during initialization, and is public so that whoever changes a volume can make it audible
-    /// immediately; nothing else calls it, because a change notification does not exist yet.
-    /// 把玩家持久化的音量推送到 mixer 各总线上的单一入口.
-    /// 实现思路: 读取 Setting 子系统的当前数据 —— 它在任何场景对象 Awake 之前就已加载 ——
-    /// 在 Start 中等待 mixer 初始化后, 为每个暴露参数写入一个分贝值. 依赖方向是单向的: 音频读取 Setting, 而 Setting 对音频一无所知.
-    /// 它在初始化时调用一次, 并且是公开的, 使"改了音量想立刻听见"的调用方可以主动调用;
-    /// 除此之外没有别处调用, 因为目前尚不存在变更通知.
+    /// Apply current in-memory player volumes to configured mixer parameters; this does not save settings.
+    /// Called from Start, the play-mode debug button, and SettingsScreen after a successful save.
+    /// There is no automatic property-change subscription. The settings bootstrap must already be ready.
+    /// 将当前内存中的玩家音量写入配置的 Mixer 参数, 不负责保存.
+    /// Start、播放模式调试按钮以及 SettingsScreen 保存成功后调用; 不自动订阅属性变更, 要求设置自举已完成.
     /// </summary>
     public void ApplyAudioSettings()
     {
@@ -288,16 +251,14 @@ public class AudioManager : MonoBehaviour
         return null;
     }
 
+    private static bool IsFiniteDuration(float duration)
+    {
+        return !float.IsNaN(duration) && !float.IsInfinity(duration);
+    }
+
     /// <summary>
-    /// Single entry point for deciding whether a request may enter while the game is frozen.
-    /// Implementation approach: a frozen request is served only when it both permits entry and would actually be
-    /// kept. Allowing entry alone is not enough: a playback that the freeze will silence anyway must not take a
-    /// pooled emitter, because during the freeze its completion check cannot advance and the emitter would stay
-    /// checked out, invisible in the hierarchy, producing nothing.
-    /// 判断某请求是否可在游戏冻结期间进入的单一入口.
-    /// 实现思路: 冻结期间的请求, 只有**同时**允许进入**且**确实会被保留时才被服务.
-    /// 仅允许进入是不够的: 一个无论如何都会被冻结静音的播放不应占用池化 emitter ——
-    /// 因为冻结期间它的结束判定无法推进, emitter 会一直处于被占用状态, 在 Hierarchy 中不可见, 也不产生任何声音.
+    /// Outside Freezed, allow entry. During Freezed require explicit allowance and effective SurviveFreeze.
+    /// 非 Freezed 状态直接放行; Freezed 期间要求显式允许进入且有效 SurviveFreeze 为 true.
     /// </summary>
     private bool IsFrozenEntryAllowed(AudioId requested, bool? allowWhileFrozen, bool willSurviveFreeze)
     {
@@ -324,18 +285,11 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Single entry point for satisfying the instance limits before an emitter is reserved.
-    /// Implementation approach: applies the per-clip limit first and the global limit second, and lets the
-    /// ordinary completion path do the rest of the work, so pool release, registry removal and handle
-    /// invalidation all happen in one place. A looping sound is never chosen, and a limit that cannot be
-    /// satisfied by preemption refuses the request instead of being exceeded: the caps are hard, and the old
-    /// behaviour of selecting a looping victim and then giving up silently let the per-clip cap be exceeded
-    /// without bound.
-    /// 在预定 emitter 之前满足实例上限的单一入口.
-    /// 实现思路: 先应用每 clip 上限, 再应用全局上限, 其余工作交给常规结束路径,
-    /// 因此池归还, 注册表注销与句柄失效都只发生在一处. 循环音永不被选中;
-    /// 若某条上限无法靠抢占满足, 则**拒绝**该请求而不是突破上限 —— 上限是硬的,
-    /// 而旧实现"选中循环受害者后就此作罢"会让每 clip 上限被无限突破.
+    /// Check the per-ID cap, then the global cap; each check can hard-stop one oldest non-looping candidate.
+    /// No candidate means refusal. Earlier preemption is not rolled back if a later check fails.
+    /// Dynamic cap reductions and reentrant completion callbacks are not normalized by this single pass.
+    /// 先检查每 ID 上限, 再检查全局上限; 每级最多硬停一个最旧的非循环候选, 无候选则拒绝.
+    /// 后续检查失败不撤销之前的抢占; 单轮检查不归一化动态降低的上限或完成回调重入带来的变化.
     /// </summary>
     private bool TryApplyInstanceLimits(AudioId requested, int maxInstances)
     {
@@ -499,18 +453,10 @@ public class AudioManager : MonoBehaviour
         => emitterPool.Release(emitter);
 
     /// <summary>
-    /// Single entry point for reacting to a game state change.
-    /// Implementation approach: pauses or resumes the audio listener, which is the whole of what a state change
-    /// does to already-playing sounds; it never stops an individual emitter. Which of those sounds are cut is
-    /// decided earlier and per playback, by SurviveFreeze, not here: this method treats every emitter alike.
-    /// A surviving sound keeps playing and still reports its end through the unscaled-time timer, while a cut
-    /// one is silenced and released the same way. Whether a request may start during a freeze is a separate
-    /// question answered by the gate in Play, not by this method.
-    /// 响应游戏状态变化的单一入口.
-    /// 实现思路: 暂停或恢复音频监听器 —— 这就是状态变化对"已在播放的音"所做的全部; 它从不停止任何单个 emitter.
-    /// 其中哪些音被切断, 是更早且逐次由 SurviveFreeze 决定的, 不在此处: 本方法对所有 emitter 一视同仁.
-    /// 被保留的音继续播放, 并仍通过 unscaled time 的 Timer 报告结束; 被切断的音则以同样方式静音并归还.
-    /// 冻结期间某个请求是否可开始, 是另一个问题, 由 Play 入口的那道门回答, 不由本方法回答.
+    /// Set listener pause exactly when the notification is Freezed; Loading therefore unpauses it.
+    /// Does not stop individual emitters. Per-playback SurviveFreeze controls ignoreListenerPause.
+    /// 仅通知参数为 Freezed 时暂停监听器, Loading 因此解除暂停. 不停止单个声部;
+    /// 每次播放的 SurviveFreeze 控制是否忽略监听器暂停.
     /// </summary>
     private void HandleGameStateChanged(GameState state)
     {
@@ -536,11 +482,11 @@ public class AudioManager : MonoBehaviour
     /// Single entry point for writing one linear volume onto one exposed mixer parameter.
     /// Implementation approach: a mixer volume parameter is expressed in decibels, so a linear 0..1 setting is
     /// converted through 20*log10. Zero has no logarithm, so anything at or below the floor becomes the
-    /// mixer's own silence threshold; an empty parameter name is reported rather than handed to Unity, because
+    /// local -80 dB floor; an empty parameter name is reported rather than handed to Unity, because
     /// SetFloat on a name that is not exposed fails silently.
     /// 把一条线性音量写入一个 mixer 暴露参数的单一入口.
     /// 实现思路: mixer 的音量参数以分贝表示, 因此线性 0..1 的设置经 20*log10 换算.
-    /// 零没有对数, 因此低到门槛以下的值一律取 mixer 自身的静音阈值;
+    /// 零没有对数, 因此低到门槛以下的值一律取本类定义的 -80 dB 下限;
     /// 参数名为空时记录一条警告而不是交给 Unity, 因为对未暴露的名字调用 SetFloat 会静默失败.
     /// </summary>
     private void ApplyBusVolume(string parameter, float linearVolume)
