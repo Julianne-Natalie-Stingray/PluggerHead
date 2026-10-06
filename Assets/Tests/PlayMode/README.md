@@ -1,7 +1,5 @@
 # Editor PlayMode 测试
 
-Wire 行为更新：EditMode 22/22（job `3e2227f67e3f4dd58a41013bac8301f3`）、PlayMode 74/74（job `6ca8189c3df64c8c95ce6c9c82fbacd3`）终态通过。TilemapTests 现有 10 项，新增跨格接触旧路径截断、Anchor 固定与解除后的接触截断、同线/跨线重叠颜色及提示清除。以下 71 项结果为历史版本。
-
 2026-10-06 Tilemap 改造验证：EditMode 22/22（job `812b828e3ce84ea889c26457cc594fda`）、PlayMode 71/71（job `c12304087033435ebdf260a2b5541579`）均终态通过；以下较早 job 为历史记录。原 Corner 用例已替换为 TilemapTests，覆盖近角非格心往返、调试验收同格操作，并新增真实场景 Tilemap 落地及两个关卡的格心资源检查。
 
 程序集 `PluggerHead.PlayModeTests`，Category 均为 `Integration`。逐文件核查日期：2026-10-06；当前共 71 个用例，本轮 job `a8881108238d4eb5860ef817658ccfdf` 已结束并通过 71/71。各类通过 UnityPlatform 限定 Windows/Linux/macOS Editor；程序集本身无平台过滤，不能据此推断预定义 Editor 检查可用于独立 Player。执行方式见[测试总说明](../README.md)。
@@ -13,7 +11,7 @@ Wire 行为更新：EditMode 22/22（job `3e2227f67e3f4dd58a41013bac8301f3`）�
 | `AudioHandleTests.cs` | 2：自然结束与淡出 Stop、参数校验、句柄失效及完成事件异常隔离；预期异常日志由 LogAssert 接收。 |
 | `AudioTailTests.cs` | 5：Values/Slow/Fast/Change/FrozenStop；Values 反射模拟包络游标，其余检查真实播放或暂停停止。FrozenStop 不进入 GameState.Freezed。 |
 | `AudioLimitTests.cs` | 10：重入、交叉限额、动态降限、正常抢占及循环/非正限额保护。 |
-| `TilemapTests.cs` | 10：九个同步 Test 与一个 UnityTest；格子路径/长度、跨格/对角回退、微动、Anchor 固定/收回、双线独立/重开、变换/offset 与实际帧更新。 |
+| `TilemapTests.cs` | 7：六个同步 Test 与一个 UnityTest；格子路径/长度、跨格/对角回退、微动、Anchor 固定/收回、双线独立/重开、变换/offset 与实际帧更新。 |
 | `PhysicsCleanupTests.cs` | 12：Tilemap/Ground 各六种情形：空卸载、异常、超时、Dispose、场景已卸载但句柄未确认、句柄完成但场景仍加载；恢复状态并保留归属供重试。 |
 | `SceneCleanupFailureTests.cs` | 10：嵌套协程超时/异常/Dispose/取消及错误聚合，四组实际清理失败，挂起加载的进度隔离和重试释放。 |
 | `FloatingTests.cs` | 2：根对象及复杂父级中的实际旋转、位置保持和暂停恢复；位移幅度设为零，不验证完整漂浮轨迹。 |

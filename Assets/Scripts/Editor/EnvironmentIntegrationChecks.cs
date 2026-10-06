@@ -117,12 +117,13 @@ public static class EnvironmentIntegrationChecks
             Set(live, "maxLength", 0f);
             Check(environment.GetResistance(player.transform.position) == Vector2.zero,
                 "Unrestricted wires apply no resistance", ref checks);
+            int retainedCells = live.TilePath.Cells.Count;
             Check(anchor.TryReclaim(new InteractionDetails(player, anchor.gameObject)) && anchor == null &&
                 environment.HeldWire == live,
                 "Reclaim destroys an Anchor without losing the held wire", ref checks);
             Invoke(environment, "LateUpdate");
-            Check(live.TilePath.Cells.Count == 11 && Mathf.Approximately(live.TilePath.GetLength(map), 10f),
-                "After reclaim, contact with the earlier current tile removes the newly unprotected loop", ref checks);
+            Check(live.TilePath.Cells.Count == retainedCells,
+                "Reclaim releases a pin without deleting the recorded movement history", ref checks);
             const int placementCount = 16;
             for (int i = 0; i < placementCount; i++)
             {

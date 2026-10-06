@@ -67,7 +67,6 @@ public class EnvironmentFacade : MonoBehaviour
     private readonly List<Anchor> anchors = new();
     private readonly Dictionary<PolaritySocket, WirePolarity> occupied = new();
     private readonly List<Vector3> renderBuffer = new();
-    private readonly Dictionary<Vector3Int, int> tileUseCounts = new();
 
     private PowerSocket socket;
     private Wire heldWire;
@@ -117,25 +116,12 @@ public class EnvironmentFacade : MonoBehaviour
         {
             return;
         }
-        tileUseCounts.Clear();
-        foreach (Wire wire in wires)
-        {
-            if (!wire || wire.TilePath.Cells.Count < 2)
-            {
-                continue;
-            }
-            foreach (Vector3Int cell in wire.TilePath.Cells)
-            {
-                tileUseCounts.TryGetValue(cell, out int count);
-                tileUseCounts[cell] = count + 1;
-            }
-        }
         foreach (Wire wire in wires)
         {
             if (wire)
             {
                 wire.TilePath.CopyWorldPath(routingTilemap, renderBuffer);
-                wire.RenderPath(renderBuffer, tileUseCounts);
+                wire.RenderPath(renderBuffer);
             }
         }
     }

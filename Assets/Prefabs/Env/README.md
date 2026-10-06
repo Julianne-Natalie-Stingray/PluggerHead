@@ -13,7 +13,7 @@
 | `Wires/LiveWire.prefab` | Live=1，橙红渐变。 |
 | `Wires/NeutralWire.prefab` | Neutral=2，蓝色渐变。 |
 
-三个 Wire 均含 Wire、LineRenderer 和初始禁用的 Trigger EdgeCollider2D；共用 `Visual/Env/Wire.mat`，线宽0.045、世界坐标、不闭合。maxLength=0（不限），重复 tile 通过 Wire 的 overlapColor 显示，没有 WirePoint 子物体；固定端取所属 PowerSocket 的格子位置。保存的线段是占位数据，环境重绘实际路径后更新碰撞体；颜色不会随 polarity 自动改变。
+三个 Wire 均含 Wire、LineRenderer 和初始禁用的 Trigger EdgeCollider2D；共用 `Visual/Env/Wire.mat`，线宽0.045、世界坐标、不闭合。maxLength=0（不限），没有 WirePoint 子物体；固定端取所属 PowerSocket 的格子位置。保存的线段是占位数据，环境重绘实际路径后更新碰撞体；颜色不会随 polarity 自动改变。
 
 CircuitDiagnostics 使用 SceneRoot、MockPlayer、插口、Live/Neutral 与 Anchor，并以场景覆盖填写电线列表和绑定路由 Tilemap。GameplayIntegration 使用 Anchor prefab，但其环境、插口和线直接写在场景内；修改这些 prefab 不会自动同步那些场景对象。
 

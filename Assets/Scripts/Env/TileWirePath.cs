@@ -3,8 +3,8 @@ using UnityEngine;
 using UnityEngine.Tilemaps;
 
 /// <summary>
-/// Ordered cells visited by a carried wire. Revisiting any unpinned cell removes its entire subsequent tail.
-/// 持线时经过的有序格子；接触任意未固定格子会收回其后的路径，保留最后一个 Anchor 之前的路径。
+/// Ordered cells visited by a carried wire. Immediate backtracking retracts only its unpinned tail.
+/// 持线时经过的有序格子；原路返回只收回最后一个 Anchor 之后的路径。
 /// </summary>
 public sealed class TileWirePath
 {
@@ -35,6 +35,12 @@ public sealed class TileWirePath
             return;
         }
 
+        int last = cells.Count - 1;
+        if (cells[last] == cell)
+        {
+            return;
+        }
+
         int pinned = 0;
         foreach (KeyValuePair<Anchor, int> pin in pins)
         {
@@ -44,15 +50,14 @@ public sealed class TileWirePath
             }
         }
 
-        for (int i = pinned; i < cells.Count; i++)
+        if (last > pinned && cells[last - 1] == cell)
         {
-            if (cells[i] == cell)
-            {
-                cells.RemoveRange(i + 1, cells.Count - i - 1);
-                return;
-            }
+            cells.RemoveAt(last);
         }
-        cells.Add(cell);
+        else
+        {
+            cells.Add(cell);
+        }
     }
 
     public void Pin(Anchor anchor)

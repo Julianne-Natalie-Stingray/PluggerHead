@@ -33,11 +33,6 @@ public class Wire : MonoBehaviour
     [Tooltip("Maximum routed length of the carried wire. Exceeding it kills the player; zero leaves its length unrestricted.")]
     private float maxLength;
 
-    [SerializeField, BoxGroup("Wire")]
-    [Tooltip("Color for portions inside tiles currently visited more than once, by this wire or another wire.")]
-    private Color overlapColor = new Color(1f, 0.2f, 0.75f, 1f);
-
-    [SerializeField, HideInInspector] private List<LineRenderer> overlapLines = new();
     private LineRenderer line;
     private EdgeCollider2D pathCollider;
     private readonly List<Vector2> colliderPoints = new();
@@ -115,7 +110,7 @@ public class Wire : MonoBehaviour
     /// 绘制门面算出的折线的单一入口.
     /// 实现思路: 点数相同时复用缓冲区，点数变化时重新分配；自由端逐帧移动不必改变点数。
     /// </summary>
-    public void RenderPath(IReadOnlyList<Vector3> positions, IReadOnlyDictionary<Vector3Int, int> tileUseCounts)
+    public void RenderPath(IReadOnlyList<Vector3> positions)
     {
         if (!line || positions == null)
         {
@@ -136,93 +131,6 @@ public class Wire : MonoBehaviour
         line.useWorldSpace = true;
         line.SetPositions(buffer);
         UpdatePathCollider(positions);
-        RenderOverlaps(positions, tileUseCounts);
-    }
-
-    // Each overlay covers only the half-edges belonging to a repeated tile. Pool renderers so
-    // arbitrary long alternating paths do not depend on Gradient's limited number of keys.
-    // 覆盖重复格子内的半段电线；复用渲染器，不受 Gradient 关键点数量上限影响。
-    private void RenderOverlaps(IReadOnlyList<Vector3> positions, IReadOnlyDictionary<Vector3Int, int> tileUseCounts)
-    {
-        int used = 0;
-        if (positions.Count >= 2)
-        {
-            for (int i = 0; i < TilePath.Cells.Count; i++)
-            {
-                if (!tileUseCounts.TryGetValue(TilePath.Cells[i], out int count) || count < 2)
-                {
-                    continue;
-                }
-                if (used == overlapLines.Count)
-                {
-                    overlapLines.Add(null);
-                }
-                LineRenderer renderer = overlapLines[used];
-                if (!renderer)
-                {
-                    GameObject overlay = new GameObject("Repeated Tile " + used);
-                    overlay.hideFlags = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild;
-                    overlay.layer = gameObject.layer;
-                    overlay.transform.SetParent(transform, false);
-                    renderer = overlay.AddComponent<LineRenderer>();
-                    overlapLines[used] = renderer;
-                }
-                used++;
-                renderer.enabled = line.enabled;
-                renderer.useWorldSpace = true;
-                renderer.sharedMaterial = line.sharedMaterial;
-                renderer.widthMultiplier = line.widthMultiplier;
-                renderer.widthCurve = line.widthCurve;
-                renderer.startColor = overlapColor;
-                renderer.endColor = overlapColor;
-                renderer.sortingLayerID = line.sortingLayerID;
-                renderer.sortingOrder = line.sortingOrder + 1;
-                renderer.alignment = line.alignment;
-                renderer.numCapVertices = line.numCapVertices;
-                renderer.numCornerVertices = line.numCornerVertices;
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                renderer.receiveShadows = false;
-                int points = 1 + (i > 0 ? 1 : 0) + (i + 1 < positions.Count ? 1 : 0);
-                renderer.positionCount = points;
-                int index = 0;
-                if (i > 0)
-                {
-                    renderer.SetPosition(index++, Vector3.Lerp(positions[i - 1], positions[i], 0.5f));
-                }
-                renderer.SetPosition(index++, positions[i]);
-                if (i + 1 < positions.Count)
-                {
-                    renderer.SetPosition(index, Vector3.Lerp(positions[i], positions[i + 1], 0.5f));
-                }
-            }
-        }
-        for (int i = used; i < overlapLines.Count; i++)
-        {
-            if (overlapLines[i])
-            {
-                overlapLines[i].enabled = false;
-                overlapLines[i].positionCount = 0;
-            }
-        }
-    }
-
-    private void OnDestroy()
-    {
-        foreach (LineRenderer renderer in overlapLines)
-        {
-            if (!renderer)
-            {
-                continue;
-            }
-            if (Application.isPlaying)
-            {
-                Destroy(renderer.gameObject);
-            }
-            else
-            {
-                DestroyImmediate(renderer.gameObject);
-            }
-        }
     }
 
     // The collider follows the same world-space polyline, converted to local coordinates.

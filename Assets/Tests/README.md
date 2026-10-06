@@ -1,6 +1,6 @@
 # 整合集成测试
 
-Wire 行为更新：EditMode 22/22（job `3e2227f67e3f4dd58a41013bac8301f3`）、PlayMode 74/74（job `6ca8189c3df64c8c95ce6c9c82fbacd3`）终态通过。TilemapTests 现有 10 项，新增跨格接触旧路径截断、Anchor 固定与解除后的接触截断、同线/跨线重叠颜色及提示清除。以下 71 项结果为历史版本。
+2026-10-06 功能拆分回退：恢复原路逐格回退，保留废弃接口清理；完整新功能保存在 `feature/wire-path-overlap`。在保留工作区已有 Player/动画修改的状态下，EditMode 22/22（`425318e665924c2197934a880f634685`）、PlayMode 71/71（`3a74fa202046412c8173671e7afbac24`）顺序终态通过。
 
 2026-10-06 Tilemap 改造验证：EditMode 22/22（job `812b828e3ce84ea889c26457cc594fda`）、PlayMode 71/71（job `c12304087033435ebdf260a2b5541579`）均终态通过；以下较早 job 为历史记录。原 Corner 用例已替换为 TilemapTests，覆盖近角非格心往返、调试验收同格操作，并新增真实场景 Tilemap 落地及两个关卡的格心资源检查。
 
