@@ -17,5 +17,7 @@ MonoBehaviour:
     sceneName: JillTestScene
   - id: 1
     sceneName: JillTestSceneSwitch
-  - id: 2
+  - id: 3
     sceneName: HeXieTestScene
+  - id: 2
+    sceneName: JillTestWireScene
