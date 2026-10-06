@@ -193,6 +193,51 @@ public static class MainMenuIntegrationChecks
         yield return WaitForSwitch("GameplayIntegration");
         Require(GameProgress.Store.TryGetLevel(out saved) && saved == SceneId.GameplayIntegration,
             "New Game must replace old progress with the first level after load.");
+
+        NextLevelScreen nextScreen = UnityEngine.Object.FindObjectOfType<NextLevelScreen>();
+        Require(nextScreen != null && !Field<GameObject>(nextScreen, "panel").activeSelf,
+            "A fresh gameplay scene must have a hidden next-level prompt.");
+        Scene completedScene = nextScreen.gameObject.scene;
+        environment = EnvironmentFacade.ForScene(completedScene);
+        PlayerInteraction actor = UnityEngine.Object.FindObjectOfType<PlayerInteraction>();
+        foreach (Wire wire in UnityEngine.Object.FindObjectsOfType<Wire>())
+        {
+            typeof(Wire).GetField("maxLength", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(wire, 0f);
+        }
+        PowerSocket outlet = environment.HeldWire.Socket;
+        PolaritySocket dual = UnityEngine.Object.FindObjectsOfType<PolaritySocket>().First(socket => socket.IsDual);
+        nextScreen.enabled = false;
+        dual.Interact(new InteractionDetails(actor.gameObject, dual.gameObject));
+        outlet.Interact(new InteractionDetails(actor.gameObject, outlet.gameObject));
+        Require(environment.IsCircuitClosed && !Field<GameObject>(nextScreen, "panel").activeSelf,
+            "A disabled completion screen must unsubscribe from victory events.");
+        nextScreen.enabled = true;
+        Require(Field<GameObject>(nextScreen, "panel").activeInHierarchy,
+            "Re-enabling after victory must recover the current completion state.");
+        UnityEngine.UI.Button nextButton = Field<UnityEngine.UI.Button>(nextScreen, "nextLevelButton");
+        SceneSwitchManager switcher = CoreFacade.Instance.SceneSwitch;
+        switcher.enabled = false;
+        try
+        {
+            nextButton.onClick.Invoke();
+            Require(!switcher.IsSwitching && nextButton.interactable &&
+                Field<TMPro.TMP_Text>(nextScreen, "congratulationsText").text == "下一关加载失败，请重试。",
+                "A rejected next-level request must show a Chinese error and remain retryable.");
+        }
+        finally
+        {
+            switcher.enabled = true;
+        }
+        nextButton.onClick.Invoke();
+        Require(switcher.IsSwitching && !nextButton.interactable,
+            "An accepted next-level request must lock the button until loading completes.");
+        nextScreen.LoadNextLevel();
+        yield return WaitForSwitch("GameplayIntegration");
+        NextLevelScreen reloadedScreen = UnityEngine.Object.FindObjectOfType<NextLevelScreen>();
+        Require(reloadedScreen != null && reloadedScreen.gameObject.scene.handle != completedScene.handle &&
+            !Field<GameObject>(reloadedScreen, "panel").activeSelf &&
+            !EnvironmentFacade.ForScene(reloadedScreen.gameObject.scene).IsCircuitClosed,
+            "The configured next level must reload GameplayIntegration with a fresh circuit and hidden prompt.");
     }
 
     public static IEnumerator CleanupMenuFlow()

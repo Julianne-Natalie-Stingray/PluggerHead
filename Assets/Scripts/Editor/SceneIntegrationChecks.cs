@@ -89,7 +89,7 @@ public static class SceneIntegrationChecks
                     string characters = new string(label.text.Where(character => !char.IsControl(character)).ToArray());
                     Require(label.font.HasCharacters(characters),
                         $"{path}: {label.name} must have baked glyphs for its authored text.");
-                    Require(label.font.HasCharacters("剩余线长：不限--0123456789.重新开始失败，请重试。关卡加载失败，请重试。返回主菜单失败，请重试。设置已保存保存失败，请重试。"),
+                    Require(label.font.HasCharacters("剩余线长：不限--0123456789.重新开始失败，请重试。关卡加载失败，请重试。返回主菜单失败，请重试。设置已保存保存失败，请重试。下一关加载失败，请重试。"),
                         $"{path}: {label.name} must support Chinese runtime status and error messages.");
                 }
             }
@@ -234,6 +234,12 @@ public static class SceneIntegrationChecks
         EnvironmentFacade environment = FindComponents<EnvironmentFacade>(ownedScene).Single();
         RestartLevelScreen restartScreen = FindComponents<RestartLevelScreen>(ownedScene).Single();
         Transform restartPanel = restartScreen.transform.Find("RestartLevelScreen");
+        NextLevelScreen nextScreen = FindComponents<NextLevelScreen>(ownedScene).Single();
+        Transform nextPanel = nextScreen.transform.Find("NextLevelScreen");
+        Require(nextPanel != null && !nextPanel.gameObject.activeSelf,
+            "The next-level prompt must be hidden before the environment declares victory.");
+        nextScreen.LoadNextLevel();
+        Require(!ownedCore.SceneSwitch.IsSwitching, "The next-level action must reject calls before victory.");
         Require(movement.GetComponents<MonoBehaviour>().All(component => component.GetType().Name != "PlayerInventory") &&
             restartScreen.transform.Find("InventoryUI") == null,
             "The master gameplay scene must run without inventory components or inventory UI.");
@@ -332,6 +338,10 @@ public static class SceneIntegrationChecks
             outlet.Interact(new InteractionDetails(interaction.gameObject, outlet.gameObject));
             Require(environment.IsCircuitClosed && environment.HeldWire == null && clearedCount == 1,
                 "Returning the second wire to its outlet must clear the scene once.");
+            Require(nextPanel.gameObject.activeInHierarchy &&
+                nextPanel.GetComponentInChildren<UnityEngine.UI.Button>().interactable &&
+                nextPanel.GetComponentInChildren<TMPro.TMP_Text>().text.Contains("恭喜通关"),
+                "The environment victory event must immediately show the Chinese completion prompt.");
             yield return null;
             yield return null;
             Require(lengthText.text == "剩余线长：--", "A completed circuit with no held wire must clear the length.");
@@ -342,6 +352,8 @@ public static class SceneIntegrationChecks
             Require(environment.HeldWire == initialWire && initialWire.IsHeld && !environment.IsCircuitClosed &&
                 environment.SwapCount == 0 && !anchor.IsEngaged && initialWire.PlugTarget == null,
                 "Restart must reset the authored circuit, held wire and routing.");
+            yield return null;
+            Require(!nextPanel.gameObject.activeSelf, "An environment debug restart must clear the completion prompt.");
         }
         finally
         {
