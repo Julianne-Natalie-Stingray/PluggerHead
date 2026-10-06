@@ -1,5 +1,7 @@
 # 整合集成测试
 
+2026-10-07 预制体目录整理与真实 Player 诊断场景：五个场景预制体及 Anchor 依赖归入 `Prefabs/Env/ScenePrefab`，保留 GUID 并同步硬编码路径与文档链接；`CircuitDiagnostics` 用真实 Player 替换 MockPlayer，并增加实体 Tilemap 地面。新增实际场景 PlayMode 用例检查初始化、落地、K 放置/J 收回与 J 换线。最终 EditMode **55/55**（`55936b3a00b0456d8a13aaae64d682d3`）、PlayMode **76/76**（`f9b25c507def4be58af52d031df2a97d`）顺序终态通过；独立审查通过。画面见 [诊断场景 Player](../Docs/Development/CircuitDiagnosticsPlayer.png)。
+
 2026-10-07 SUCCESS_RULE 新规则：双极交互必定切换异极主线，独立携带/连接地线，降压器按连接去重；通关只检查全部插座端口接线及电压达标，移除旧闭环限制。最终 EditMode **55/55**（`724ffc88f177437aaea6fb829287faef`）、随后 PlayMode **75/75**（`200544930a19421b9ba2051ef1ccc32e`）均终态通过，无失败或跳过。新增边界与回归覆盖地线漏接、降压去重、相等/超标电压、生成续线、跨格双持路径、插座交接固定、重开及示例预制体组件/精灵引用。独立审查的两项路径问题已修复并复审通过。中途 PlayMode 曾因脚本重载留下孤儿任务，退出播放后清理 MCP 任务与服务标识再完整重跑；中断任务不计作通过。示例与使用步骤见 [Env](../Scripts/Env/README.md)。
 
 2026-10-06 回路闭合规则更新：新增 15 项 EditMode 回归，覆盖火/零两种起始顺序、全部接口交互后继续铺线、漏接/仅经过接口、独立回插、异源插座、无返回端、连接被销毁、重复交互、刷新与重开，以及单极/单极加地线/None 初始化拒绝。多线用例验证三根线同极回插不能通关、四根线异极回插可通关。接入点固定路径，原 Tilemap 回退与渲染用例同步验证返回段保留。完整顺序通过 EditMode **49/49**（`c156b9d71b1d45f187a37e5567ff5204`）、PlayMode **75/75**（`61610d56a0e64b05bbf367f8a1be5a6c`），无失败或跳过。
@@ -41,12 +43,12 @@ FinalScene 加入前验证（2026-10-06）：代码及文档独立审查通过�
 | `MainMenuScene` | 构建启动场景。New Game、Continue Game、Settings、Exit；无有效进度时 Continue 禁用。 |
 | `FinalScene` | 结尾祝贺、示例制作组和 Exit；可独立播放，通过 SceneId.FinalScene 请求切换，不记录为玩法进度。 |
 | `GameplayIntegration` | New Game 的首关。真实 Player、Tilemap 格子路径、双线回路、设置及死亡重开 UI；Play 后移动、J 交互/收回、K 放置 Anchor。设置面板的 Main Menu 返回主菜单。 |
-| `CircuitDiagnostics` | MockPlayer 与独立电路布局；Play 后用 EnvironmentFacade 调试按钮验证回路，拖动 MockPlayer 检查线端。含完整 Core，可用 AudioManager 的 Test Audio Request 检查音频。 |
+| `CircuitDiagnostics` | 真实 Player、实体地面与独立电路布局；Play 后用 EnvironmentFacade 调试按钮验证回路，拖动 MockPlayer 检查线端。含完整 Core，可用 AudioManager 的 Test Audio Request 检查音频。 |
 | `SceneSwitchTarget` | 仅保留相机与 AudioListener；从前两者调用 `CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.SceneSwitchTarget)`，确认场景切换完成、Loading 退出且原 Core 存活。单独播放只显示背景。 |
 
 2026-10-06 整理：`HeXieTestScene` → `GameplayIntegration`，`JillTestWireScene` → `CircuitDiagnostics`，`JillTestSceneSwitch` → `SceneSwitchTarget`，三者保留原 GUID。原 `JillTestScene` 仅含相机及同一个 Core prefab，其服务检查职责合并到 `CircuitDiagnostics`，删除重复场景及枚举项。现有 SceneId 的序列化值 1/2/3 保持不变，退役值 0 不复用；当时三功能场景依次为 GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget；当前构建列表首位为 MainMenuScene，末尾新增 FinalScene，共五场景。
 
-真实 Player 集成与 MockPlayer 电路诊断保持分开，便于区分输入/动画问题和回路问题。Core 继续随内容场景配置并通过 DontDestroyOnLoad 保活，无需额外 Bootstrap 或叠加加载。
+完整 UI 玩法集成与真实 Player 电路诊断保持分开，便于区分输入/动画问题和回路问题。Core 继续随内容场景配置并通过 DontDestroyOnLoad 保活，无需额外 Bootstrap 或叠加加载。
 
 ## Unity Test Runner
 

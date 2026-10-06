@@ -82,7 +82,7 @@ public static class TilemapIntegrationChecks
             Mathf.Approximately(fixture.Wire.TilePath.GetLength(fixture.Map), 2f),
             "Sub-cell movement must neither duplicate cells nor change tile-based length.");
         PlayerInteraction interaction = fixture.Player.AddComponent<PlayerInteraction>();
-        Set(interaction, "anchorPrefab", AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Prefabs/Env/Anchor.prefab"));
+        Set(interaction, "anchorPrefab", AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Prefabs/Env/ScenePrefab/Anchor.prefab"));
         fixture.Map.SetTile(new Vector3Int(2, 0, 0), null);
         Require(!interaction.TryPlaceAnchor(), "Anchor placement must reject a cell without a tile.");
         interaction.enabled = false;
@@ -154,7 +154,7 @@ public static class TilemapIntegrationChecks
         }
         LineRenderer first = fixture.Wire.GetComponent<LineRenderer>();
         LineRenderer second = fixture.SecondWire.GetComponent<LineRenderer>();
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/Env.prefab");
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/ScenePrefab/Env.prefab");
         foreach (Wire authored in prefab.GetComponentsInChildren<Wire>(true))
         {
             LineRenderer source = authored.GetComponent<LineRenderer>();

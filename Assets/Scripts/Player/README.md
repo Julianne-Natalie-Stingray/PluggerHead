@@ -18,7 +18,7 @@ Player 使用 [Core 输入](../Core/Input/README.md) 和 [Env 真实交互契约
 
 PlayerInteraction 在 Start 获取 Core.Input 并确认本场景环境存在，缺失时禁用。重新启用只重新订阅已缓存输入，不自动重走失败的 Start。输入事件均成对订阅/退订。移动、地面极性检查和 J/K 操作均直接通过 EnvironmentFacade.ForScene 查询玩家所属场景，不依赖背包组件或全局 Current。
 
-GameplayIntegration 中移动速度为 5、跳跃速度为 5、重力倍率为 1；groundLayers 和 interactionLayers 当前为全部层，交互半径 2。Anchor prefab 引用为 `Assets/Prefabs/Env/Anchor.prefab`；Player Tag 供 Env 采样根位置；历史 WireAttach 子挂点已不参与线逻辑。动画控制器为 `Assets/Visual/Player/PlayerAC.controller`。
+GameplayIntegration 中移动速度为 5、跳跃速度为 5、重力倍率为 1；groundLayers 和 interactionLayers 当前为全部层，交互半径 2。Anchor prefab 引用为 `Assets/Prefabs/Env/ScenePrefab/Anchor.prefab`；Player Tag 供 Env 采样根位置；历史 WireAttach 子挂点已不参与线逻辑。动画控制器为 `Assets/Visual/Player/PlayerAC.controller`。
 
 ## 移动、跳跃与死亡
 

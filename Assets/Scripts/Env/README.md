@@ -71,7 +71,7 @@ GroundPolarity 可放在非 Trigger 地面 Collider2D 所在物体或父物体�
 
 2026-10-06 线颜色与覆盖顺序：新增四项真实材质离屏像素测试，覆盖两种起始极性、双接口和原插座交接、回退重铺、刷新及重开。最终 EditMode **34/34**、PlayMode **75/75** 顺序通过，独立复审通过；job 和测试隔离修复记录见 [Tests](../../Tests/README.md)。[渲染示例](../../Docs/Development/WireRendering.png)从左到右为原线、刚换线、新铺段重叠：继承段保持原色，新段按出线顺序覆盖旧段。
 
-`GameplayIntegration` 和 `CircuitDiagnostics` 均已绑定路由 Tilemap，插座与 Anchor 已对齐格心；前者使用真实 Player 和 Ground TilemapCollider2D，后者保留 MockPlayer。两场景的线长上限为 64 世界单位，便于验证较长的格子路线。资源位于 `Visual/Environment/`，运行画面见 [TilemapEnvironment](../../Docs/Development/TilemapEnvironment.png)。
+`GameplayIntegration` 和 `CircuitDiagnostics` 均已绑定路由 Tilemap，插座与 Anchor 已对齐格心；两者均使用真实 Player 和 Ground TilemapCollider2D。两场景的线长上限为 64 世界单位，便于验证较长的格子路线。资源位于 `Visual/Environment/`，运行画面见 [TilemapEnvironment](../../Docs/Development/TilemapEnvironment.png)。
 
 2026-10-06：编译无错误，EditMode **22/22**（`812b828e3ce84ea889c26457cc594fda`）、PlayMode **71/71**（`c12304087033435ebdf260a2b5541579`）顺序完成并通过。TilemapTests 覆盖 L 形长度边界、快速跨格、四象限对角及近角非格心回退、同格微动、空格拒绝放置、Anchor 固定/收回、每线独立、重开、缩放/碰撞体 offset 与真实帧推进；真实场景用例另验证玩家落到 Tilemap 地面、J/K、回退、换线和超长死亡。
 

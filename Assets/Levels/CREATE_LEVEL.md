@@ -12,12 +12,12 @@
    | --- | --- |
    | [`Prefabs/Core/Core.prefab`](../Prefabs/Core/Core.prefab) | Input、Audio、SceneSwitch、TimerRunner、关卡进度记录；跨场景保活。 |
    | [`Prefabs/Player.prefab`](../Prefabs/Player.prefab) | 带 `Player` Tag 的真实玩家、Dynamic Rigidbody2D、非 Trigger 碰撞体、移动/交互脚本及视觉。 |
-   | [`Prefabs/Env/Env.prefab`](../Prefabs/Env/Env.prefab) | EnvironmentFacade、PowerSocket、DualSocket、两根线与初始 Anchor。 |
-   | [`Prefabs/Env/Environment Grid.prefab`](<../Prefabs/Env/Environment Grid.prefab>) | Rectangle Grid、Routing Tiles、带 TilemapCollider2D 的 Ground Tiles。 |
-   | [`Prefabs/Env/GlobalUI.prefab`](../Prefabs/Env/GlobalUI.prefab) | 设置、线长 HUD、死亡重开及通关面板。 |
-   | [`Prefabs/Env/EventSystem.prefab`](../Prefabs/Env/EventSystem.prefab) | UI 的 Input System 事件模块。 |
+   | [`Prefabs/Env/ScenePrefab/Env.prefab`](../Prefabs/Env/ScenePrefab/Env.prefab) | EnvironmentFacade、PowerSocket、DualSocket、两根线与初始 Anchor。 |
+   | [`Prefabs/Env/ScenePrefab/Environment Grid.prefab`](<../Prefabs/Env/ScenePrefab/Environment Grid.prefab>) | Rectangle Grid、Routing Tiles、带 TilemapCollider2D 的 Ground Tiles。 |
+   | [`Prefabs/Env/ScenePrefab/GlobalUI.prefab`](../Prefabs/Env/ScenePrefab/GlobalUI.prefab) | 设置、线长 HUD、死亡重开及通关面板。 |
+   | [`Prefabs/Env/ScenePrefab/EventSystem.prefab`](../Prefabs/Env/ScenePrefab/EventSystem.prefab) | UI 的 Input System 事件模块。 |
 
-   Core 必须是根对象。场景切换时新场景里的 Core 副本会被去重；直接在 Editor 打开本关播放时，该实例提供所需服务。不要再放一套 MockPlayer 或第二个 EventSystem。
+   Core 必须是根对象。场景切换时新场景里的 Core 副本会被去重；直接在 Editor 打开本关播放时，该实例提供所需服务。不要再放第二个 Player 或第二个 EventSystem。
 
 ## 2. 接好场景实例之间的引用
 
