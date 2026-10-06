@@ -7,6 +7,13 @@
 - 目录按功能组织，不再使用 `HeXie/` 或 `Jill/` 人名层级。移动资源时保留 GUID，并同步路径引用。
 - `Docs/Development/WorkflowHistory.md` 是旧 DSH 工作流的历史记录，不是现行权限或审批规则；当前仓库规则以本文件为准。
 
+## Subagent 协作
+
+- 允许主代理按需创建 Subagent，执行一组阻塞性 I/O 操作（例如 MCP 通信、文件操作或等待外部工具结果），或承担边界明确、可独立完成的子任务，无需逐次征求用户许可。
+- 委派时明确目标、操作范围、依赖及预期返回结果；主代理负责协调、整合与最终验证。
+- 各代理共享工作区，避免同时修改同一文件；涉及同一 Unity Editor 状态的写操作应串行协调。
+- Subagent 遵守相同的任务授权、仓库规则和文件系统权限；委派不扩大操作权限，也不绕过审批。
+
 ## Project Structure & Module Organization
 
 This directory is `Assets/` in the PluggerHead Unity project; the project root is one level above, alongside `Packages/` and `ProjectSettings/`.
