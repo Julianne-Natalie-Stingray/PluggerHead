@@ -78,6 +78,8 @@ namespace ProjectTools.MenuTool
                 errors.Add($"Unsupported Menu Tool format version '{data.version}'. Expected version 1.");
 
             ValidateIdentifier(data.identifier, "Root identifier", errors);
+            if (data.identifier == "Label" || data.identifier == "Path" || data.identifier == "DefaultFileName")
+                errors.Add($"Root identifier '{data.identifier}' conflicts with its generated members.");
             if (string.IsNullOrWhiteSpace(data.label))
                 errors.Add("Root label cannot be empty.");
             if (string.IsNullOrWhiteSpace(data.defaultFileName))

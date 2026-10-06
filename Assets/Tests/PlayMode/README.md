@@ -1,6 +1,6 @@
 # Editor PlayMode 测试
 
-程序集 `PluggerHead.PlayModeTests`，Category 均为 `Integration`。逐文件核查日期：2026-10-06；当前源码静态计数共 71 个用例，本轮 job `1ba9928905c54f868d855c4d7d283532` 正在运行，尚无终态通过结果。各类通过 UnityPlatform 限定 Windows/Linux/macOS Editor；程序集本身无平台过滤，不能据此推断预定义 Editor 检查可用于独立 Player。执行方式见[测试总说明](../README.md)。
+程序集 `PluggerHead.PlayModeTests`，Category 均为 `Integration`。逐文件核查日期：2026-10-06；当前共 71 个用例，本轮 job `a8881108238d4eb5860ef817658ccfdf` 已结束并通过 71/71。各类通过 UnityPlatform 限定 Windows/Linux/macOS Editor；程序集本身无平台过滤，不能据此推断预定义 Editor 检查可用于独立 Player。执行方式见[测试总说明](../README.md)。
 
 | 文件 | 用例数与实际覆盖 |
 | --- | --- |
@@ -29,4 +29,4 @@ PhysicsCleanupTests 已有独立 UnityTearDown：正常路径在用例内部等�
 
 MainMenu 与 SceneGameplay 在 SetUp 替换进度存储，TearDown 请求恢复引用；加载或清理尚未完成时保留临时存储，成功重试清理后自动完成延迟恢复。菜单/切换恢复会执行真实 Single 加载，不能恢复此前场景内容；应在隔离 Runner 会话运行。Gameplay 则加载自有 Additive 场景，并要求起始无 Core、目标场景未加载且状态为 Playing。
 
-同步物理检查使用真实接触及显式模拟/帧方法调用；实际帧用例另行验证自动更新。玩法输入通过处理器调用和刚体位置调整触发，不能替代真实按键绑定、完整角色运动或 UI 输入冒烟验证。当前清理故障组共 22 个用例；测试总说明中的 17/57 job 属于新增 Timer/MenuTool 和后续 Physics 用例之前的历史版本，当前静态计数不代表通过结果。
+同步物理检查使用真实接触及显式模拟/帧方法调用；实际帧用例另行验证自动更新。玩法输入通过处理器调用和刚体位置调整触发，不能替代真实按键绑定、完整角色运动或 UI 输入冒烟验证。当前清理故障组共 22 个用例；测试总说明中的 17/57 job 属于新增 Timer/MenuTool 和后续 Physics 用例之前的历史版本，当前版本通过结果见测试总说明。

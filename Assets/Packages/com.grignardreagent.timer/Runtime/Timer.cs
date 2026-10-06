@@ -14,6 +14,8 @@ public sealed class Timer
 
     private Action onComplete;
     private Coroutine coroutine;
+    private TimerRunner ownerRunner;
+    private int runVersion;
     private int nextTimeStampIndex;
     private bool useUnscaledTime;
     private bool hasStarted;
@@ -52,7 +54,9 @@ public sealed class Timer
     public Timer At(float time, Action callback)
     {
         if (!CanConfigure())
+        {
             return this;
+        }
 
         if (time < 0f || time > Duration)
         {
@@ -90,7 +94,9 @@ public sealed class Timer
     public Timer OnComplete(Action callback)
     {
         if (!CanConfigure())
+        {
             return this;
+        }
 
         if (callback == null)
         {
@@ -115,7 +121,9 @@ public sealed class Timer
     public Timer UseUnscaledTime(bool useUnscaled = true)
     {
         if (!CanConfigure())
+        {
             return this;
+        }
 
         useUnscaledTime = useUnscaled;
         return this;
@@ -146,7 +154,7 @@ public sealed class Timer
         }
 
         TimerRunner runner = TimerRunner.Instance;
-        if (!runner)
+        if (!runner || !runner.gameObject.activeInHierarchy)
         {
             GameLog.Error(null)
                 .Subsystem(nameof(Timer))
@@ -164,33 +172,63 @@ public sealed class Timer
             hasStarted = true;
         }
 
+        int version = ++runVersion;
+        ownerRunner = runner;
         IsRunning = true;
 
         if (Duration <= 0f)
         {
-            ForwardToCompletion();
+            try
+            {
+                ForwardToCompletion(version);
+            }
+            finally
+            {
+                FinishRun(version);
+            }
             return this;
         }
 
-        coroutine = runner.StartTimer(Run());
+        try
+        {
+            // StartCoroutine executes the first step synchronously. A callback may already have
+            // stopped/restarted this timer before it returns, so never overwrite the newer run's handle.
+            // 首步同步执行, 回调可能已经停止或重启; 旧 Start 不得覆盖新一轮的协程句柄.
+            Coroutine started = runner.StartTimer(Run(version));
+            if (IsCurrentRun(version))
+            {
+                coroutine = started;
+                if (started == null)
+                {
+                    FinishRun(version);
+                }
+            }
+        }
+        catch
+        {
+            FinishRun(version);
+            throw;
+        }
         return this;
     }
 
     /// <summary>
-    /// Stops the timer without resetting elapsed time.
-    /// Calling Start() afterwards resumes it.
+    /// Stops the timer without resetting elapsed time. Start afterwards resumes it.
+    /// Invalidates in-progress callback dispatch before stopping the coroutine on its original host.
+    /// 停止但保留进度, 再次 Start 可继续; 先使当前回调派发失效, 再通过原宿主停止协程.
     /// </summary>
     public Timer Stop()
     {
-        if (!IsRunning)
-            return this;
-
-        TimerRunner runner = TimerRunner.Instance;
-        if (runner && coroutine != null)
-            runner.StopTimer(coroutine);
-
+        ++runVersion;
+        Coroutine stopped = coroutine;
+        TimerRunner runner = ownerRunner;
         coroutine = null;
+        ownerRunner = null;
         IsRunning = false;
+        if (runner && stopped != null)
+        {
+            runner.StopTimer(stopped);
+        }
         return this;
     }
 
@@ -218,7 +256,9 @@ public sealed class Timer
     public Timer CompleteWhen(Func<bool> condition)
     {
         if (!CanConfigure())
+        {
             return this;
+        }
 
         if (condition == null)
         {
@@ -236,66 +276,128 @@ public sealed class Timer
         return this;
     }
 
-    private IEnumerator Run()
+    private IEnumerator Run(int version)
     {
-        ProcessTimeStamps();
-
-        while (Elapsed < Duration)
+        try
         {
-            if (completeCondition?.Invoke() == true)
+            if (!ProcessTimeStamps(version))
             {
-                ForwardToCompletion();
                 yield break;
             }
 
-            yield return null;
+            while (IsCurrentRun(version) && Elapsed < Duration)
+            {
+                bool shouldComplete = completeCondition?.Invoke() == true;
+                if (!IsCurrentRun(version))
+                {
+                    yield break;
+                }
+                if (shouldComplete)
+                {
+                    ForwardToCompletion(version);
+                    yield break;
+                }
 
-            float deltaTime = useUnscaledTime
-                ? Time.unscaledDeltaTime
-                : Time.deltaTime;
+                yield return null;
+                if (!IsCurrentRun(version))
+                {
+                    yield break;
+                }
+                float deltaTime = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+                Elapsed = Mathf.Min(Duration, Elapsed + deltaTime);
+                if (!ProcessTimeStamps(version))
+                {
+                    yield break;
+                }
+            }
 
-            Elapsed = Mathf.Min(Duration, Elapsed + deltaTime);
-            ProcessTimeStamps();
+            if (IsCurrentRun(version))
+            {
+                Complete(version);
+            }
         }
-
-        Complete();
+        finally
+        {
+            // Exceptions or disposal stop only this generation, never a run restarted by its callback.
+            // 异常或释放只清理本轮, 不得清除回调已经重启的新一轮状态.
+            FinishRun(version);
+        }
     }
 
-    /// <summary>
-    /// Jump timer to completion. All remaining timestamps fire.
-    /// </summary>
-    /// <returns></returns>
-    private void ForwardToCompletion()
+    /// <summary>Jump to completion and dispatch remaining timestamps unless a callback stops or restarts.</summary>
+    private void ForwardToCompletion(int version)
     {
+        if (!IsCurrentRun(version))
+        {
+            return;
+        }
         Elapsed = Duration;
-        ProcessTimeStamps();
-        Complete();
+        if (ProcessTimeStamps(version))
+        {
+            Complete(version);
+        }
     }
 
-    private void Complete()
+    private void Complete(int version)
     {
+        if (!IsCurrentRun(version))
+        {
+            return;
+        }
         coroutine = null;
+        ownerRunner = null;
         IsRunning = false;
         IsComplete = true;
 
-        onComplete?.Invoke();
+        Delegate[] callbacks = onComplete?.GetInvocationList();
+        if (callbacks == null)
+        {
+            return;
+        }
+        foreach (Delegate callback in callbacks)
+        {
+            if (runVersion != version)
+            {
+                return;
+            }
+            ((Action)callback).Invoke();
+        }
     }
 
-    private void ProcessTimeStamps()
+    private bool ProcessTimeStamps(int version)
     {
-        while (nextTimeStampIndex < timeStamps.Count
-               && Elapsed >= timeStamps[nextTimeStampIndex].Time)
+        while (IsCurrentRun(version) && nextTimeStampIndex < timeStamps.Count &&
+               Elapsed >= timeStamps[nextTimeStampIndex].Time)
         {
             Action callback = timeStamps[nextTimeStampIndex].Callback;
             nextTimeStampIndex++;
             callback.Invoke();
         }
+        return IsCurrentRun(version);
+    }
+
+    private bool IsCurrentRun(int version)
+    {
+        return runVersion == version && IsRunning;
+    }
+
+    private void FinishRun(int version)
+    {
+        if (runVersion != version)
+        {
+            return;
+        }
+        coroutine = null;
+        ownerRunner = null;
+        IsRunning = false;
     }
 
     private bool CanConfigure()
     {
         if (!hasStarted)
+        {
             return true;
+        }
 
         GameLog.Warning(null)
             .Subsystem(nameof(Timer))

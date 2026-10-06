@@ -9,9 +9,12 @@ using UnityEngine.SceneManagement;
 public static class PhysicsCleanupIntegrationChecks
 {
     private const BindingFlags PrivateStatic = BindingFlags.NonPublic | BindingFlags.Static;
+    private static Type activeOwner;
+    private static EnvironmentFacade environmentBeforeCheck;
 
     public static IEnumerator Run(string ownerName, string failure)
     {
+        Require(activeOwner == null, "Previous physics fault fixture still needs its TearDown cleanup.");
         Type owner = typeof(CornerIntegrationChecks).Assembly.GetType(ownerName, true);
         var scenes = (List<Scene>)owner.GetField("ownedScenes", PrivateStatic).GetValue(null);
         Require(scenes.Count == 0, "Fault injection requires a clean owner.");
@@ -33,6 +36,8 @@ public static class PhysicsCleanupIntegrationChecks
         {
             SetEnvironment(sentinel);
             owner.GetMethod("BeginChecks", PrivateStatic).Invoke(null, null);
+            activeOwner = owner;
+            environmentBeforeCheck = originalEnvironment;
             first = SceneManager.CreateScene("PhysicsCleanup failed-" + Guid.NewGuid().ToString("N"));
             Scene second = SceneManager.CreateScene("PhysicsCleanup subsequent-" + Guid.NewGuid().ToString("N"));
             scenes.Add(first);
@@ -61,6 +66,10 @@ public static class PhysicsCleanupIntegrationChecks
                     if (failure == "Exception")
                     {
                         throw injectedException;
+                    }
+                    if (failure == "CompletedLoaded")
+                    {
+                        return () => true;
                     }
                     injectedPending = true;
                     if (failure == "UnloadedPending")
@@ -122,8 +131,10 @@ public static class PhysicsCleanupIntegrationChecks
                 }
                 else
                 {
-                    Require(aggregate.ToString().Contains(failure == "Null" ? "Could not unload" : "Timed out"),
-                        "The reported failure must retain the actual null/timeout cause.");
+                    string expectedCause = failure == "Null" ? "Could not unload" :
+                        failure == "CompletedLoaded" ? "remains loaded" : "Timed out";
+                    Require(aggregate.ToString().Contains(expectedCause),
+                        "The reported failure must retain the actual null/timeout/incomplete-unload cause.");
                 }
             }
             Require(subsequentRequests == 1, "Failure in the first scene must not skip later unload requests.");
@@ -204,29 +215,48 @@ public static class PhysicsCleanupIntegrationChecks
                         pending[first.handle] = actualInjectedOperation;
                     }
                 }
-                // On an assertion failure, start all remaining real unloads and retain pending ownership for teardown/retry.
-                IEnumerator recovery = CreateCleanup(owner);
+                // Actual async cleanup belongs to UnityTearDown. Restore synchronous state here without
+                // starting and immediately abandoning an unload if an assertion interrupted this check.
+                // 实际异步卸载交给独立 TearDown; 断言失败时此处只恢复同步状态, 不发起后立即丢弃卸载.
                 try
                 {
-                    recovery.MoveNext();
-                }
-                catch (Exception exception)
-                {
-                    // Report fallback cleanup failure without replacing the original assertion failure.
-                    Debug.LogException(exception);
-                }
-                finally
-                {
-                    (recovery as IDisposable)?.Dispose();
                     if (core != null)
                     {
                         UnityEngine.Object.DestroyImmediate(core);
                     }
+                }
+                finally
+                {
                     UnityEngine.Object.DestroyImmediate(sentinelObject);
                     SetEnvironment(originalEnvironment);
                 }
             }
         }
+    }
+
+    public static IEnumerator Cleanup()
+    {
+        Type owner = activeOwner;
+        if (owner == null)
+        {
+            return Empty();
+        }
+        EnvironmentFacade original = environmentBeforeCheck;
+        return IntegrationSceneWait.Finally(CreateCleanup(owner), () =>
+        {
+            SetEnvironment(original);
+            var scenes = (List<Scene>)owner.GetField("ownedScenes", PrivateStatic).GetValue(null);
+            if (scenes.Count == 0)
+            {
+                activeOwner = null;
+                environmentBeforeCheck = null;
+            }
+        });
+    }
+
+    private static IEnumerator Empty()
+    {
+        yield break;
     }
 
     private static IEnumerator CreateCleanup(Type owner)

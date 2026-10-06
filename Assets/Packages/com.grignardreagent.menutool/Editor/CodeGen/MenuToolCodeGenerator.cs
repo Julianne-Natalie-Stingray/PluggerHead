@@ -9,6 +9,8 @@ namespace ProjectTools.MenuTool
 {
     internal static class MenuToolCodeGenerator
     {
+        private const string OwnershipPrefix = "// MenuTool source GUID: ";
+
         public static bool GenerateForAssetPath(string assetPath, bool logResult = false)
         {
             assetPath = MenuToolDataUtility.NormalizeAssetPath(assetPath);
@@ -16,6 +18,41 @@ namespace ProjectTools.MenuTool
             if (importer == null || !importer.GenerateCSharp)
                 return false;
 
+            if (!TryBuildLegacySource(assetPath, importer, out var legacySource, out var sourceError))
+            {
+                Debug.LogError($"Menu Tool: {sourceError}");
+                return false;
+            }
+
+            if (!TryResolveValidatedOutput(assetPath, importer.OutputPath, out var outputPath, out var absoluteOutput, out var pathError))
+            {
+                Debug.LogError($"Menu Tool: {pathError}");
+                return false;
+            }
+
+            var sourceGuid = AssetDatabase.AssetPathToGUID(assetPath);
+            if (!TryWriteOwnedOutput(absoluteOutput, sourceGuid, legacySource, out var changed, out var writeError))
+            {
+                Debug.LogError($"Menu Tool: {writeError}");
+                return false;
+            }
+            if (!changed)
+            {
+                if (logResult)
+                    Debug.Log($"Menu Tool: generated C# is already up to date: {outputPath}");
+                return false;
+            }
+
+            AssetDatabase.ImportAsset(outputPath, ImportAssetOptions.ForceUpdate);
+            if (logResult)
+                Debug.Log($"Menu Tool: generated {outputPath}");
+            return true;
+        }
+
+        private static bool TryBuildLegacySource(string assetPath, MenuToolImporter importer, out string source, out string error)
+        {
+            source = null;
+            error = null;
             MenuToolData data;
             try
             {
@@ -23,14 +60,14 @@ namespace ProjectTools.MenuTool
             }
             catch (Exception exception)
             {
-                Debug.LogError($"Menu Tool: could not read '{assetPath}': {exception.Message}");
+                error = $"could not read '{assetPath}': {exception.Message}";
                 return false;
             }
 
             var errors = MenuToolDataUtility.Validate(data);
             if (errors.Count > 0)
             {
-                Debug.LogError("Menu Tool: C# generation skipped because the definition is invalid:\n- " + string.Join("\n- ", errors));
+                error = "C# generation skipped because the definition is invalid:\n- " + string.Join("\n- ", errors);
                 return false;
             }
 
@@ -40,53 +77,25 @@ namespace ProjectTools.MenuTool
 
             if (!MenuToolDataUtility.IsValidIdentifier(className))
             {
-                Debug.LogError($"Menu Tool: '{className}' is not a valid generated C# class name.");
+                error = $"'{className}' is not a valid generated C# class name.";
                 return false;
             }
 
             if (string.Equals(className, data.identifier, StringComparison.Ordinal))
             {
-                Debug.LogError($"Menu Tool: root identifier '{data.identifier}' cannot be the same as outer generated class '{className}'.");
+                error = $"root identifier '{data.identifier}' cannot be the same as outer generated class '{className}'.";
                 return false;
             }
 
             var namespaceName = (importer.NamespaceName ?? string.Empty).Trim();
             if (!IsValidNamespace(namespaceName))
             {
-                Debug.LogError($"Menu Tool: '{namespaceName}' is not a valid C# namespace.");
-                return false;
-            }
-
-            var outputPath = ResolveOutputPath(assetPath, importer.OutputPath);
-            if (!IsValidOutputPath(outputPath, out var pathError))
-            {
-                Debug.LogError($"Menu Tool: {pathError}");
+                error = $"'{namespaceName}' is not a valid C# namespace.";
                 return false;
             }
 
             data.nodes ??= new List<MenuToolNode>();
-            var source = GenerateSource(data, className, namespaceName, assetPath);
-            var absoluteOutput = MenuToolDataUtility.AssetPathToAbsolute(outputPath);
-            var directory = Path.GetDirectoryName(absoluteOutput);
-            if (!string.IsNullOrEmpty(directory))
-                Directory.CreateDirectory(directory);
-
-            if (File.Exists(absoluteOutput))
-            {
-                var existing = File.ReadAllText(absoluteOutput);
-                if (string.Equals(NormalizeNewlines(existing), NormalizeNewlines(source), StringComparison.Ordinal))
-                {
-                    if (logResult)
-                        Debug.Log($"Menu Tool: generated C# is already up to date: {outputPath}");
-                    return false;
-                }
-            }
-
-            File.WriteAllText(absoluteOutput, source, new UTF8Encoding(false));
-            AssetDatabase.ImportAsset(outputPath, ImportAssetOptions.ForceUpdate);
-
-            if (logResult)
-                Debug.Log($"Menu Tool: generated {outputPath}");
+            source = GenerateSource(data, className, namespaceName, assetPath);
             return true;
         }
 
@@ -108,11 +117,133 @@ namespace ProjectTools.MenuTool
             if (importer == null)
                 return false;
 
-            var outputPath = ResolveOutputPath(assetPath, importer.OutputPath);
-            if (!File.Exists(MenuToolDataUtility.AssetPathToAbsolute(outputPath)))
+            if (!TryResolveValidatedOutput(assetPath, importer.OutputPath, out var outputPath, out var absoluteOutput, out var pathError))
+            {
+                Debug.LogError($"Menu Tool: {pathError}");
                 return false;
+            }
 
-            return AssetDatabase.DeleteAsset(outputPath);
+            // GUID-tagged files remain removable even if the definition is now invalid. Legacy files
+            // require rebuilding the complete previous format; a basename is never proof of ownership.
+            Func<string> legacySource = () =>
+            {
+                if (!TryBuildLegacySource(assetPath, importer, out var source, out var error))
+                    throw new InvalidOperationException(error);
+                return source;
+            };
+            bool deleted = TryDeleteOwnedOutput(absoluteOutput, AssetDatabase.AssetPathToGUID(assetPath), legacySource,
+                () => AssetDatabase.DeleteAsset(outputPath), out var deleteError);
+            if (!string.IsNullOrEmpty(deleteError))
+                Debug.LogError($"Menu Tool: {deleteError}");
+            return deleted;
+        }
+
+        private static bool TryWriteOwnedOutput(string absoluteOutput, string sourceGuid, string legacySource, out bool changed, out string error)
+        {
+            changed = false;
+            if (!TryReadOwnedOutput(absoluteOutput, sourceGuid, () => legacySource, out var existing, out error))
+                return false;
+            string source = AddOwnershipHeader(legacySource, sourceGuid);
+            if (string.Equals(NormalizeNewlines(existing), NormalizeNewlines(source), StringComparison.Ordinal))
+                return true;
+            try
+            {
+                var directory = Path.GetDirectoryName(absoluteOutput);
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
+                File.WriteAllText(absoluteOutput, source, new UTF8Encoding(false));
+                changed = true;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = $"could not write '{absoluteOutput}': {exception.Message}";
+                return false;
+            }
+        }
+
+        private static bool TryDeleteOwnedOutput(string absoluteOutput, string sourceGuid, Func<string> legacySource,
+            Func<bool> deleteAsset, out string error)
+        {
+            if (!TryReadOwnedOutput(absoluteOutput, sourceGuid, legacySource, out var existing, out error) || existing == null)
+                return false;
+            try
+            {
+                if (deleteAsset())
+                    return true;
+                error = $"could not delete '{absoluteOutput}'.";
+            }
+            catch (Exception exception)
+            {
+                error = $"could not delete '{absoluteOutput}': {exception.Message}";
+            }
+            return false;
+        }
+
+        private static bool TryReadOwnedOutput(string absoluteOutput, string sourceGuid, Func<string> legacySource,
+            out string existing, out string error)
+        {
+            existing = null;
+            error = null;
+            if (!Guid.TryParseExact(sourceGuid, "N", out _))
+            {
+                error = "A valid source asset GUID is required before modifying generated C#.";
+                return false;
+            }
+            try
+            {
+                if (!File.Exists(absoluteOutput))
+                    return true;
+                existing = File.ReadAllText(absoluteOutput);
+                string normalized = NormalizeNewlines(existing);
+                string[] lines = normalized.Split('\n');
+                if (lines.Length > 1 && lines[0] == "// <auto-generated />" && lines[1].StartsWith(OwnershipPrefix, StringComparison.Ordinal))
+                {
+                    if (string.Equals(lines[1], OwnershipPrefix + sourceGuid, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                else if (string.Equals(normalized, NormalizeNewlines(legacySource()), StringComparison.Ordinal))
+                {
+                    return true;
+                }
+                error = $"Refusing to modify '{absoluteOutput}': its source ownership cannot be verified.";
+                return false;
+            }
+            catch (Exception exception)
+            {
+                error = $"could not verify ownership of '{absoluteOutput}': {exception.Message}";
+                return false;
+            }
+        }
+
+        private static string AddOwnershipHeader(string legacySource, string sourceGuid)
+        {
+            string normalized = NormalizeNewlines(legacySource);
+            int firstLineEnd = normalized.IndexOf('\n');
+            return normalized.Insert(firstLineEnd + 1, OwnershipPrefix + sourceGuid + "\n");
+        }
+
+        private static bool TryResolveValidatedOutput(string assetPath, string configuredPath,
+            out string outputPath, out string absoluteOutput, out string error)
+        {
+            outputPath = null;
+            absoluteOutput = null;
+            error = null;
+            try
+            {
+                outputPath = ResolveOutputPath(assetPath, configuredPath);
+                if (!IsValidOutputPath(outputPath, out error))
+                    return false;
+                absoluteOutput = MenuToolDataUtility.AssetPathToAbsolute(outputPath);
+                string assetsRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "Assets"));
+                outputPath = "Assets/" + absoluteOutput.Substring(assetsRoot.Length + 1).Replace('\\', '/');
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = $"Invalid generated C# output path: {exception.Message}";
+                return false;
+            }
         }
 
         private static string GenerateSource(MenuToolData data, string className, string namespaceName, string sourceAssetPath)

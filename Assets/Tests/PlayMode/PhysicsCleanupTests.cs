@@ -40,6 +40,18 @@ namespace PluggerHead.Tests
         [UnityTest]
         public IEnumerator Ground_UnloadedSceneRetainsUnconfirmedHandle() => Run("GroundPolarityIntegrationChecks", "UnloadedPending");
 
+        [UnityTest]
+        public IEnumerator Corner_CompletedHandleCannotHideLoadedScene() => Run("CornerIntegrationChecks", "CompletedLoaded");
+
+        [UnityTest]
+        public IEnumerator Ground_CompletedHandleCannotHideLoadedScene() => Run("GroundPolarityIntegrationChecks", "CompletedLoaded");
+
+        [UnityTearDown]
+        public IEnumerator Cleanup()
+        {
+            yield return (IEnumerator)IntegrationCheckBridge.Invoke("PhysicsCleanupIntegrationChecks", "Cleanup");
+        }
+
         private static IEnumerator Run(string owner, string failure)
         {
             IEnumerator routine = (IEnumerator)IntegrationCheckBridge.Invoke("PhysicsCleanupIntegrationChecks", "Run", owner, failure);

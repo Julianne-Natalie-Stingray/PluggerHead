@@ -2,11 +2,11 @@
 
 Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 
-本轮验证进度（2026-10-06）：编译后 Console 错误为 0；EditMode job `21b6cbceec95472ca70ce3a965876b63` 已结束并通过 21/21。随后启动的 PlayMode job `1ba9928905c54f868d855c4d7d283532` 正在运行，本轮 71 个 PlayMode 用例尚无终态结果，不据此声明通过。
+本轮最终验证（2026-10-06）：代码及文档独立审查通过，编译后 Console 错误为 0；EditMode job `21b6cbceec95472ca70ce3a965876b63` 已结束并通过 21/21。首次 PlayMode job `1ba9928905c54f868d855c4d7d283532` 因 Editor 会话中断没有有效终态；连接恢复后重跑，job `a8881108238d4eb5860ef817658ccfdf` 已结束并通过 71/71，失败及跳过均为 0。测试中的预期异常由 LogAssert 接收，不能把测试后 Console 异常记录等同于编译错误。临时场景及 Test Runner 修改的 Editor 设置已清理恢复。
 
 清理缺陷修复历史验证（2026-10-06，新增 Timer/MenuTool 及后续 Physics 用例之前）：编译后 Console 无错误，独立审查通过；按顺序运行 EditMode 17/17（job `3eb8b79ef39f415abbed40cead84b714`）和 PlayMode 57/57（job `e648646396f14d7ab119a800823a87c8`），均终态通过。新增 20 项故障注入检查覆盖失败恢复、在途句柄保留、异常聚合和临时进度存储延期释放。
 
-2026-10-06 逐文件核查：当前源码静态计数为 EditMode 21 个、PlayMode 71 个用例；本轮 MenuTool 4 项已包含在 21/21 EditMode 通过结果中；Timer 12 及新增 Physics 2 项仍待本轮 PlayMode 终态，不能复用历史 job 作为当前版本验证。文件级职责及边界分别见 [EditMode](EditMode/README.md)、[PlayMode](PlayMode/README.md)、[Shared 反射桥](Shared/README.md)；实际断言、隔离和超时实现见 [Scripts/Editor](../Scripts/Editor/README.md)。
+2026-10-06 逐文件核查：当前 EditMode 21 个、PlayMode 71 个用例；本轮 MenuTool 4 项、Timer 12 项及新增 Physics 2 项均包含在上述当前版本通过结果中。文件级职责及边界分别见 [EditMode](EditMode/README.md)、[PlayMode](PlayMode/README.md)、[Shared 反射桥](Shared/README.md)；实际断言、隔离和超时实现见 [Scripts/Editor](../Scripts/Editor/README.md)。
 
 以下为清理修复前的审计验证记录：EditMode 17/17（job `3fa8c86afa1348cb8f60ce2d1e6faa98`），PlayMode 37/37（job `ed6e536d01d7477d941943af149956d1`）。该快照包含 `7c91a3a` 的碰撞体 offset 修复；本轮只改说明和一处检查脚本注释。独立审查已通过，后续行为改动需重新验证。
 
