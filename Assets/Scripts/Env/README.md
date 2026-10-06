@@ -19,7 +19,9 @@
 4. 火线、零线完成终止且换线不超过 `maxSwaps` 才能通关；`requireGround` 开启时还需地线完成。`LevelCleared` 在状态首次变为闭合时触发。重开清除绕线、插入、换线及通关状态。刷新节点保留当前回路状态。
 5. 可操作目标需有可被 Player 扫描到的 Collider2D；`Anchor.canInteract` 与 `canPickup` 独立配置。拾取期间两种能力均关闭，放回后恢复。
 
-`Wire.maxLength` 是整条绕线路径的长度上限，**0 表示不限长**；`pullStrength` 是超长部分每单位对应的拉力。`EnvironmentFacade.GetResistance` 沿最后一个折点方向拉回自由端，无持线或不限长时返回零。此接入没有新增致死阈值；Player 原有负无穷阻力死亡约定仍保留，但 Env 不会产生该值。
+`Wire.maxLength` 是整条绕线路径的长度上限，**0 表示不限长**。`EnvironmentFacade.GetResistance` 累加固定端、所有折点和玩家挂点之间的长度；严格超过上限时返回 `Vector2.negativeInfinity`，由 `PlayerMove` 在物理帧调用 `Die()`。未超限（含恰好等于上限）、无持线或不限长时返回零。`pullStrength` 仅为旧资源兼容保留，不再参与超限处理。
+
+`PlayerMove.Died` 在玩家死亡、锁定输入、清零速度、关闭物理模拟并停用物体后触发一次。Env 当前没有订阅该事件，也没有死亡处理回调；超限死亡不会自动重置回路或重开关卡。
 
 ## 场景与验证
 
@@ -27,5 +29,5 @@
 
 - `Scenes/Tests/HeXieTestScene.unity`：真实 Player、输入、背包与回路集成场景，用于实际移动及 J/K 操作冒烟测试。
 - `Scenes/Tests/JillTestWireScene.unity`：保留独立回路诊断场景及模拟玩家，不是完整 Player 操作场景；可用 EnvironmentFacade 的调试按钮驱动交互和验收。
-- Edit Mode 执行菜单 **Tools > PluggerHead > Verify Player and Environment**，或调用 `EnvironmentIntegrationChecks.Run()`。验证在独立未保存的预览场景中运行真实组件，覆盖拾取/放置、J/K 选择逻辑、绕线、阻力、极性拒绝、换线、通关及重开，并清理测试对象。此次合并验证通过 43 项检查（含跨场景隔离和无效 Actor）；这不替代 Play Mode 场景冒烟测试。
+- Edit Mode 执行菜单 **Tools > PluggerHead > Verify Player and Environment**，或调用 `EnvironmentIntegrationChecks.Run()`。验证在独立未保存的预览场景中运行真实组件，覆盖拾取/放置、J/K 选择逻辑、绕线、阻力、极性拒绝、换线、通关及重开，并清理测试对象。当前覆盖 47 项检查（含跨场景隔离和无效 Actor）；这不替代 Play Mode 场景冒烟测试。
 - 关闭同项目 Editor 后可批处理运行：`Unity.exe -batchmode -projectPath <项目根目录> -executeMethod EnvironmentIntegrationChecks.RunBatch -quit -logFile <日志路径>`。使用项目指定 Unity 2022.3.43f1c1，并检查退出码及日志中的 PASS。

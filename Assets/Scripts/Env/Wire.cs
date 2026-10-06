@@ -65,11 +65,11 @@ public class Wire : MonoBehaviour
     private Transform fixedEnd;
 
     [SerializeField, Min(0f), BoxGroup("Wire")]
-    [Tooltip("Routed length before the carried wire pulls back. Zero leaves its length unrestricted.")]
+    [Tooltip("Maximum routed length of the carried wire. Exceeding it kills the player; zero leaves its length unrestricted.")]
     private float maxLength;
 
     [SerializeField, Min(0f), BoxGroup("Wire")]
-    [Tooltip("Pulling force per world unit beyond Max Length.")]
+    [Tooltip("Legacy pull-force setting retained for asset compatibility. Exceeding Max Length now kills the player regardless of this value.")]
     private float pullStrength = 10f;
 
     private readonly List<WirePoint> points = new();

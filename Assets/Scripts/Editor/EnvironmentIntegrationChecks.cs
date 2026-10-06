@@ -119,10 +119,21 @@ public static class EnvironmentIntegrationChecks
                 "Routing inserts the real anchor into the rendered wire path", ref checks);
 
             hand.transform.position = new Vector3(5f, 0f);
-            Set(live, "maxLength", 3f);
-            Set(live, "pullStrength", 10f);
-            Check(Near(environment.GetResistance(player.transform.position), new Vector2(-20f, 0f)),
-                "Wire tension uses fixed end, routing point, and actual hand position", ref checks);
+            Set(live, "maxLength", 6f);
+            Check(environment.GetResistance(player.transform.position) == Vector2.zero,
+                "A carried wire below its length limit applies no resistance", ref checks);
+            Set(live, "maxLength", 5f);
+            Check(environment.GetResistance(player.transform.position) == Vector2.zero,
+                "A carried wire exactly at its length limit is not lethal", ref checks);
+            Set(live, "maxLength", 4.99f);
+            Check(IsDeathResistance(environment.GetResistance(player.transform.position)),
+                "Exceeding the length limit at the actual hand returns the death sentinel", ref checks);
+            hand.transform.position = Vector3.zero;
+            Set(live, "maxLength", 1f);
+            Set(live, "pullStrength", 0f);
+            Check(IsDeathResistance(environment.GetResistance(player.transform.position)),
+                "Routing through an anchor can exceed the limit even at the fixed end with zero pull strength", ref checks);
+            hand.transform.position = new Vector3(5f, 0f);
             Set(live, "maxLength", 0f);
             Check(environment.GetResistance(player.transform.position) == Vector2.zero,
                 "Unrestricted wires apply no resistance", ref checks);
@@ -180,10 +191,26 @@ public static class EnvironmentIntegrationChecks
                 !environment.IsCircuitClosed && environment.SwapCount == 0 && !point.IsEngaged,
                 "Restart clears route, plug, swap, and victory state", ref checks);
 
-            movement.GetResistance = position => Vector2.negativeInfinity;
+            Set(live, "maxLength", 1f);
+            movement.GetResistance = environment.GetResistance;
+            int diedCount = 0;
+            bool stoppedBeforeDeathNotification = false;
+            Rigidbody2D body = player.GetComponent<Rigidbody2D>();
+            movement.Died += () =>
+            {
+                diedCount++;
+                stoppedBeforeDeathNotification = movement.IsDead && movement.IsInputLocked &&
+                    !player.activeSelf && !body.simulated && body.velocity == Vector2.zero &&
+                    body.angularVelocity == 0f;
+            };
+            body.velocity = Vector2.one;
+            body.angularVelocity = 15f;
             Invoke(movement, "FixedUpdate");
-            Check(movement.IsDead && !player.activeSelf && !player.GetComponent<Rigidbody2D>().simulated,
-                "The movement death sentinel remains supported", ref checks);
+            Check(stoppedBeforeDeathNotification && diedCount == 1,
+                "Real environment overlength stops the player before notifying death", ref checks);
+            Invoke(movement, "FixedUpdate");
+            movement.Die();
+            Check(diedCount == 1, "Repeated death processing notifies subscribers only once", ref checks);
             return $"Player/Environment integration PASS: {checks} checks; isolated preview scene cleaned up.";
         }
         finally
@@ -324,9 +351,9 @@ public static class EnvironmentIntegrationChecks
         count++;
     }
 
-    private static bool Near(Vector2 actual, Vector2 expected)
+    private static bool IsDeathResistance(Vector2 resistance)
     {
-        return (actual - expected).sqrMagnitude < 0.0001f;
+        return float.IsNegativeInfinity(resistance.x) && float.IsNegativeInfinity(resistance.y);
     }
 
     private static void Set(object target, string field, object value)

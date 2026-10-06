@@ -40,8 +40,8 @@ public class EnvironmentFacade : MonoBehaviour
     public int SwapCount => swapCount;
 
     /// <summary>
-    /// Pull the carried wire toward its last bend when its routed length exceeds its configured limit.
-    /// 根据实际绕线路径计算拉力; 未持线或未配置长度上限时不施加阻力.
+    /// Return the Player death sentinel when the carried wire's routed length exceeds its configured limit.
+    /// 实际绕线路径超出长度上限时返回负无穷以触发 Player 死亡; 未超限、未持线或不限长时返回零.
     /// </summary>
     public Vector2 GetResistance(Vector2 playerPosition)
     {
@@ -63,10 +63,8 @@ public class EnvironmentFacade : MonoBehaviour
         }
 
         Vector2 freeEnd = attachPoint ? (Vector2)attachPoint.position : playerPosition;
-        Vector2 towardBend = previous - freeEnd;
-        routedLength += towardBend.magnitude;
-        float excess = Mathf.Max(0f, routedLength - heldWire.MaxLength);
-        return towardBend.normalized * (excess * Mathf.Max(0f, heldWire.PullStrength));
+        routedLength += Vector2.Distance(previous, freeEnd);
+        return routedLength > heldWire.MaxLength ? Vector2.negativeInfinity : Vector2.zero;
     }
 
     /// <summary>

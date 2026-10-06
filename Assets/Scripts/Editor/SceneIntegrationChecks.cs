@@ -90,8 +90,29 @@ public static class SceneIntegrationChecks
         previousScene = SceneManager.GetActiveScene();
         previousEnvironment = EnvironmentFacade.Current;
         gameplayStarted = true;
-        pendingLoad = SceneManager.LoadSceneAsync(GameplayScenePath, LoadSceneMode.Additive);
-        yield return WaitForOperation(pendingLoad, "loading the gameplay scene");
+        // The authored scene may deliberately start beyond its wire limit. Keep the interaction
+        // scenario unrestricted in this test-owned copy, then test lethal length after restart.
+        UnityEngine.Events.UnityAction<Scene, LoadSceneMode> configureWireLimits = (scene, mode) =>
+        {
+            if (scene.path == GameplayScenePath)
+            {
+                foreach (Wire wire in FindComponents<Wire>(scene))
+                {
+                    typeof(Wire).GetField("maxLength", BindingFlags.Instance | BindingFlags.NonPublic)
+                        .SetValue(wire, 0f);
+                }
+            }
+        };
+        SceneManager.sceneLoaded += configureWireLimits;
+        try
+        {
+            pendingLoad = SceneManager.LoadSceneAsync(GameplayScenePath, LoadSceneMode.Additive);
+            yield return WaitForOperation(pendingLoad, "loading the gameplay scene");
+        }
+        finally
+        {
+            SceneManager.sceneLoaded -= configureWireLimits;
+        }
         ownedScene = SceneManager.GetSceneByPath(GameplayScenePath);
         ownedCore = CoreFacade.Instance;
         Require(ownedScene.IsValid() && ownedScene.isLoaded, "Gameplay scene did not load.");
@@ -166,6 +187,27 @@ public static class SceneIntegrationChecks
         finally
         {
             environment.LevelCleared -= onCleared;
+        }
+
+        int diedCount = 0;
+        Action onDied = () => diedCount++;
+        movement.Died += onDied;
+        try
+        {
+            typeof(Wire).GetField("maxLength", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(initialWire, 1f);
+            body.position = (Vector2)initialWire.FixedEndPosition + Vector2.right * 100f;
+            movement.transform.position = body.position;
+            Physics2D.SyncTransforms();
+            yield return new WaitForFixedUpdate();
+            Require(movement.IsDead && !movement.gameObject.activeSelf && !body.simulated && diedCount == 1,
+                "Exceeding the real wire limit must kill the player and notify death in a physics frame.");
+            yield return new WaitForFixedUpdate();
+            Require(diedCount == 1, "Later physics frames must not repeat the death notification.");
+        }
+        finally
+        {
+            movement.Died -= onDied;
         }
     }
 
