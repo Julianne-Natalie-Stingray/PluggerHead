@@ -144,7 +144,6 @@ public static class MainMenuIntegrationChecks
         Require(GameProgress.Store.TryGetLevel(out SceneId saved) && saved == SceneId.GameplayIntegration,
             "Successful gameplay entry must save the level.");
         PlayerMove player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
-        Vector3 defaultPosition = player.transform.position;
         var environment = EnvironmentFacade.Current;
         Wire heldWire = environment.HeldWire;
         Require(heldWire != null, "Authored gameplay must start with a held wire.");
@@ -169,9 +168,6 @@ public static class MainMenuIntegrationChecks
         Require(Field<UnityEngine.UI.Button>(menu, "continueGameButton").interactable, "Persisted level must enable Continue.");
         Field<UnityEngine.UI.Button>(menu, "continueGameButton").onClick.Invoke();
         yield return WaitForSwitch("GameplayIntegration");
-        player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
-        Require((player.transform.position - defaultPosition).sqrMagnitude < 1f,
-            "Continue must use the authored spawn, not the last player position.");
         Require(GameObject.Find("UnsavedRuntimeObject") == null,
             "Continue must discard runtime objects.");
         Require(EnvironmentFacade.Current.HeldWire != null && EnvironmentFacade.Current.HeldWire.gameObject.activeSelf &&

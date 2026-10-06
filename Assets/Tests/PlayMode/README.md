@@ -1,5 +1,7 @@
 # Editor PlayMode 测试
 
+2026-10-07 可变配置测试清理：删除 Player 生产参数驱动的 5 个移动/跳跃用例与电线生产材质驱动的 4 个像素用例及其专用辅助代码；移除固定落地高度/时长与交互距离、HUD 宽度、示例降压值、跨加载位置差与四格等于四世界单位的断言，以及固定默认音量断言。保留交互、路径、引用、存储恢复和显式夹具边界测试。今后禁止将预期可变配置作为固定验收标准，见 `Assets/AGENTS.md`；下方旧测试数量和覆盖说明为历史记录。
+
 2026-10-06 Tilemap 改造验证：EditMode 22/22（job `812b828e3ce84ea889c26457cc594fda`）、PlayMode 71/71（job `c12304087033435ebdf260a2b5541579`）均终态通过；以下较早 job 为历史记录。原 Corner 用例已替换为 TilemapTests，覆盖近角非格心往返、调试验收同格操作，并新增真实场景 Tilemap 落地及两个关卡的格心资源检查。
 
 程序集 `PluggerHead.PlayModeTests`，Category 均为 `Integration`。逐文件核查日期：2026-10-06；当前共 71 个用例，本轮 job `a8881108238d4eb5860ef817658ccfdf` 已结束并通过 71/71。各类通过 UnityPlatform 限定 Windows/Linux/macOS Editor；程序集本身无平台过滤，不能据此推断预定义 Editor 检查可用于独立 Player。执行方式见[测试总说明](../README.md)。

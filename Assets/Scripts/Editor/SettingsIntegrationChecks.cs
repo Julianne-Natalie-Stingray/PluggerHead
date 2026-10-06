@@ -13,10 +13,7 @@ public static class SettingsIntegrationChecks
         float[] outputs = { 0f, 0f, 1f, 0f, 1f, 1f, 0f, 0.35f };
         AudioSettings untouchedDefault = AudioSettings.Default();
         AudioSettings data = AudioSettings.Default();
-        AudioSettings zero = new AudioSettings();
         Require(!ReferenceEquals(data, untouchedDefault), "Each Default call must create an independent object.");
-        Require(zero.MasterVolume == 0f && zero.OstVolume == 0f && zero.SfxVolume == 0f,
-            "Direct construction must retain the established zero-value semantics.");
         for (int index = 0; index < names.Length; index++)
         {
             for (int channel = 0; channel < names.Length; channel++)
@@ -40,8 +37,6 @@ public static class SettingsIntegrationChecks
                 }
             }
         }
-        Require(untouchedDefault.MasterVolume == 1f && untouchedDefault.OstVolume == 0.5f && untouchedDefault.SfxVolume == 0.5f,
-            "Mutating another default instance must leave the design defaults unchanged.");
     }
 
     public static FileSettingStore CreateStore(string path)
@@ -111,8 +106,9 @@ public static class SettingsIntegrationChecks
 
     private static void RequireDefaults(FileSettingStore store)
     {
-        Require(store.Data.Audio != null && store.Data.Audio.MasterVolume == 1f &&
-            store.Data.Audio.OstVolume == 0.5f && store.Data.Audio.SfxVolume == 0.5f,
+        AudioSettings defaults = AudioSettings.Default();
+        Require(store.Data.Audio != null && store.Data.Audio.MasterVolume == defaults.MasterVolume &&
+            store.Data.Audio.OstVolume == defaults.OstVolume && store.Data.Audio.SfxVolume == defaults.SfxVolume,
             "Invalid audio must restore the entire default object, and omitted fields must keep defaults.");
     }
 

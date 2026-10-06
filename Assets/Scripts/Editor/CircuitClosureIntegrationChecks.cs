@@ -169,9 +169,9 @@ public static class CircuitClosureIntegrationChecks
             ground.GetComponent<PolaritySocket>().IsConfigurationValid && ground.GetComponent<Collider2D>() &&
             ground.GetComponent<SpriteRenderer>().sprite,
             "Ground example must contain a valid ground socket and interaction collider.");
-        Require(reducer && reducer.GetComponent<VoltageReducer>().VoltageDrop == 30f && reducer.GetComponent<Collider2D>() &&
+        Require(reducer && reducer.GetComponent<VoltageReducer>() && reducer.GetComponent<Collider2D>() &&
             reducer.GetComponent<SpriteRenderer>().sprite,
-            "Reducer example must contain its configured 30 V component and interaction collider.");
+            "Reducer example must contain a voltage reducer component and interaction collider.");
     }
 
     private static void AssertAdjacent(Wire wire)

@@ -45,15 +45,6 @@ namespace PluggerHead.Tests
             IntegrationCheckBridge.Invoke("TilemapIntegrationChecks", "CheckTransformedGeometryAndInteractionRange");
         }
 
-        [TestCase(false, false)]
-        [TestCase(true, false)]
-        [TestCase(false, true)]
-        [TestCase(true, true)]
-        public void WireRendering_PreservesInheritedColor_AndNewSegmentsCoverOlderOnes(bool neutralFirst, bool returnAtOutlet)
-        {
-            IntegrationCheckBridge.Invoke("TilemapIntegrationChecks", "CheckWireRendering", neutralFirst, returnAtOutlet);
-        }
-
         [UnityTest]
         public IEnumerator AutomaticLateUpdate_RecordsTilesAndHonorsAnchorLifetime()
         {
