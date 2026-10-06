@@ -204,7 +204,9 @@ public class Wire : MonoBehaviour
         colliderPoints.Clear();
         for (int i = 0; i < positions.Count; i++)
         {
-            Vector2 point = transform.InverseTransformPoint(positions[i]);
+            // Collider points are translated by offset before the Transform is applied.
+            // 碰撞体先叠加 offset 再应用 Transform，反向换算时需抵消该偏移。
+            Vector2 point = (Vector2)transform.InverseTransformPoint(positions[i]) - pathCollider.offset;
             if (colliderPoints.Count == 0 ||
                 (colliderPoints[colliderPoints.Count - 1] - point).sqrMagnitude > 0.00000001f)
             {

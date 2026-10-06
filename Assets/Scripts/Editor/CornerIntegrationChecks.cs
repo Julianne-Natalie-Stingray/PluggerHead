@@ -172,6 +172,7 @@ public static class CornerIntegrationChecks
         Fixture fixture = new Fixture();
         fixture.Wire.transform.localScale = new Vector3(2f, 0.5f, 1f);
         fixture.Wire.transform.rotation = Quaternion.Euler(0f, 0f, 31f);
+        fixture.Wire.PathCollider.offset = new Vector2(1.2f, -0.7f);
         Corner corner = fixture.AddCorner(new Vector2(0.5f, -0.2f));
         corner.DetectionCollider.offset = new Vector2(-0.5f, 0.2f);
         fixture.Move(new Vector2(3f, 2f));
@@ -182,6 +183,14 @@ public static class CornerIntegrationChecks
         ColliderDistance2D contact = corner.DetectionCollider.Distance(fixture.Wire.PathCollider);
         Require(contact.isValid && contact.isOverlapped,
             "The real transformed EdgeCollider must overlap the same corner as the rendered path.");
+
+        fixture.Wire.PathCollider.offset = new Vector2(-1.6f, 0.9f);
+        fixture.Tick();
+        AssertPath(fixture.Wire, fixture.Wire.FixedEndPosition, corner.Center, fixture.Wire.FreeEndPosition);
+        Physics2D.SyncTransforms();
+        contact = corner.DetectionCollider.Distance(fixture.Wire.PathCollider);
+        Require(contact.isValid && contact.isOverlapped,
+            "Changing only the edge offset must preserve physical contact after redrawing the unchanged path.");
 
         Fixture remote = new Fixture();
         remote.Move(new Vector2(3f, 2f));
@@ -272,7 +281,7 @@ public static class CornerIntegrationChecks
         {
             Require(Vector3.Distance(line.GetPosition(i), expected[i]) < 0.0001f,
                 "The renderer vertex must follow the circuit's ordered route.");
-            Require(Vector2.Distance(wire.transform.TransformPoint(colliderPoints[i]), expected[i]) < 0.0001f,
+            Require(Vector2.Distance(wire.transform.TransformPoint(colliderPoints[i] + wire.PathCollider.offset), expected[i]) < 0.0001f,
                 "The local collider vertex must map back onto the rendered world-space vertex.");
         }
     }
