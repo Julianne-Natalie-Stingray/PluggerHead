@@ -14,7 +14,7 @@ public class AudioManagerConfigs : ScriptableObject
 
 #region Bus Volume
 
-    // A mixer is an asset, not a component, so it cannot be resolved with GetComponent<>(); this is the
+    // A mixer is an asset, not a component, so it cannot be resolved with GetComponent<>(); this
     // configuration asset needs a serialized reference. The parameter names live here as data rather
     // than as constants inside logic, so renaming one in the AudioMixer window needs no code change.
     // mixer 是资产而不是组件, 无法用 GetComponent<>() 解析, 因此通过序列化引用配置.

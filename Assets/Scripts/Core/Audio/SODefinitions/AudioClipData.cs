@@ -29,19 +29,19 @@ public class AudioClipData : ScriptableObject
     [SerializeField] private AudioClip clip;
     [SerializeField] private AudioMixerGroup mixerGroup;
     [SerializeField] private bool loop = false;
-    // Whether a clip is kept through a freeze is independent of whether it loops: a loop may be cut by a
-    // freeze, and a one-shot may be expected to survive one. Do not re-couple the two.
-    // 是否在冻结中被保留, 与是否循环是两件事: 循环音可以被冻结掐断, 一次性音也可能需要熬过冻结. 不要把两者重新绑在一起.
+    // Listener-pause behavior is independent of looping: either kind of sound may opt out of the pause.
+    // This flag configures ignoreListenerPause; it does not itself stop or release an emitter.
+    // 是否忽略监听器暂停与是否循环相互独立; 此开关不直接停止或归还声部.
     [SerializeField]
-    [Tooltip("Static initial for whether a playback of this clip survives entering Freezed. AudioBuilder.WithSurviveFreeze overrides it per call. Default false, which cuts the clip.")]
+    [Tooltip("Default AudioSource.ignoreListenerPause value. False obeys listener pause; true ignores it. AudioBuilder.WithSurviveFreeze overrides this per request.")]
     private bool defaultSurviveFreeze = false;
     [SerializeField] private int maxInstances = 10;
 
     [SerializeField, Range(0f, 1f)]
-    [Tooltip("Baseline volume for every playback of this clip. The builder may raise or lower it live.")]
+    [Tooltip("Baseline playback volume. AudioBuilder overrides it per request; ISoundHandle.TrySetVolume changes an active playback.")]
     private float volume = 1f;
     [SerializeField, Range(0.1f, 3f)]
-    [Tooltip("Baseline pitch for every playback of this clip. The builder may raise or lower it live.")]
+    [Tooltip("Baseline playback pitch. AudioBuilder overrides it per request; ISoundHandle.TrySetPitch changes an active playback.")]
     private float pitch = 1f;
 
     // Fades are opt-in: 0 reproduces the original hard start and hard cut exactly, so existing assets keep
@@ -55,13 +55,13 @@ public class AudioClipData : ScriptableObject
     private float fadeOut = 0f;
 
     [SerializeField, Range(0f, 1f), BoxGroup("Spatial")]
-    [Tooltip("0 is fully 2D and ignores position. Above 0 the playback needs a position, from the builder or from a follow target.")]
+    [Tooltip("AudioSource spatial blend. Supply a builder position or follow target for spatial playback; without either, the emitter uses its current position.")]
     private float spatialBlend = 0f;
     [SerializeField, Min(0f), BoxGroup("Spatial")]
-    [Tooltip("Distance from the listener at which the sound stops attenuating.")]
+    [Tooltip("Value copied to AudioSource.minDistance; interpreted by the source's distance rolloff settings.")]
     private float minDistance = 1f;
     [SerializeField, Min(0f), BoxGroup("Spatial")]
-    [Tooltip("Distance from the listener beyond which the sound stops being audible.")]
+    [Tooltip("Value copied to AudioSource.maxDistance. This field does not implement a hard mute beyond that distance.")]
     private float maxDistance = 20f;
 
 #if UNITY_EDITOR
