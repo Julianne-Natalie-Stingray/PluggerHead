@@ -12,7 +12,7 @@ using UnityEngine;
 /// Does NOT own: which wire the player holds, the order of engaged points, the polarity rules, or the win check.
 /// Those are circuit state and live in EnvironmentFacade, which is the only place that holds them.
 /// Lifetime: part of the level object; never created at runtime.
-/// Geometry: straight segments only, no physics and no animation. The path is the outlet, then every engaged
+/// Geometry: straight segments with a query-only trigger collider, no rope simulation or animation. The path is the outlet, then every engaged
 /// point in engagement order, then the free end, which is why the wire is a polyline rather than a simulated rope.
 /// 一根电线: 固定端在插座孔, 自由端由玩家携带, 中间是它折向经过的点.
 /// Subsystem 归属: Environment.
@@ -21,11 +21,12 @@ using UnityEngine;
 /// 不负责: 玩家持有哪根线, 已接入点的顺序, 电性规则, 以及通关判定.
 /// 那些是回路状态, 位于 EnvironmentFacade —— 唯一持有它们的地方.
 /// 生命周期: 属于关卡物体; 从不在运行时创建.
-/// 几何: 只有直线段, 不做物理, 不做动画. 路径 = 插座孔 -> 按接入顺序排列的所有已接入点 -> 自由端,
+/// 几何: 直线段附带查询用 Trigger 碰撞体, 不做绳索物理或动画. 路径 = 插座孔 -> 按接入顺序排列的所有已接入点 -> 自由端,
 /// 因此线是折线而不是被模拟的绳子.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(LineRenderer))]
+[RequireComponent(typeof(EdgeCollider2D))]
 public class Wire : MonoBehaviour
 {
     public WirePolarity Polarity => polarity;
@@ -37,6 +38,7 @@ public class Wire : MonoBehaviour
     public Vector3 FixedEndPosition => fixedEnd ? fixedEnd.position : transform.position;
     public float MaxLength => maxLength;
     public float PullStrength => pullStrength;
+    public EdgeCollider2D PathCollider => pathCollider;
 
     /// <summary>
     /// Where this wire's free end currently is: the carrying player's attach point while held, otherwise the place
@@ -75,6 +77,9 @@ public class Wire : MonoBehaviour
     private readonly List<WirePoint> points = new();
 
     private LineRenderer line;
+    private EdgeCollider2D pathCollider;
+    private readonly List<Vector2> colliderPoints = new();
+    private readonly List<Vector2> previousColliderPoints = new();
     private Transform attachPoint;
     private PowerSocket socket;
     private Transform plugTarget;
@@ -99,6 +104,18 @@ public class Wire : MonoBehaviour
         if (!line)
         {
             line = GetComponent<LineRenderer>();
+        }
+
+        if (!pathCollider)
+        {
+            pathCollider = GetComponent<EdgeCollider2D>();
+            if (!pathCollider)
+            {
+                pathCollider = gameObject.AddComponent<EdgeCollider2D>();
+            }
+            pathCollider.isTrigger = true;
+            pathCollider.edgeRadius = 0f;
+            pathCollider.enabled = false;
         }
 
         points.Clear();
@@ -177,5 +194,38 @@ public class Wire : MonoBehaviour
         line.positionCount = positions.Count;
         line.useWorldSpace = true;
         line.SetPositions(buffer);
+        UpdatePathCollider(positions);
+    }
+
+    // The collider follows the same world-space polyline, converted to local coordinates.
+    // 碰撞体与渲染共用路径，仅在路径变化时更新物理形状；不产生实体碰撞。
+    private void UpdatePathCollider(IReadOnlyList<Vector3> positions)
+    {
+        colliderPoints.Clear();
+        for (int i = 0; i < positions.Count; i++)
+        {
+            Vector2 point = transform.InverseTransformPoint(positions[i]);
+            if (colliderPoints.Count == 0 ||
+                (colliderPoints[colliderPoints.Count - 1] - point).sqrMagnitude > 0.00000001f)
+            {
+                colliderPoints.Add(point);
+            }
+        }
+
+        bool changed = colliderPoints.Count != previousColliderPoints.Count;
+        for (int i = 0; !changed && i < colliderPoints.Count; i++)
+        {
+            changed = colliderPoints[i] != previousColliderPoints[i];
+        }
+        if (changed && colliderPoints.Count >= 2)
+        {
+            pathCollider.SetPoints(colliderPoints);
+        }
+        pathCollider.enabled = colliderPoints.Count >= 2;
+        if (changed)
+        {
+            previousColliderPoints.Clear();
+            previousColliderPoints.AddRange(colliderPoints);
+        }
     }
 }

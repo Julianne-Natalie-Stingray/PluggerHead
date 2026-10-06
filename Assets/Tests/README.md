@@ -13,6 +13,7 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个音频生命周期用例 | 原有 19 项断言：默认参数、Builder 覆盖、停止、自然结束、池复用、旧 Timer 隔离、循环及淡出 |
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个实际玩法场景用例 | `HeXieTestScene` 启动、帧推进、K 放置/J 收回 Anchor、绕线渲染、换线、通关一次、重开、超限死亡及单次死亡通知 |
 | PlayMode | `PluggerHead.PlayModeTests` | 4 个地面极性用例 | 真实 2D 支撑接触、双向异极死亡、同极/无线安全、侧墙与天花板排除、Trigger/层过滤、禁用组件、站立换线与输入锁、自动物理帧死亡 |
+| PlayMode | `PluggerHead.PlayModeTests` | 7 个 Corner 用例 | 活动线段进入、方向退绕、高速多角顺序、静止/向外移动、微小位移累积、双线独立 Anchor、重开/禁用清理、真实碰撞体坐标、远程交互排除、自动 LateUpdate 与 Anchor 销毁 |
 
 表中的断言数是用例内部的检查点数量，不是 NUnit 用例数量；实际用例数与结果以 Test Runner 报告为准。PlayMode 用例由 Runner 自动进入/退出播放；音频用例会创建缺失的 TimerRunner 和 AudioListener，玩法用例会加载并卸载自有场景和 Core，无需预先打开或手工配置运行场景。
 
@@ -54,4 +55,5 @@ EditMode 完成后，再运行 PlayMode 并同样轮询自己的 job：
 - 玩法用例只修改自己加载的场景；`UnityTearDown` 在成功或失败时卸载场景并清理自有持久 Core。异步加载、卸载和动画锁等待各有 15 秒超时。
 - 玩法用例在自有场景加载回调中临时取消线长限制，完成交互流程后设置有限线长，验证真实物理帧的超限死亡。这样兼容开局即超限的诊断配置，不修改或保存原场景资源。
 - 地面极性用例创建独立的 2D 物理场景，并先验证实际接触与法向，再检查死亡结果；`UnityTearDown` 卸载自有场景、恢复环境静态引用并清理自有 Core，不保存或修改关卡资源。
+- Corner 用例使用独立 2D 物理场景及真实 Wire/Corner/Anchor，校验 LineRenderer 与 EdgeCollider2D 的顶点一致；帧推进用例验证实际 LateUpdate 与延迟销毁。测试后卸载自有场景并恢复 Environment 静态引用，不修改场景资源。
 - 原有 `EnvironmentIntegrationChecks.Run()` 和 `AudioIntegrationChecks.Run()` 手动入口仍可使用。自动测试调用 `RunForTests()`，不依赖手工轮询音频 `LastResult`。

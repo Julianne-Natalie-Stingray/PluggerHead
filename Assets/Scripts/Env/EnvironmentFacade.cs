@@ -92,6 +92,7 @@ public class EnvironmentFacade : MonoBehaviour
     private readonly List<IEnvironmentInteractable> nodes = new();
     private readonly List<Wire> wires = new();
     private readonly List<Anchor> anchors = new();
+    private readonly List<Corner> corners = new();
     private readonly Dictionary<PolaritySocket, WirePolarity> occupied = new();
     private readonly Dictionary<Wire, List<Vector3>> waypoints = new();
     private readonly List<Vector3> renderBuffer = new();
@@ -104,6 +105,8 @@ public class EnvironmentFacade : MonoBehaviour
     private int swapCount;
     private bool isCircuitClosed;
     private bool reportedMissingAttachPoint;
+    private Wire sampledWire;
+    private Vector2 previousFreeEnd;
 
     private void Awake()
     {
@@ -139,6 +142,19 @@ public class EnvironmentFacade : MonoBehaviour
     /// 实现思路: 自由端跟随携带者, 因此折线每帧由缓存的绕线顺序重建, 而不是从头重算; 绕线顺序只在发生交互时改变.
     /// </summary>
     private void LateUpdate()
+    {
+        foreach (Corner corner in corners)
+        {
+            if (corner)
+            {
+                corner.CleanReleasedAnchors();
+            }
+        }
+        RenderWires();
+        UpdateCornerRouting();
+    }
+
+    private void RenderWires()
     {
         for (int i = 0; i < wires.Count; i++)
         {
@@ -188,6 +204,8 @@ public class EnvironmentFacade : MonoBehaviour
         nodes.Clear();
         wires.Clear();
         anchors.Clear();
+        corners.Clear();
+        corners.AddRange(FindSceneComponents<Corner>(true));
         waypoints.Clear();
         occupied.Clear();
         socket = null;
@@ -285,6 +303,144 @@ public class EnvironmentFacade : MonoBehaviour
         nodes.Remove(anchor);
         anchor.OnInteracted -= HandleInteracted;
         RebuildWaypoints();
+    }
+
+    internal void RegisterCorner(Corner corner)
+    {
+        if (corner && corner.gameObject.scene == gameObject.scene && !corners.Contains(corner))
+        {
+            corners.Add(corner);
+        }
+    }
+
+    internal void UnregisterCorner(Corner corner)
+    {
+        corners.Remove(corner);
+    }
+
+    // Resolve contact events in movement order, independent of Corner script execution order.
+    // 先同步线碰撞体，按活动端的运动时间依次挂线/退绕，每次修改后重新计算活动线段。
+    private void UpdateCornerRouting()
+    {
+        if (!heldWire || !heldWire.IsHeld || Time.timeScale <= 0f)
+        {
+            sampledWire = null;
+            return;
+        }
+
+        Vector2 end = heldWire.FreeEndPosition;
+        if (sampledWire != heldWire)
+        {
+            sampledWire = heldWire;
+            previousFreeEnd = end;
+            return;
+        }
+
+        Vector2 from = previousFreeEnd;
+        if ((end - from).sqrMagnitude <= 0.00000001f)
+        {
+            return;
+        }
+        previousFreeEnd = end;
+
+        Physics2D.SyncTransforms();
+        // Each corner can enter and leave at most once along a straight endpoint movement.
+        for (int step = 0; step < corners.Count * 2 + 1; step++)
+        {
+            GetRoutingTail(heldWire, out Vector2 pivot, out Vector2 predecessor, out Corner tail);
+            Corner next = null;
+            bool release = false;
+            float earliest = float.PositiveInfinity;
+            if (tail && tail.TryGetExit(heldWire, predecessor, from, end, out float exitTime))
+            {
+                next = tail;
+                earliest = exitTime;
+                release = true;
+            }
+            foreach (Corner corner in corners)
+            {
+                if (corner && corner.TryGetEntry(heldWire, pivot, from, end, out float entryTime) &&
+                    entryTime < earliest)
+                {
+                    next = corner;
+                    earliest = entryTime;
+                    release = false;
+                }
+            }
+            if (!next)
+            {
+                break;
+            }
+            if (release)
+            {
+                next.Release(heldWire);
+            }
+            else
+            {
+                next.Engage(this, heldWire, pivot, end - from);
+            }
+            from = Vector2.Lerp(from, end, earliest);
+            RenderWires();
+            Physics2D.SyncTransforms();
+        }
+    }
+
+    private void GetRoutingTail(Wire wire, out Vector2 pivot, out Vector2 predecessor, out Corner corner)
+    {
+        pivot = wire.FixedEndPosition;
+        predecessor = pivot;
+        int lastSequence = 0;
+        int previousSequence = 0;
+        Anchor lastAnchor = null;
+        foreach (WirePoint point in wire.Points)
+        {
+            if (point && point.IsEngaged)
+            {
+                ConsiderRoutingPoint(point.EngagementSequence, point.transform.position,
+                    ref lastSequence, ref previousSequence, ref pivot, ref predecessor);
+            }
+        }
+        foreach (Anchor anchor in anchors)
+        {
+            if (anchor && anchor.EngagedBy == wire)
+            {
+                if (anchor.EngagementSequence > lastSequence)
+                {
+                    lastAnchor = anchor;
+                }
+                ConsiderRoutingPoint(anchor.EngagementSequence, anchor.transform.position,
+                    ref lastSequence, ref previousSequence, ref pivot, ref predecessor);
+            }
+        }
+        corner = null;
+        if (lastAnchor)
+        {
+            foreach (Corner candidate in corners)
+            {
+                if (candidate && candidate.GetAnchor(wire) == lastAnchor)
+                {
+                    corner = candidate;
+                    break;
+                }
+            }
+        }
+    }
+
+    private static void ConsiderRoutingPoint(int sequence, Vector2 position, ref int lastSequence,
+        ref int previousSequence, ref Vector2 pivot, ref Vector2 predecessor)
+    {
+        if (sequence > lastSequence)
+        {
+            previousSequence = lastSequence;
+            predecessor = pivot;
+            lastSequence = sequence;
+            pivot = position;
+        }
+        else if (sequence > previousSequence)
+        {
+            previousSequence = sequence;
+            predecessor = position;
+        }
     }
 
     /// <summary>
@@ -399,6 +555,7 @@ public class EnvironmentFacade : MonoBehaviour
     /// </summary>
     private void HandleInteracted(IEnvironmentInteractable node)
     {
+        sampledWire = null;
         switch (node)
         {
             case PolaritySocket liveInterface:
@@ -671,6 +828,14 @@ public class EnvironmentFacade : MonoBehaviour
 
     private void BeginRun()
     {
+        foreach (Corner corner in corners)
+        {
+            if (corner)
+            {
+                corner.ReleaseAll();
+            }
+        }
+        sampledWire = null;
         swapCount = 0;
         isCircuitClosed = false;
         heldWire = null;

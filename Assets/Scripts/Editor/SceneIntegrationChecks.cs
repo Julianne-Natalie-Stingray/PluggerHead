@@ -68,6 +68,22 @@ public static class SceneIntegrationChecks
                     "Gameplay Player must reference a reclaimable anchor prefab with a collider.");
                 Require(FindComponents<PowerSocket>(scene).Any(socket => socket.StartingWire != null &&
                     socket.Wires.Count >= 2), "Gameplay outlet must reference its authored wires.");
+                BoxCollider2D ground = FindComponents<BoxCollider2D>(scene).Single(collider => collider.name == "Ground");
+                List<Corner> corners = FindComponents<Corner>(scene);
+                Require(corners.Count == 4, "Gameplay Ground must have four authored Corner instances.");
+                foreach (Corner corner in corners)
+                {
+                    Vector2 local = ground.transform.InverseTransformPoint(corner.Center);
+                    Vector2 delta = local - ground.offset;
+                    Require(Mathf.Abs(Mathf.Abs(delta.x) - ground.size.x * 0.5f) < 0.0001f &&
+                        Mathf.Abs(Mathf.Abs(delta.y) - ground.size.y * 0.5f) < 0.0001f &&
+                        (corner.transform.lossyScale - Vector3.one).sqrMagnitude < 0.0001f &&
+                        corner.DetectionCollider.isTrigger &&
+                        PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(corner.gameObject) == "Assets/Prefabs/Env/Corner.prefab",
+                        "Each Corner prefab must sit at a Ground collider corner with compensated scale.");
+                }
+                Require(FindComponents<Wire>(scene).All(wire => wire.GetComponent<EdgeCollider2D>() != null &&
+                    wire.GetComponent<EdgeCollider2D>().isTrigger), "Authored wires must include trigger EdgeCollider2D.");
             }
         }
         finally
@@ -210,6 +226,28 @@ public static class SceneIntegrationChecks
         {
             environment.LevelCleared -= onCleared;
         }
+
+        Corner groundCorner = FindComponents<Corner>(ownedScene).Single(node => node.name == "Corner Left Top");
+        Vector2 handOffset = (Vector2)initialWire.FreeEndPosition - body.position;
+        body.position = new Vector2(-12f, -2f) - handOffset;
+        movement.transform.position = body.position;
+        yield return null;
+        yield return null;
+        Require(!groundCorner.GetAnchor(initialWire), "Moving above Ground must not pre-hook its corner.");
+        body.position = new Vector2(-12f, -4.5f) - handOffset;
+        movement.transform.position = body.position;
+        yield return null;
+        yield return null;
+        Anchor cornerAnchor = groundCorner.GetAnchor(initialWire);
+        Require(cornerAnchor && cornerAnchor.EngagedBy == initialWire && line.positionCount == 3 &&
+            groundCorner.DetectionCollider.Distance(initialWire.PathCollider).isOverlapped,
+            "The actual scene's Ground corner must automatically hook the Player's carried wire.");
+        body.position = new Vector2(-12f, -2f) - handOffset;
+        movement.transform.position = body.position;
+        yield return null;
+        yield return null;
+        Require(!cornerAnchor && !groundCorner.GetAnchor(initialWire) && line.positionCount == 2,
+            "Reversing the real scene Player must unhook and destroy the generated corner Anchor.");
 
         int diedCount = 0;
         Action onDied = () => diedCount++;

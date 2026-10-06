@@ -24,6 +24,20 @@
 
 `PlayerMove.Died` 在玩家死亡、锁定输入、清零速度、关闭物理模拟并停用物体后触发一次。Env 当前没有订阅该事件，也没有死亡处理回调；超限死亡不会自动重置回路或重开关卡。
 
+## 拐角自动绕线
+
+`Prefabs/Env/Corner.prefab` 是场景节点，包含 Trigger `CircleCollider2D`、`Corner` 行为和 Anchor prefab 引用。在 Ground 的凸角处放置实例，圆心就是挂线点；`HeXieTestScene` 已在 Ground 四角放置，世界检测半径为 0.15。父物体非等比缩放时应补偿 Corner 的局部缩放，保持世界缩放 `(1,1,1)`。
+
+`Wire` 的 Trigger `EdgeCollider2D` 与 LineRenderer 共用折线路径，世界坐标转换为局部碰撞体坐标；仅在点变化时重建形状，重合的相邻点合并，零长度线禁用碰撞体。无需 Rigidbody2D，不产生实体碰撞。Player 的接地查询排除 Trigger，交互扫描排除线碰撞体，防止沿电线远距离操作父级插座。
+
+Environment 在 LateUpdate 同步线碰撞体后，由 Corner 查询真实 Collider 接触，并根据活动端上一帧到当前帧的移动向量检查活动末段的扫掠。首次采样或静止不会挂线；高速跨过整个检测圆仍可挂线。多个拐角按接触时间处理，每次挂线后重新计算末段。检测以线的中心路径为准，不包含渲染线宽。
+
+进入时在圆心创建属于该 Wire 的临时 Anchor，加入现有绕线顺序。继续绕到拐角另一侧保留挂线；反向运动使“前一个节点直连活动端”的线段从进入侧离开检测圆时，先解绑注销，再销毁 Anchor。只能从当前末端退绕，手动 Anchor/WirePoint 之后的固定段不随活动端错误解开。不能依赖 `OnTriggerExit2D`：挂上后实际线段始终经过圆心。
+
+同一 Corner 为不同 Wire 分别保留 Anchor；插线、换线不清除旧线的折点。重开、禁用或销毁 Corner 会清理它自己的自动 Anchor。自动 Anchor 不参与 J/K 收回；手动 Anchor 行为保持原有契约。场景之间的 Corner 与 Wire 不混用。
+
+验证覆盖 7 个 Corner PlayMode 用例，以及真实 `HeXieTestScene` 玩家绕过左上角再反向返回的流程。[挂线运行截图](../../Docs/Development/CornerHook.png)。碰撞体会增加物理形状更新与查询成本；当前验证针对本项目两根线和四个场景 Corner，未做大量长折线的性能压测。
+
 ## 地面极性
 
 在 Ground 的非 Trigger `Collider2D` 所在物体或其父物体上添加 `GroundPolarity`，在 Inspector 设置 `Polarity`，并确保碰撞体所在层包含在 `PlayerMove.groundLayers` 中。无需为普通地面添加组件；禁用组件即可关闭该地面的极性判定。

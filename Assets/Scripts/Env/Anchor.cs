@@ -14,7 +14,7 @@ using UnityEngine;
 public class Anchor : MonoBehaviour, IEnvironmentInteractable
 {
     public bool CanInteract => canInteract && CanReclaim;
-    public bool CanReclaim => isActiveAndEnabled && !isReclaimed;
+    public bool CanReclaim => isActiveAndEnabled && !isReclaimed && !cornerOwner;
     public bool IsEngaged => engagedBy != null;
     public int EngagementSequence => engagementSequence;
 
@@ -33,6 +33,32 @@ public class Anchor : MonoBehaviour, IEnvironmentInteractable
     private Wire engagedBy;
     private int engagementSequence;
     private bool isReclaimed;
+    private Corner cornerOwner;
+
+    /// <summary>Attach an automatic routing node owned exclusively by a scene corner.
+    /// Corner 自动节点仅由所属拐角管理，不参与 J/K 手动收回。</summary>
+    internal void HookAtCorner(Corner owner, Wire wire)
+    {
+        cornerOwner = owner;
+        engagedBy = wire;
+        engagementSequence = wire.NextEngagementSequence();
+    }
+
+    internal void ReleaseFromCorner()
+    {
+        isReclaimed = true;
+        ResetRouting();
+        EnvironmentFacade.ForScene(gameObject.scene)?.UnregisterAnchor(this);
+        gameObject.SetActive(false);
+        if (Application.isPlaying)
+        {
+            Destroy(gameObject);
+        }
+        else
+        {
+            DestroyImmediate(gameObject);
+        }
+    }
 
     internal void ResetRouting()
     {

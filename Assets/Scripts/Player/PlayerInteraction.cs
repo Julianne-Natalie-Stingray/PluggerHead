@@ -199,7 +199,8 @@ public class PlayerInteraction : MonoBehaviour
         float nearestDistance = float.PositiveInfinity;
         foreach (Collider2D hit in hits)
         {
-            if (hit == null || hit.gameObject.scene != gameObject.scene || hit.transform.IsChildOf(transform))
+            if (hit == null || hit.gameObject.scene != gameObject.scene || hit.transform.IsChildOf(transform) ||
+                hit.GetComponent<Wire>() != null)
             {
                 continue;
             }
