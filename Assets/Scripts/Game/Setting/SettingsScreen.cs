@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 暂停设置界面。读取 Core 定义的音频设置，显式保存，不应用实际音量。
+/// 暂停设置界面。读取 Core 定义的音频设置，显式保存，成功后立即应用实际音量。
 /// MenuButton 调用 Open，Continue 调用 ContinueGame。
 /// </summary>
 [DisallowMultipleComponent]
@@ -91,6 +91,11 @@ public sealed class SettingsScreen : MonoBehaviour
         audio.SfxVolume = sfxVolume.value;
         if (SettingBootstrap.Save())
         {
+            if (CoreFacade.Instance != null && CoreFacade.Instance.Audio != null)
+            {
+                CoreFacade.Instance.Audio.ApplyAudioSettings();
+            }
+
             saveStatus.text = "Settings saved";
             return;
         }

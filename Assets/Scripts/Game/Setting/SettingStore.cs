@@ -118,17 +118,17 @@ public abstract class SettingStore<TData>
         // A failed overwrite may already have changed some fields.
         // 覆盖失败前可能已写入部分字段，恢复完整默认值后再报告失败。
         target.ResetToDefault();
-        ReportLoadFailure($"could not parse {filePath}");
+        ReportLoadFailure($"could not parse or validate {filePath}");
     }
 
     /// <summary>
     /// Single entry point for writing the live data to disk.
     /// Implementation approach: serializes and writes immediately, and reports success through its return
     /// value so a caller can decide what to do. Serialization and write exceptions are caught and logged.
-    /// This is a direct overwrite, without a temporary replacement file or backup.
+    /// Writes a unique sibling temporary file before replacing the destination; failures preserve the old file.
     /// 把当前数据写入磁盘的单一入口.
     /// 实现思路: 立即序列化并写入, 并通过返回值报告成功与否, 使调用方自行决定后续;
-    /// 序列化与写入异常会被捕获并记录. 直接覆盖原文件, 没有临时文件替换或备份.
+    /// 序列化与写入异常会被捕获并记录. 先写同目录唯一临时文件, 再替换目标; 失败保留旧文件.
     /// </summary>
     public bool Save()
     {
@@ -143,13 +143,40 @@ public abstract class SettingStore<TData>
             return ReportSaveFailure($"serialization failed: {exception.Message}");
         }
 
+        string temporaryPath = filePath + "." + System.Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            System.IO.File.WriteAllText(filePath, json);
+            System.IO.File.WriteAllText(temporaryPath, json);
+            if (System.IO.File.Exists(filePath))
+            {
+                System.IO.File.Replace(temporaryPath, filePath, null);
+            }
+            else
+            {
+                System.IO.File.Move(temporaryPath, filePath);
+            }
         }
         catch (System.Exception exception)
         {
             return ReportSaveFailure($"could not write {filePath}: {exception.Message}");
+        }
+        finally
+        {
+            try
+            {
+                if (System.IO.File.Exists(temporaryPath))
+                {
+                    System.IO.File.Delete(temporaryPath);
+                }
+            }
+            catch (System.Exception exception)
+            {
+                GameLog.Warning()
+                    .Subsystem("Setting")
+                    .Name(LogName.Class)
+                    .Issue(LogIssue.Specify($"Could not remove temporary settings file {temporaryPath}: {exception.Message}"))
+                    .Write();
+            }
         }
 
         GameLog.Info()

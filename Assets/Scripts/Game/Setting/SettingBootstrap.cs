@@ -43,10 +43,10 @@ public static class SettingBootstrap
     /// Single entry point for creating and loading the settings store.
     /// Implementation approach: runs before the first scene loads, which is what makes Settings safe to read
     /// from scene Awake. Load handles missing files, read failures and parser exceptions with defaults;
-    /// successfully parsed values are not validated for business correctness.
+    /// parsed audio values are validated before they are accepted.
     /// 创建并加载设置存储的单一入口.
     /// 实现思路: 在第一个场景加载之前运行, 这正是 Settings 能被任何 Awake 安全读取的原因.
-    /// Load 对缺失文件、读取失败和解析异常使用默认值; 成功解析的数值没有业务校验.
+    /// Load 对缺失文件、读取失败和解析异常使用默认值; 解析后的音频数据通过业务校验后才被接受.
     /// </summary>
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Initialize()

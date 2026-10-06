@@ -99,6 +99,7 @@ public static class MainMenuIntegrationChecks
         var settings = Field<SettingsScreen>(menu, "settingsScreen");
         Require(settings.gameObject.activeSelf && GameStateManager.Current == GameState.Freezed,
             "Settings button must open the existing settings panel.");
+        CheckSettingsSave(settings);
         settings.ContinueGame();
         Require(GameStateManager.Current == GameState.Playing && Time.timeScale > 0, "Closing settings must release pause.");
 
@@ -196,6 +197,48 @@ public static class MainMenuIntegrationChecks
         }
         ownsScenes = false;
         yield return null;
+    }
+
+    private static void CheckSettingsSave(SettingsScreen screen)
+    {
+        FieldInfo settingsStoreField = typeof(SettingBootstrap).GetField("store", BindingFlags.Static | BindingFlags.NonPublic);
+        object previousSettingsStore = settingsStoreField.GetValue(null);
+        var configs = Field<AudioManagerConfigs>(CoreFacade.Instance.Audio, "configs");
+        string[] parameters = { configs.MasterVolumeParameter, configs.OstVolumeParameter, configs.SfxVolumeParameter };
+        float[] previousVolumes = new float[3];
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            Require(configs.Mixer.GetFloat(parameters[i], out previousVolumes[i]), "Mixer volume must be exposed.");
+        }
+        string directory = Path.Combine(Path.GetTempPath(), "PluggerHeadSettingsUI-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string path = Path.Combine(directory, "settings.json");
+            var store = SettingsIntegrationChecks.CreateStore(path);
+            settingsStoreField.SetValue(null, store);
+            float[] requested = { 0.25f, 0.4f, 0.6f };
+            Field<UnityEngine.UI.Slider>(screen, "masterVolume").value = requested[0];
+            Field<UnityEngine.UI.Slider>(screen, "ostVolume").value = requested[1];
+            Field<UnityEngine.UI.Slider>(screen, "sfxVolume").value = requested[2];
+            screen.SaveSettings();
+            Require(File.Exists(path), "Settings UI must persist its saved values.");
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                Require(configs.Mixer.GetFloat(parameters[i], out float actual) &&
+                    Mathf.Abs(actual - 20f * Mathf.Log10(requested[i])) < 0.001f,
+                    "Saving settings must immediately apply each real mixer bus.");
+            }
+        }
+        finally
+        {
+            settingsStoreField.SetValue(null, previousSettingsStore);
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                configs.Mixer.SetFloat(parameters[i], previousVolumes[i]);
+            }
+            Directory.Delete(directory, true);
+        }
     }
 
     private static IEnumerator WaitForSwitch(string name)

@@ -61,11 +61,16 @@ public static class GameStateManager
     /// 挂起游玩的单一入口.
     /// 实现思路: 已处于冻结时拒绝动作, 这正是防止已记录的时间缩放被零覆盖的关键.
     /// 它记录当前时间缩放, 停止游戏时间, 暂停音频监听器, 然后才宣布状态.
-    /// Callers must not interleave this with Loading; only an already-Freezed state is guarded here.
-    /// 调用方不得在 Loading 中交错调用; 本方法只拦截已经 Freezed 的情况.
+    /// Loading owns the state until ExitLoading; pause requests during loading are ignored.
+    /// Loading 持有状态直到 ExitLoading; 加载期间忽略暂停请求.
     /// </summary>
     public static void Freeze()
     {
+        if (Current == GameState.Loading)
+        {
+            return;
+        }
+
         if (Current == GameState.Freezed)
         {
             GameLog.Info()
@@ -92,11 +97,16 @@ public static class GameStateManager
     /// 恢复游玩的单一入口.
     /// 实现思路: 还原进入 Freeze 时所生效的时间缩放, 而不是假定某个值; 随后解除监听器暂停并宣布状态.
     /// 与 Freeze 一样, 它是幂等的.
-    /// Calling it during Loading replaces the label with Playing, so ExitLoading can no longer restore it.
-    /// 加载期间调用会把标签改为 Playing, 导致后续 ExitLoading 无法还原加载前的标签.
+    /// Loading owns the state until ExitLoading; resume requests during loading are ignored.
+    /// Loading 持有状态直到 ExitLoading; 加载期间忽略恢复请求.
     /// </summary>
     public static void Resume()
     {
+        if (Current == GameState.Loading)
+        {
+            return;
+        }
+
         if (Current == GameState.Playing)
         {
             GameLog.Info()

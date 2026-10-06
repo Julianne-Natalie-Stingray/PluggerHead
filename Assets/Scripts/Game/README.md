@@ -17,19 +17,19 @@
 
 构建首场景为 `Assets/Scenes/MainMenuScene.unity`。主菜单与当前玩法场景装配 Core prefab；Core 保活且移除重复实例。New Game 默认请求 GameplayIntegration，Continue 请求进度中有效且可加载的玩法关卡。两者都按 Single 方式加载场景默认状态；进度不保存位置、背包、电路、绕线或通关状态。
 
-暂停设置面板只有在 Playing 打开时取得暂停所有权，关闭时释放；返回菜单先解除本面板的暂停再切换。SceneSwitchManager 驱动 Loading，SettingsScreen 在 Loading 时拒绝 Open。不要在加载中另外交错调用 Freeze/Resume；GameState 文档记录了公开 API 在这些序列下的缺陷。
+暂停设置面板只有在 Playing 打开时取得暂停所有权，关闭时释放；返回菜单先解除本面板的暂停再切换。SceneSwitchManager 驱动 Loading，SettingsScreen 在 Loading 时拒绝 Open。Loading 期间 Freeze/Resume 为空操作，ExitLoading 恢复加载前状态，保留冻结前倍率。
 
 两个持久化文件都位于 Application.persistentDataPath，但契约不同：
 
 | 文件 | 数据 | 保存时机 | 当前写入策略 |
 | --- | --- | --- | --- |
-| GameSettings.json | Master/Ost/Sfx 音量 | SaveSettings/显式 Save，Application.quitting 也尝试保存 | 直接覆盖，没有临时替换或备份 |
+| GameSettings.json | Master/Ost/Sfx 音量 | SaveSettings/显式 Save，Application.quitting 也尝试保存 | 先写同目录临时文件，再替换/移动；写入失败保留旧文件 |
 | LevelProgress.json | 最近玩法关卡的 SceneId 整数 | Tracker.Start 检查活动场景，随后响应 sceneLoaded | 写 .tmp 后替换/移动，成功后才更新内存 |
 
-音量默认 1/0.5/0.5；设置 Save 不自动调用 AudioManager.ApplyAudioSettings，因此当前 UI 保存并不即时应用混音器。进度 TryGetLevel 只检验枚举，主菜单还检验玩法标记与构建注册；新增玩法关卡需同时更新枚举、配置、场景与 Build Settings。
+音量默认 1/0.5/0.5；存储 Save 不自动调用 AudioManager.ApplyAudioSettings；SettingsScreen 在保存成功后显式应用实际混音器，保存失败则恢复内存值。进度 TryGetLevel 只检验枚举，主菜单还检验玩法标记与构建注册；新增玩法关卡需同时更新枚举、配置、场景与 Build Settings。
 
 ## 核查结论（2026-10-06）
 
-先分别核查并提交 MainMenu、Progress、GameState、Setting，再检查根目录四个 folder meta 和本总览；子目录间的真实依赖、初始化、事件和序列化引用已交叉核对。独立审查确认文档描述与实现一致。既有行为缺口保留在对应子目录文档：加载中交错暂停破坏状态/倍率恢复，设置保存不即时应用音量，设置 JSON 缺少业务校验且直接覆盖磁盘。
+先分别核查并提交 MainMenu、Progress、GameState、Setting，再检查根目录四个 folder meta 和本总览；子目录间的真实依赖、初始化、事件和序列化引用已交叉核对。独立审查确认文档描述与实现一致。后续针对检查结果修复了加载中交错暂停、UI 保存音量即时应用、设置 JSON 业务校验及文件替换，具体契约与覆盖见对应子目录文档。
 
-最后一次影响脚本文件的变更仅为 Setting XML 注释，编译后顺序通过 EditMode 7/7 与 PlayMode 14/14，job 及探针证据见 Setting 文档。之后新增本总览只改变文档，不重复运行测试；回归通过不等于上述已知缺口已修复。
+原文档检查阶段最后一次影响脚本文件的变更仅为 Setting XML 注释，编译后顺序通过 EditMode 7/7 与 PlayMode 14/14，job 及探针证据见 Setting 文档。之后新增本总览只改变文档，不重复运行测试；该历史回归不作为后续行为修复的测试证据。

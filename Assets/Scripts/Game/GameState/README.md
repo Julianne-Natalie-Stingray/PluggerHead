@@ -16,12 +16,12 @@
 
 | 调用 | 忽略条件 | 实际变化 |
 | --- | --- | --- |
-| `Freeze()` | Current 已是 Freezed（记录 Info） | 缓存当前 timeScale，设为 0，设 AudioListener.pause 为 true，再改为 Freezed 并广播。 |
-| `Resume()` | Current 已是 Playing（记录 Info） | 恢复缓存倍率（初始为 1），解除监听器暂停，再改为 Playing 并广播。 |
+| `Freeze()` | Current 是 Loading（静默）或 Freezed（记录 Info） | 缓存当前 timeScale，设为 0，设 AudioListener.pause 为 true，再改为 Freezed 并广播。 |
+| `Resume()` | Current 是 Loading（静默）或 Playing（记录 Info） | 恢复缓存倍率（初始为 1），解除监听器暂停，再改为 Playing 并广播。 |
 | `EnterLoading()` | Current 已是 Loading | 缓存当前标签，改为 Loading 并广播；不直接写倍率或监听器。 |
 | `ExitLoading()` | Current 不是 Loading | 还原缓存标签并广播；不检查 Unity 的加载操作，也不直接写倍率或监听器。 |
 
-`Apply` 先赋 Current，再记录日志并同步调用 Changed。事件没有异常隔离或重入保护；订阅者应成对退订，不在回调中递归转换状态。重复同一种调用可被以上条件拦截，不等于任意交错调用都能正确恢复，也不是多层暂停的计数器。
+`Apply` 先赋 Current，再记录日志并同步调用 Changed。事件没有异常隔离或重入保护；订阅者应成对退订，不在回调中递归转换状态。Loading 期间 Freeze/Resume 均为空操作，不改标签、倍率缓存或监听器，也不广播事件；ExitLoading 还原加载前标签。它不是多层暂停的计数器。
 
 正常的 `Playing → Freeze → Resume` 会恢复进入暂停前的倍率，包括非 1 倍速。缩放时间为零不停止 Update 或使用 unscaled time 的任务。音频监听器暂停也不等于全部声源停止，忽略监听器暂停的声源可继续播放。
 
@@ -39,10 +39,15 @@
 
 2026-10-06 已分别核查本目录所有文件，再核对 SceneSwitchManager、AudioManager、SettingsScreen、EditorSettings 和现有测试调用。
 
-- 已确认的调用缺陷：`Freeze → EnterLoading → Freeze → Resume` 会把冻结时的零倍率覆盖进缓存，最后标签为 Playing、倍率仍为 0。另一个序列 `Freeze → EnterLoading → Resume → ExitLoading` 会提前退出 Loading 标签，最后的 ExitLoading 不再还原原来的 Freezed。当前公开 API 没有拦截这些序列；接入方应避免加载期间直接暂停/恢复，不能将其描述为已修复。
+- 已修复检查指出的交错调用缺陷：Loading 期间忽略 Freeze/Resume，保留加载前状态与冻结前倍率。新增 GameStateTests 覆盖 Playing/Freezed 两种起点、重复 EnterLoading 与交错暂停/恢复，退出加载后恢复原标签，最终 Resume 恢复 0.5 倍速。
 - `Freezed → Loading` 的监听器解除暂停是当前 AudioManager 联动行为；若玩法要求冻结加载期间一直静音，需要另行实现并验证该契约。
 - Changed 的异常/重入与关闭 Domain Reload 后的状态遗留没有自动防护。
 
-本次修正文档和 XML 注释，不改变运行逻辑。现有主菜单 PlayMode 测试覆盖设置面板暂停/恢复与返回菜单后的 Playing、正倍率、未暂停监听器；没有专门覆盖上述交错调用、订阅者异常或关闭 Domain Reload 的情况。完整集成回归按 `PluggerHead.EditModeTests`、`PluggerHead.PlayModeTests` 顺序运行；运行结果须以本次 Test Runner job 为准，不能从测试源码存在推断通过。
+原文档检查仅修正文档和 XML 注释；后续修复改变了上述 Loading 守卫。现有主菜单 PlayMode 测试覆盖设置面板暂停/恢复与返回菜单后的 Playing、正倍率、未暂停监听器；新增 GameStateTests 专门覆盖上述交错调用；订阅者异常或关闭 Domain Reload 不在该用例覆盖内。完整集成回归按 `PluggerHead.EditModeTests`、`PluggerHead.PlayModeTests` 顺序运行；运行结果须以本次 Test Runner job 为准，不能从测试源码存在推断通过。
 
-本次 Unity 临时探针确认重复 Freeze 后 Resume 可恢复 0.5 倍速，交错 Loading/Freeze 序列则复现零倍率；探针在 finally 恢复原有静态字段、倍率与监听器状态。最终注释版本编译后 Console 无 error，EditMode job `1e2e42ea301c468198bf3f48e81930ca` 通过 7/7，随后 PlayMode job `644096a808d74b91bfb8da18e91d38e0` 通过 14/14。较早的 PlayMode job `40575a87385946479ba34d739db0a41a` 因检查期间脚本重载丢失执行器而中断，已记为失败，不作为通过证据。独立文档复审通过；上列行为缺陷仍保留。
+本次 Unity 临时探针确认重复 Freeze 后 Resume 可恢复 0.5 倍速，交错 Loading/Freeze 序列则复现零倍率；探针在 finally 恢复原有静态字段、倍率与监听器状态。最终注释版本编译后 Console 无 error，EditMode job `1e2e42ea301c468198bf3f48e81930ca` 通过 7/7，随后 PlayMode job `644096a808d74b91bfb8da18e91d38e0` 通过 14/14。较早的 PlayMode job `40575a87385946479ba34d739db0a41a` 因检查期间脚本重载丢失执行器而中断，已记为失败，不作为通过证据。这是修复前的验证记录，不能作为后续行为修复的通过证据。
+
+
+## 检查问题修复验证（2026-10-06）
+
+Loading 守卫、设置数据校验、临时文件替换和 UI 保存后即时应用已通过独立代码审查。Unity 编译完成后 Console 无编译错误；依次运行 EditMode job 3e84e015f6db440190779233af42d88e（10/10）和 PlayMode job 607888f664274ec8a6e726cae021d5d2（14/14），均已结束并通过。设置替换失败用例通过独占锁制造预期错误并确认旧文件字节不变；实际混音器验证使用临时设置存储，结束后恢复原存储和混音参数。
