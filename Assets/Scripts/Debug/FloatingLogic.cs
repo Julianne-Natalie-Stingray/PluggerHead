@@ -4,6 +4,12 @@ using UnityEngine;
 using Unity.Mathematics;
 using UnityEngine.UIElements;
 
+/// <summary>
+/// Visual experiment: writes local position from an Awake baseline using drift and two-axis Perlin noise.
+/// Uses scaled time. Rotation keeps its world position; Gizmos map local coordinates through the parent.
+/// 视觉实验: 从 Awake 记录的局部位置叠加漂移与双轴 Perlin 噪声, 使用缩放时间.
+/// 旋转保持自身世界位置; Gizmos 通过父级变换映射局部坐标.
+/// </summary>
 public class FloatingLogic : MonoBehaviour
 {
     [System.Serializable]
@@ -38,10 +44,10 @@ public class FloatingLogic : MonoBehaviour
     //External Parameters:
     [Header("External Parameters")]
     [SerializeField, Range(0.01f, 1f)] float mass = 1f;
-    [SerializeField] DriftSettings drift;
-    [SerializeField] OscillationSettings oscillation;
-    [SerializeField] RotationSettings rotation;
-    [SerializeField] VisualizationSettings visualization;
+    [SerializeField] private DriftSettings drift = new DriftSettings();
+    [SerializeField] private OscillationSettings oscillation = new OscillationSettings();
+    [SerializeField] private RotationSettings rotation = new RotationSettings();
+    [SerializeField] private VisualizationSettings visualization = new VisualizationSettings();
     [Header("--------------------------------------------")]
 
     //Internal States:
@@ -123,7 +129,8 @@ public class FloatingLogic : MonoBehaviour
 
     private Vector3 Oscillate(float t)
     {
-        // radial oscillation using Perlin noise
+        // Two-axis Perlin displacement; the unused _RadialOscillate method is the radial variant.
+        // 双轴 Perlin 位移; 未使用的 _RadialOscillate 才是径向版本.
         float randX = Mathf.PerlinNoise(_OscillationFrequency * t, randomSeed);
         float randY = Mathf.PerlinNoise(randomSeed, _OscillationFrequency * t);
         randX = Mathf.Clamp01(randX) - 0.5f;
@@ -133,16 +140,27 @@ public class FloatingLogic : MonoBehaviour
 
     private void BaseRotation()
     {
-        transform.RotateAround(transform.localPosition, Vector3.forward, _AngularVelocity * Time.deltaTime);
+        transform.RotateAround(transform.position, Vector3.forward, _AngularVelocity * Time.deltaTime);
     }
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(initialPosition, transform.localPosition);
+        Matrix4x4 previousMatrix = Gizmos.matrix;
+        Color previousColor = Gizmos.color;
+        try
+        {
+            Gizmos.matrix = transform.parent != null ? transform.parent.localToWorldMatrix : Matrix4x4.identity;
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(initialPosition, transform.localPosition);
 
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireSphere(initialPosition, visualization.radius * _radiusScaler);
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(initialPosition, visualization.radius * _radiusScaler);
+        }
+        finally
+        {
+            Gizmos.matrix = previousMatrix;
+            Gizmos.color = previousColor;
+        }
     }
 
     private void CalculateEffectiveValues()

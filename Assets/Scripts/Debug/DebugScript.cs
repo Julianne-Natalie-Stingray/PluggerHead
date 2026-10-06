@@ -6,7 +6,11 @@ using System;
 using Random = UnityEngine.Random;
 
 /// <summary>
-/// Paste on a GO. 
+/// Manual settings diagnostic: logs current volumes in Start and exposes Inspector buttons.
+/// Use after SettingBootstrap initialization in Play Mode. Buttons change memory without applying audio
+/// or saving immediately; the quitting hook may later persist those changes.
+/// 手工设置诊断: Start 打印音量, Inspector 按钮修改内存.
+/// 在 Play Mode 且 SettingBootstrap 初始化后使用; 不即时应用音量或保存, 退出钩子可能随后写盘.
 /// </summary>
 public class DebugScript : MonoBehaviour
 {
@@ -25,7 +29,7 @@ public class DebugScript : MonoBehaviour
     }
 
     [Button("Test Write in Settings")]
-    private void TestWriteInSettings() // passed
+    private void TestWriteInSettings()
     {
         var random = Random.value;
         
@@ -39,7 +43,7 @@ public class DebugScript : MonoBehaviour
     }
 
     [Button("Test Resetting Settings")]
-    private void TestResettingSettings() // passed
+    private void TestResettingSettings()
     {
         SettingBootstrap.ResetToDefault();
         Debug.Log($"###MasterVolume: {SettingBootstrap.Settings.Audio.MasterVolume}\n" +
