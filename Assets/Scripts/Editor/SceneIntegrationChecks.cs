@@ -35,15 +35,15 @@ public static class SceneIntegrationChecks
         foreach (SceneId id in ids)
         {
             Require(configs.TryGetSceneName(id, out string name), $"Missing mapping for {id}.");
-            string path = $"Assets/Scenes/Tests/{name}.unity";
+            string path = scenePaths.SingleOrDefault(candidate => System.IO.Path.GetFileNameWithoutExtension(candidate) == name);
             Require(mappedPaths.Add(path) && scenePaths.Contains(path), $"Invalid or duplicate scene mapping: {id}.");
             Require(EditorBuildSettings.scenes.Count(scene => scene.enabled && scene.path == path) == 1,
                 $"Build Settings must enable {path} exactly once.");
         }
         Require(EditorBuildSettings.scenes.All(scene => AssetDatabase.LoadAssetAtPath<SceneAsset>(scene.path) != null),
             "Build Settings must not reference deleted scenes.");
-        Require(EditorBuildSettings.scenes.First(scene => scene.enabled).path == GameplayScenePath,
-            "The build must start in the playable integration scene.");
+        Require(EditorBuildSettings.scenes.First(scene => scene.enabled).path == "Assets/Scenes/MainMenuScene.unity",
+            "The build must start in the main menu.");
     }
 
     public static void CheckSceneAsset(string path)

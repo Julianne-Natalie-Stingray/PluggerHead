@@ -29,8 +29,8 @@ public sealed class SettingsScreen : MonoBehaviour
 
         LoadVolumeValues();
         saveStatus.text = string.Empty;
-        // MainMenu 场景尚未实现，暂不提供退出操作。
-        exitButton.interactable = false;
+        exitButton.interactable = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "MainMenuScene" &&
+            CoreFacade.Instance != null;
         ownsPause = GameStateManager.Current == GameState.Playing;
         if (ownsPause)
         {
@@ -51,6 +51,28 @@ public sealed class SettingsScreen : MonoBehaviour
     public void ContinueGame()
     {
         gameObject.SetActive(false);
+    }
+
+    public void ReturnToMainMenu()
+    {
+        if (CoreFacade.Instance == null || CoreFacade.Instance.SceneSwitch.IsSwitching)
+        {
+            return;
+        }
+
+        // Release this panel's pause before the switch captures the previous game state.
+        bool resume = ownsPause;
+        gameObject.SetActive(false);
+        if (CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.MainMenuScene) == null)
+        {
+            gameObject.SetActive(true);
+            ownsPause = resume;
+            if (ownsPause)
+            {
+                GameStateManager.Freeze();
+            }
+            saveStatus.text = "Could not open the main menu. Please try again.";
+        }
     }
 
     public void SaveSettings()

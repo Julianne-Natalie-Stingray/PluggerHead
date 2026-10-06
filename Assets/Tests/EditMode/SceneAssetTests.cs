@@ -8,6 +8,7 @@ namespace PluggerHead.Tests
         [TestCase("Assets/Scenes/Tests/SceneSwitchTarget.unity")]
         [TestCase("Assets/Scenes/Tests/GameplayIntegration.unity")]
         [TestCase("Assets/Scenes/Tests/CircuitDiagnostics.unity")]
+        [TestCase("Assets/Scenes/MainMenuScene.unity")]
         public void BuildScene_HasValidScriptsPrefabsAndWireMaterials(string scenePath)
         {
             IntegrationCheckBridge.Invoke("SceneIntegrationChecks", "CheckSceneAsset", scenePath);

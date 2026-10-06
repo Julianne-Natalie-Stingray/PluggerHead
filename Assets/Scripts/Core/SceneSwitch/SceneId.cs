@@ -27,5 +27,6 @@ public enum SceneId
     // 场景更名保留序列化值；已合并的纯 Core 场景占用过 0，不再复用。
     SceneSwitchTarget = 1,
     CircuitDiagnostics = 2,
-    GameplayIntegration = 3
+    GameplayIntegration = 3,
+    MainMenuScene = 4
 }

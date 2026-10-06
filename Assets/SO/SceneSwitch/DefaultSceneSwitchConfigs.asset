@@ -17,5 +17,8 @@ MonoBehaviour:
     sceneName: SceneSwitchTarget
   - id: 3
     sceneName: GameplayIntegration
+    isGameplayLevel: 1
   - id: 2
     sceneName: CircuitDiagnostics
+  - id: 4
+    sceneName: MainMenuScene

@@ -7,7 +7,7 @@ namespace PluggerHead.Tests
 {
     [Category("Integration")]
     [UnityPlatform(RuntimePlatform.WindowsEditor, RuntimePlatform.LinuxEditor, RuntimePlatform.OSXEditor)]
-    public sealed class SceneGameplayTests
+    public sealed class MainMenuTests
     {
         [SetUp]
         public void Setup()
@@ -16,9 +16,9 @@ namespace PluggerHead.Tests
         }
 
         [UnityTest]
-        public IEnumerator AuthoredGameplayScene_PickupRouteSwapCloseAndRestart()
+        public IEnumerator MainMenu_NewGameSettingsReturnAndContinueFromDefaultState()
         {
-            yield return (IEnumerator)IntegrationCheckBridge.Invoke("SceneIntegrationChecks", "CheckGameplay");
+            yield return (IEnumerator)IntegrationCheckBridge.Invoke("MainMenuIntegrationChecks", "CheckMenuFlow");
         }
 
         [UnityTearDown]
@@ -26,7 +26,7 @@ namespace PluggerHead.Tests
         {
             try
             {
-                yield return (IEnumerator)IntegrationCheckBridge.Invoke("SceneIntegrationChecks", "CleanupGameplay");
+                yield return (IEnumerator)IntegrationCheckBridge.Invoke("MainMenuIntegrationChecks", "CleanupMenuFlow");
             }
             finally
             {

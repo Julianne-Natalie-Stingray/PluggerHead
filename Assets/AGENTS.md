@@ -37,7 +37,7 @@ Read subsystem README files before changing their contracts.
 Use Unity **2022.3.43f1c1**, as recorded in `../ProjectSettings/ProjectVersion.txt`.
 
 - Open the parent project through Unity Hub. Load a development scene and press Play for local iteration.
-- Use **File > Build Settings > Build** for a player build. The configured scene list contains `GameplayIntegration`, `CircuitDiagnostics`, and `SceneSwitchTarget` under `Scenes/Tests/`; review it before building.
+- Use **File > Build Settings > Build** for a player build. The startup scene is `Scenes/MainMenuScene.unity`, followed by `GameplayIntegration`, `CircuitDiagnostics`, and `SceneSwitchTarget` under `Scenes/Tests/`; review the list before building.
 - Use **Window > General > Test Runner** to run EditMode and PlayMode tests.
 - Run `git diff --check` before submitting to catch whitespace errors.
 
@@ -154,4 +154,5 @@ Describe the behavior change, affected scenes or prefabs, and validation perform
 
 - `Scripts/Env/EnvironmentFacade.cs` 是真实关卡环境实现，管理绕线、插接、换线和通关；旧 `EnvFacade`、示例目标分类与请求数据已移除。先阅读 `Scripts/Env/README.md`。
 - Player 通过 `IEnvironmentInteractable`、`IEnvironmentPickup`、`InteractionDetails` 和 `IPickupInstance` 交互。背包持有真实实例，放下恢复原场景对象；UI 从实例的 `SourceObject` 读取图标。
-- `GameplayIntegration` 集成真实 Player、UI 与电路并作为构建入口；`CircuitDiagnostics` 保留独立电路诊断布局和 MockPlayer，并承接 Core 服务检查；`SceneSwitchTarget` 仅含相机，用于验证切换后 Core 保活。移动阻力来自真实持线的绕线路径及长度配置，未持线或未设置长度上限时为零。
+- `MainMenuScene` 是构建入口，New Game 进入 `GameplayIntegration`；Continue 重载上次关卡的默认状态。`Game/Progress/` 只保存关卡标识，玩法状态不落盘，详见其 README。
+- `GameplayIntegration` 集成真实 Player、UI 与电路；`CircuitDiagnostics` 保留独立电路诊断布局和 MockPlayer，并承接 Core 服务检查；`SceneSwitchTarget` 仅含相机，用于验证切换后 Core 保活。移动阻力来自真实持线的绕线路径及长度配置，未持线或未设置长度上限时为零。

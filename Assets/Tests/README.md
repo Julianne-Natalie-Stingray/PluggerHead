@@ -4,11 +4,12 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 
 ## 功能场景
 
-项目场景均在 `Assets/Scenes/Tests/`，按功能命名，可直接打开；第三方包内的示例场景不纳入此目录与构建列表。
+主菜单位于 `Assets/Scenes/MainMenuScene.unity`；功能验证场景位于 `Assets/Scenes/Tests/`。第三方包内的示例场景不纳入构建列表。
 
 | 场景 | 功能与使用入口 |
 | --- | --- |
-| `GameplayIntegration` | 构建启动场景。真实 Player、地面四角绕线、双线回路、背包及设置 UI；Play 后移动、J 交互/收回、K 放置 Anchor。 |
+| `MainMenuScene` | 构建启动场景。New Game、Continue Game、Settings、Exit；无有效进度时 Continue 禁用。 |
+| `GameplayIntegration` | New Game 的首关。真实 Player、地面四角绕线、双线回路、背包及设置 UI；Play 后移动、J 交互/收回、K 放置 Anchor。设置面板的 Main Menu 返回主菜单。 |
 | `CircuitDiagnostics` | MockPlayer 与独立电路布局；Play 后用 EnvironmentFacade 调试按钮验证回路，拖动 MockPlayer 检查线端。含完整 Core，可用 AudioManager 的 Test Audio Request 检查音频。 |
 | `SceneSwitchTarget` | 仅保留相机与 AudioListener；从前两者调用 `CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.SceneSwitchTarget)`，确认场景切换完成、Loading 退出且原 Core 存活。单独播放只显示背景。 |
 
@@ -23,7 +24,9 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 | 模式 | 程序集 | 用例 | 覆盖 |
 | --- | --- | --- | --- |
 | EditMode | `PluggerHead.EditModeTests` | 1 个 Player/Env 集成用例 | Anchor 不作为道具、无限放置/收回、无线放置、最近目标、绕线、阻力、输入锁、暂停、跨场景隔离、换线、闭环、重开、线长边界及单次死亡通知 |
-| EditMode | `PluggerHead.EditModeTests` | 3 个场景参数用例＋1 个注册表用例 | 场景枚举/白名单/构建列表一致性、构建入口、场景加载、丢失脚本/预制体、电线材质、实际 Player 与电路配置 |
+| EditMode | `PluggerHead.EditModeTests` | 4 个场景参数用例＋1 个注册表用例 | 场景枚举/白名单/构建列表一致性、主菜单构建入口、场景加载、丢失脚本/预制体、电线材质、实际 Player 与电路配置 |
+| EditMode | `PluggerHead.EditModeTests` | 1 个关卡存档用例 | 只序列化关卡、重新读盘、缺失/损坏/未知关卡、写入失败保留旧存档 |
+| PlayMode | `PluggerHead.PlayModeTests` | 1 个主菜单流程用例 | 实际按钮引用、无存档禁用 Continue、Settings 暂停恢复、New Game、返回菜单、重新读盘 Continue、默认位置/空背包/默认电路、非玩法场景不覆盖存档 |
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个音频生命周期用例 | 原有 19 项断言：默认参数、Builder 覆盖、停止、自然结束、池复用、旧 Timer 隔离、循环及淡出 |
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个实际玩法场景用例 | `GameplayIntegration` 启动、帧推进、K 放置/J 收回 Anchor、绕线渲染、换线、通关一次、重开、超限死亡及单次死亡通知 |
 | PlayMode | `PluggerHead.PlayModeTests` | 4 个地面极性用例 | 真实 2D 支撑接触、双向异极死亡、同极/无线安全、侧墙与天花板排除、Trigger/层过滤、禁用组件、站立换线与输入锁、自动物理帧死亡 |
@@ -62,6 +65,8 @@ EditMode 完成后，再运行 PlayMode 并同样轮询自己的 job：
 以返回的 `result.summary` 和失败用例堆栈判断结果，不把“已启动”当作测试通过。测试顺序必须串行；仍在运行的 job 应继续轮询，不重复启动。
 
 ## 隔离、失败与清理
+
+- 主菜单和实际玩法用例将 `GameProgress` 指向临时目录，清理后恢复原存储引用并删除临时文件，不改写玩家的真实关卡进度。
 
 - Runner 启动前会要求处理未保存的场景修改；先保存自己的工作。测试实现不会保存被检查的场景。
 - EditMode 的 Player/Env 用例使用独立预览场景并恢复临时全局状态；场景参数用例只关闭自己打开的场景。

@@ -35,6 +35,26 @@ public class SceneSwitchConfigs : ScriptableObject
 
     #region APIs
 
+    public bool IsGameplayLevel(SceneId id)
+    {
+        return scenes.Exists(entry => entry.Id == id && entry.IsGameplayLevel);
+    }
+
+    public bool TryGetGameplayLevel(string sceneName, out SceneId id)
+    {
+        foreach (Entry entry in scenes)
+        {
+            if (entry.IsGameplayLevel && entry.SceneName == sceneName)
+            {
+                id = entry.Id;
+                return true;
+            }
+        }
+
+        id = default;
+        return false;
+    }
+
     /// <summary>
     /// Single entry point for resolving a key to the scene name it stands for.
     /// Implementation approach: a linear scan over a list whose length is the number of switchable scenes, and
@@ -123,8 +143,10 @@ public class SceneSwitchConfigs : ScriptableObject
     {
         [SerializeField] private SceneId id;
         [SerializeField] private string sceneName;
+        [SerializeField] private bool isGameplayLevel;
 
         public SceneId Id => id;
         public string SceneName => sceneName;
+        public bool IsGameplayLevel => isGameplayLevel;
     }
 }
