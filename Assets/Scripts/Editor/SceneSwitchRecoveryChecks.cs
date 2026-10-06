@@ -14,11 +14,22 @@ public static class SceneSwitchRecoveryChecks
     private static Action<GameState> callback;
     private static Scene initialScene;
     private static bool ownsLoad;
+    private static AsyncOperation pendingUnload;
+    private static IntegrationSceneState previousState;
 
     public static IEnumerator CheckRecovery(string interruption)
     {
+        return IntegrationSceneWait.Finally(CheckRecoveryBody(interruption), () => { });
+    }
+
+    private static IEnumerator CheckRecoveryBody(string interruption)
+    {
+        Require(!ownsLoad && previousState == null, "Previous recovery fixture still needs cleanup.");
+        Require(!SceneManager.GetSceneByName("SceneSwitchTarget").isLoaded,
+            "Refusing to unload a pre-existing recovery target scene.");
         Require(CoreFacade.Instance == null, "Scene switch recovery requires an isolated Test Runner session.");
         Require(GameStateManager.Current == GameState.Playing, "Scene switch recovery starts in Playing.");
+        previousState = new IntegrationSceneState();
         initialScene = SceneManager.GetActiveScene();
         SceneSwitchManager manager = CreateManager("SceneSwitchRecovery", out host);
         SceneSwitchManager competitor = CreateManager("SceneSwitchCompetitor", out competingHost);
@@ -93,6 +104,11 @@ public static class SceneSwitchRecoveryChecks
 
     public static IEnumerator Cleanup()
     {
+        return IntegrationSceneWait.Finally(CleanupScene(), RestoreState);
+    }
+
+    private static IEnumerator CleanupScene()
+    {
         if (callback != null)
         {
             GameStateManager.Changed -= callback;
@@ -103,17 +119,6 @@ public static class SceneSwitchRecoveryChecks
             pending.allowSceneActivation = true;
             yield return WaitForCompletion();
         }
-        pending = null;
-        if (host != null)
-        {
-            UnityEngine.Object.Destroy(host);
-        }
-        if (competingHost != null)
-        {
-            UnityEngine.Object.Destroy(competingHost);
-        }
-        host = null;
-        competingHost = null;
         if (ownsLoad)
         {
             if (!initialScene.IsValid() || !initialScene.isLoaded)
@@ -122,13 +127,44 @@ public static class SceneSwitchRecoveryChecks
             }
             SceneManager.SetActiveScene(initialScene);
             Scene target = SceneManager.GetSceneByName("SceneSwitchTarget");
-            if (target.IsValid() && target.isLoaded)
+            if (pendingUnload == null && target.IsValid() && target.isLoaded)
             {
-                yield return SceneManager.UnloadSceneAsync(target);
+                pendingUnload = SceneManager.UnloadSceneAsync(target);
             }
-            ownsLoad = false;
+            if (pendingUnload != null || (target.IsValid() && target.isLoaded))
+            {
+                yield return IntegrationSceneWait.Operation(pendingUnload, "unloading the recovery target");
+                Require(!target.IsValid() || !target.isLoaded, "Recovery unload completed but its scene remains loaded.");
+            }
         }
-        yield return null;
+    }
+
+    private static void RestoreState()
+    {
+        bool loadPending = pending != null && !pending.isDone;
+        IntegrationSceneWait.RestoreAll(
+            () =>
+            {
+                if (callback != null)
+                {
+                    GameStateManager.Changed -= callback;
+                    callback = null;
+                }
+            },
+            () => { if (host != null) { UnityEngine.Object.DestroyImmediate(host); } host = null; },
+            () => { if (competingHost != null) { UnityEngine.Object.DestroyImmediate(competingHost); } competingHost = null; },
+            () => previousState?.Restore(loadPending),
+            () =>
+            {
+                if (!loadPending && (pendingUnload == null || pendingUnload.isDone) &&
+                    (!ownsLoad || !SceneManager.GetSceneByName("SceneSwitchTarget").isLoaded))
+                {
+                    pending = null;
+                    pendingUnload = null;
+                    ownsLoad = false;
+                    previousState = null;
+                }
+            });
     }
 
     private static SceneSwitchManager CreateManager(string name, out GameObject gameObject)
@@ -148,13 +184,7 @@ public static class SceneSwitchRecoveryChecks
 
     private static IEnumerator WaitForCompletion()
     {
-        float deadline = Time.realtimeSinceStartup + 15f;
-        while (!pending.isDone && Time.realtimeSinceStartup < deadline)
-        {
-            yield return null;
-        }
-        Require(pending.isDone, "Scene switch did not finish within 15 seconds.");
-        yield return null;
+        return IntegrationSceneWait.Operation(pending, "finishing the recovery scene load");
     }
 
     private static void Require(bool condition, string message)

@@ -7,11 +7,21 @@ using UnityEngine.SceneManagement;
 /// <summary>Exercises the real component's frame updates in an isolated scene.</summary>
 public static class FloatingIntegrationChecks
 {
+    private static Scene ownedScene;
+    private static AsyncOperation pendingUnload;
     public static IEnumerator CheckMotion(bool transformedParent)
     {
+        return IntegrationSceneWait.Finally(CheckMotionBody(transformedParent), () => { });
+    }
+
+    private static IEnumerator CheckMotionBody(bool transformedParent)
+    {
+        Require(pendingUnload == null && (!ownedScene.IsValid() || !ownedScene.isLoaded),
+            "A previous floating fixture still owns its scene; finish cleanup before another run.");
         float previousTimeScale = Time.timeScale;
         UnityEngine.Random.State previousRandomState = UnityEngine.Random.state;
         Scene scene = SceneManager.CreateScene("FloatingCheck-" + Guid.NewGuid().ToString("N"));
+        ownedScene = scene;
         GameObject root = null;
         try
         {
@@ -61,36 +71,47 @@ public static class FloatingIntegrationChecks
         }
         finally
         {
-            if (root != null)
-            {
-                UnityEngine.Object.DestroyImmediate(root);
-            }
-            if (scene.IsValid() && scene.isLoaded)
-            {
-                SceneManager.UnloadSceneAsync(scene);
-            }
-            Time.timeScale = previousTimeScale;
-            UnityEngine.Random.state = previousRandomState;
+            IntegrationSceneWait.RestoreAll(
+                () => { if (root != null) { UnityEngine.Object.DestroyImmediate(root); } },
+                () => Time.timeScale = previousTimeScale,
+                () => UnityEngine.Random.state = previousRandomState);
         }
-        while (scene.IsValid() && scene.isLoaded)
+    }
+
+    public static IEnumerator Cleanup()
+    {
+        return IntegrationSceneWait.Finally(CleanupScene(), () =>
         {
-            yield return null;
+            if ((pendingUnload == null || pendingUnload.isDone) && (!ownedScene.IsValid() || !ownedScene.isLoaded))
+            {
+                pendingUnload = null;
+                ownedScene = default;
+            }
+        });
+    }
+
+    private static IEnumerator CleanupScene()
+    {
+        if (pendingUnload == null && ownedScene.IsValid() && ownedScene.isLoaded)
+        {
+            pendingUnload = SceneManager.UnloadSceneAsync(ownedScene);
+        }
+        if (pendingUnload != null || (ownedScene.IsValid() && ownedScene.isLoaded))
+        {
+            yield return IntegrationSceneWait.Operation(pendingUnload, "unloading the floating test scene");
+            Require(!ownedScene.IsValid() || !ownedScene.isLoaded, "Floating unload completed but its scene remains loaded.");
         }
     }
 
     private static IEnumerator WaitForMotionFrames(Transform subject, Vector3 expectedPosition)
     {
         float startingTime = Time.time;
-        float deadline = Time.realtimeSinceStartup + 5f;
-        // Wait for enough scaled time to make rotation observable above quaternion rounding,
-        // independently of Editor frame rate or when the resumed timescale takes effect.
-        while (Time.time - startingTime < 0.05f)
+        return IntegrationSceneWait.Until(() =>
         {
-            Require(Time.realtimeSinceStartup < deadline, "Timed out waiting for scaled motion frames.");
-            yield return null;
             Require((subject.position - expectedPosition).sqrMagnitude < 0.000001f,
                 "Real Update must preserve position on every observed rotation frame.");
-        }
+            return Time.time - startingTime >= 0.05f;
+        }, "waiting for scaled floating motion", 5f);
     }
 
     private static void SetField(FloatingLogic target, string name, float value)

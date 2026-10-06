@@ -9,6 +9,12 @@ namespace PluggerHead.Tests
     [UnityPlatform(RuntimePlatform.WindowsEditor, RuntimePlatform.LinuxEditor, RuntimePlatform.OSXEditor)]
     public sealed class FloatingTests
     {
+        [UnityTearDown]
+        public IEnumerator Cleanup()
+        {
+            yield return (IEnumerator)IntegrationCheckBridge.Invoke("FloatingIntegrationChecks", "Cleanup");
+        }
+
         [UnityTest]
         public IEnumerator Floating_RootRotationPreservesPositionAndPauses()
         {

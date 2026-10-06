@@ -15,6 +15,8 @@ public static class CornerIntegrationChecks
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
     private static readonly List<Scene> ownedScenes = new List<Scene>();
     private static EnvironmentFacade previousEnvironment;
+    private static bool hasEnvironmentSnapshot;
+    private static readonly OwnedPhysicsSceneCleanup sceneCleanup = new OwnedPhysicsSceneCleanup();
 
     public static void CheckEntryAndReverse()
     {
@@ -242,25 +244,31 @@ public static class CornerIntegrationChecks
 
     public static IEnumerator Cleanup()
     {
-        foreach (Scene scene in ownedScenes)
+        IEnumerator routine = sceneCleanup.Run(ownedScenes);
+        try
         {
-            if (!scene.IsValid() || !scene.isLoaded)
+            while (routine.MoveNext())
             {
-                continue;
-            }
-            AsyncOperation operation = SceneManager.UnloadSceneAsync(scene);
-            Require(operation != null, "Could not unload the owned corner test scene.");
-            float deadline = Time.realtimeSinceStartup + 15f;
-            while (!operation.isDone)
-            {
-                Require(Time.realtimeSinceStartup < deadline, "Timed out unloading the owned corner test scene.");
-                yield return null;
+                yield return routine.Current;
             }
         }
-        ownedScenes.Clear();
-        typeof(EnvironmentFacade).GetField("<Current>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
-            .SetValue(null, previousEnvironment);
-        previousEnvironment = null;
+        finally
+        {
+            try
+            {
+                (routine as IDisposable)?.Dispose();
+            }
+            finally
+            {
+                if (hasEnvironmentSnapshot)
+                {
+                    typeof(EnvironmentFacade).GetField("<Current>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
+                        .SetValue(null, previousEnvironment);
+                    previousEnvironment = null;
+                    hasEnvironmentSnapshot = false;
+                }
+            }
+        }
     }
 
     private static void BeginChecks()
@@ -268,6 +276,7 @@ public static class CornerIntegrationChecks
         Require(Application.isPlaying && Time.timeScale > 0f, "Corner integration checks require unpaused Play Mode.");
         Require(ownedScenes.Count == 0, "A previous corner check still needs cleanup.");
         previousEnvironment = EnvironmentFacade.Current;
+        hasEnvironmentSnapshot = true;
     }
 
     private static void AssertPath(Wire wire, params Vector3[] expected)

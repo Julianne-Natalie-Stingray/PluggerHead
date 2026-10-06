@@ -16,6 +16,8 @@ public static class GroundPolarityIntegrationChecks
     private static readonly List<Scene> ownedScenes = new List<Scene>();
     private static EnvironmentFacade previousEnvironment;
     private static GameObject ownedCore;
+    private static bool hasEnvironmentSnapshot;
+    private static readonly OwnedPhysicsSceneCleanup sceneCleanup = new OwnedPhysicsSceneCleanup();
 
     public static void CheckOppositePolarities()
     {
@@ -126,32 +128,42 @@ public static class GroundPolarityIntegrationChecks
 
     public static IEnumerator Cleanup()
     {
-        foreach (Scene scene in ownedScenes)
+        IEnumerator routine = sceneCleanup.Run(ownedScenes);
+        try
         {
-            if (!scene.IsValid() || !scene.isLoaded)
+            while (routine.MoveNext())
             {
-                continue;
-            }
-
-            AsyncOperation operation = SceneManager.UnloadSceneAsync(scene);
-            Require(operation != null, "Could not unload the owned ground test scene.");
-            float deadline = Time.realtimeSinceStartup + 15f;
-            while (!operation.isDone)
-            {
-                Require(Time.realtimeSinceStartup < deadline, "Timed out unloading the ground test scene.");
-                yield return null;
+                yield return routine.Current;
             }
         }
-        ownedScenes.Clear();
-        if (ownedCore != null)
+        finally
         {
-            UnityEngine.Object.Destroy(ownedCore);
-            yield return null;
-            ownedCore = null;
+            try
+            {
+                (routine as IDisposable)?.Dispose();
+            }
+            finally
+            {
+                try
+                {
+                    if (ownedCore != null)
+                    {
+                        UnityEngine.Object.DestroyImmediate(ownedCore);
+                        ownedCore = null;
+                    }
+                }
+                finally
+                {
+                    if (hasEnvironmentSnapshot)
+                    {
+                        typeof(EnvironmentFacade).GetField("<Current>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
+                            .SetValue(null, previousEnvironment);
+                        previousEnvironment = null;
+                        hasEnvironmentSnapshot = false;
+                    }
+                }
+            }
         }
-        typeof(EnvironmentFacade).GetField("<Current>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
-            .SetValue(null, previousEnvironment);
-        previousEnvironment = null;
     }
 
     private static void BeginChecks()
@@ -159,6 +171,7 @@ public static class GroundPolarityIntegrationChecks
         Require(Application.isPlaying, "Ground physics checks require Play Mode.");
         Require(ownedScenes.Count == 0, "A previous ground check still needs cleanup.");
         previousEnvironment = EnvironmentFacade.Current;
+        hasEnvironmentSnapshot = true;
     }
 
     private static void CheckLethal(WirePolarity ground, WirePolarity wire, bool childCollider)

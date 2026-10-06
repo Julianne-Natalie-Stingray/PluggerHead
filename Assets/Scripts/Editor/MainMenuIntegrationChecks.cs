@@ -15,10 +15,17 @@ public static class MainMenuIntegrationChecks
     private static string temporaryDirectory;
     private static bool ownsScenes;
     private static Scene testHostScene;
+    private static AsyncOperation pendingSceneOperation;
+    private static AsyncOperation pendingUnload;
+    private static Scene unloadingScene;
+    private static bool progressReleaseRequested;
+    private static IntegrationSceneState previousSceneState;
+    public static bool HasPendingCleanup => ownsScenes;
 
     public static void BeginProgressIsolation()
     {
-        Require(temporaryDirectory == null, "Previous progress isolation was not cleaned up.");
+        Require(temporaryDirectory == null && !ownsScenes && !SceneIntegrationChecks.HasPendingCleanup,
+            "Previous progress isolation or scene cleanup remains pending; stop the Runner session before retrying.");
         previousStore = (LevelProgressStore)StoreField.GetValue(null);
         temporaryDirectory = Path.Combine(Path.GetTempPath(), "PluggerHeadMenu-" + Guid.NewGuid().ToString("N"));
         StoreField.SetValue(null, new LevelProgressStore(Path.Combine(temporaryDirectory, "progress.json")));
@@ -30,6 +37,13 @@ public static class MainMenuIntegrationChecks
         {
             return;
         }
+        // Preserve the original cleanup exception. A pending operation may still create a progress tracker,
+        // so defer this release, keep the temporary store, and reject the next fixture's Begin call.
+        if (ownsScenes || SceneIntegrationChecks.HasPendingCleanup)
+        {
+            progressReleaseRequested = true;
+            return;
+        }
         StoreField.SetValue(null, previousStore);
         if (Directory.Exists(temporaryDirectory))
         {
@@ -37,6 +51,15 @@ public static class MainMenuIntegrationChecks
         }
         temporaryDirectory = null;
         previousStore = null;
+        progressReleaseRequested = false;
+    }
+
+    public static void FinishDeferredProgressRelease()
+    {
+        if (progressReleaseRequested && !ownsScenes && !SceneIntegrationChecks.HasPendingCleanup)
+        {
+            EndProgressIsolation();
+        }
     }
 
     public static void CheckProgressStorage()
@@ -75,10 +98,23 @@ public static class MainMenuIntegrationChecks
 
     public static IEnumerator CheckMenuFlow()
     {
+        return IntegrationSceneWait.Finally(CheckMenuFlowBody(), () => { });
+    }
+
+    private static IEnumerator CheckMenuFlowBody()
+    {
         Require(CoreFacade.Instance == null, "Run in a fresh Test Runner session.");
+        Require(!ownsScenes, "Previous menu scene cleanup remains pending.");
+        foreach (string sceneName in new[] { "MainMenuScene", "GameplayIntegration", "SceneSwitchTarget" })
+        {
+            Require(!SceneManager.GetSceneByName(sceneName).isLoaded,
+                "Refusing to modify a pre-existing menu flow scene: " + sceneName);
+        }
+        previousSceneState = new IntegrationSceneState();
         testHostScene = SceneManager.GetActiveScene();
         ownsScenes = true;
-        yield return SceneManager.LoadSceneAsync("MainMenuScene", LoadSceneMode.Additive);
+        pendingSceneOperation = SceneManager.LoadSceneAsync("MainMenuScene", LoadSceneMode.Additive);
+        yield return IntegrationSceneWait.Operation(pendingSceneOperation, "loading the owned main menu", 20f);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName("MainMenuScene"));
         yield return null;
         var menu = UnityEngine.Object.FindObjectOfType<MainMenuScreen>();
@@ -161,42 +197,97 @@ public static class MainMenuIntegrationChecks
 
     public static IEnumerator CleanupMenuFlow()
     {
+        return IntegrationSceneWait.Finally(CleanupMenuScenes(), RestoreMenuState);
+    }
+
+    private static IEnumerator CleanupMenuScenes()
+    {
         if (!ownsScenes)
         {
             yield break;
         }
-        if (CoreFacade.Instance != null)
+        CapturePendingSwitch();
+        if (pendingSceneOperation != null && !pendingSceneOperation.isDone)
         {
-            float deadline = Time.realtimeSinceStartup + 20f;
-            while (CoreFacade.Instance.SceneSwitch.IsSwitching && Time.realtimeSinceStartup < deadline)
-            {
-                yield return null;
-            }
-            UnityEngine.Object.Destroy(CoreFacade.Instance.gameObject);
+            pendingSceneOperation.allowSceneActivation = true;
+            yield return IntegrationSceneWait.Operation(pendingSceneOperation, "finishing the owned menu load", 20f);
         }
         if (!testHostScene.IsValid() || !testHostScene.isLoaded)
         {
             testHostScene = SceneManager.CreateScene("MenuTestCleanup");
         }
         SceneManager.SetActiveScene(testHostScene);
+        if (pendingUnload != null)
+        {
+            yield return IntegrationSceneWait.Operation(pendingUnload, "finishing the owned menu unload", 20f);
+            Require(!unloadingScene.IsValid() || !unloadingScene.isLoaded,
+                "Menu unload completed but its owned scene remains loaded.");
+            pendingUnload = null;
+        }
         for (int index = SceneManager.sceneCount - 1; index >= 0; index--)
         {
             Scene scene = SceneManager.GetSceneAt(index);
-            if (scene != testHostScene && (scene.name == "MainMenuScene" || scene.name == "GameplayIntegration" || scene.name == "SceneSwitchTarget"))
+            if (scene != testHostScene && IsMenuFlowScene(scene))
             {
-                yield return SceneManager.UnloadSceneAsync(scene);
+                unloadingScene = scene;
+                pendingUnload = SceneManager.UnloadSceneAsync(scene);
+                yield return IntegrationSceneWait.Operation(pendingUnload, "unloading owned menu flow scene " + scene.name, 20f);
+                Require(!scene.IsValid() || !scene.isLoaded, "Menu unload completed but its owned scene remains loaded.");
+                pendingUnload = null;
             }
         }
-        if (GameStateManager.Current == GameState.Loading)
+    }
+
+    private static void RestoreMenuState()
+    {
+        if (!ownsScenes)
         {
-            GameStateManager.ExitLoading();
+            return;
         }
-        if (GameStateManager.Current == GameState.Freezed)
+        CapturePendingSwitch();
+        bool loadPending = pendingSceneOperation != null && !pendingSceneOperation.isDone;
+        IntegrationSceneWait.RestoreAll(
+            () =>
+            {
+                if (CoreFacade.Instance != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(CoreFacade.Instance.gameObject);
+                }
+            },
+            () => previousSceneState?.Restore(loadPending),
+            () =>
+            {
+                bool sceneRemaining = false;
+                for (int index = 0; index < SceneManager.sceneCount; index++)
+                {
+                    sceneRemaining |= IsMenuFlowScene(SceneManager.GetSceneAt(index));
+                }
+                if (!loadPending && !sceneRemaining && (pendingUnload == null || pendingUnload.isDone))
+                {
+                    pendingSceneOperation = null;
+                    pendingUnload = null;
+                    previousSceneState = null;
+                    ownsScenes = false;
+                    FinishDeferredProgressRelease();
+                }
+            });
+    }
+
+    private static bool IsMenuFlowScene(Scene scene)
+    {
+        return scene.name == "MainMenuScene" || scene.name == "GameplayIntegration" || scene.name == "SceneSwitchTarget";
+    }
+
+    private static void CapturePendingSwitch()
+    {
+        if (CoreFacade.Instance != null && CoreFacade.Instance.SceneSwitch != null)
         {
-            GameStateManager.Resume();
+            AsyncOperation active = Field<AsyncOperation>(CoreFacade.Instance.SceneSwitch, "operation");
+            if (active != null)
+            {
+                pendingSceneOperation = active;
+            }
         }
-        ownsScenes = false;
-        yield return null;
     }
 
     private static void CheckSettingsSave(SettingsScreen screen)
@@ -243,12 +334,12 @@ public static class MainMenuIntegrationChecks
 
     private static IEnumerator WaitForSwitch(string name)
     {
-        float deadline = Time.realtimeSinceStartup + 20f;
-        while (SceneManager.GetActiveScene().name != name || CoreFacade.Instance.SceneSwitch.IsSwitching)
-        {
-            Require(Time.realtimeSinceStartup < deadline, "Timed out switching to " + name);
-            yield return null;
-        }
+        CapturePendingSwitch();
+        Require(pendingSceneOperation != null, "The menu switch did not expose its actual operation.");
+        yield return IntegrationSceneWait.Operation(pendingSceneOperation, "switching to " + name, 20f);
+        yield return IntegrationSceneWait.Until(() => SceneManager.GetActiveScene().name == name &&
+            CoreFacade.Instance != null && !CoreFacade.Instance.SceneSwitch.IsSwitching,
+            "waiting for the switched scene " + name, 20f);
         yield return null;
     }
 

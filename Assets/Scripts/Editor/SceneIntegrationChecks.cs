@@ -19,6 +19,9 @@ public static class SceneIntegrationChecks
     private static CoreFacade ownedCore;
     private static AsyncOperation pendingLoad;
     private static bool gameplayStarted;
+    private static AsyncOperation pendingUnload;
+    private static IntegrationSceneState previousState;
+    public static bool HasPendingCleanup => gameplayStarted;
 
     public static void CheckSceneRegistry()
     {
@@ -141,6 +144,11 @@ public static class SceneIntegrationChecks
 
     public static IEnumerator CheckGameplay()
     {
+        return IntegrationSceneWait.Finally(CheckGameplayBody(), () => { });
+    }
+
+    private static IEnumerator CheckGameplayBody()
+    {
         Require(Application.isPlaying, "Gameplay checks require Play Mode.");
         Require(!gameplayStarted, "A previous scene check still needs cleanup.");
         Require(CoreFacade.Instance == null, "Run in a fresh Test Runner session without an existing Core.");
@@ -149,6 +157,7 @@ public static class SceneIntegrationChecks
         Require(Time.timeScale > 0f && GameStateManager.Current == GameState.Playing,
             "Run gameplay checks in an unpaused Playing state.");
 
+        previousState = new IntegrationSceneState();
         previousScene = SceneManager.GetActiveScene();
         previousEnvironment = EnvironmentFacade.Current;
         gameplayStarted = true;
@@ -314,38 +323,74 @@ public static class SceneIntegrationChecks
     /// <summary>Called by UnityTearDown even if a runtime assertion fails.</summary>
     public static IEnumerator CleanupGameplay()
     {
+        return IntegrationSceneWait.Finally(CleanupGameplayScene(), RestoreGameplayState);
+    }
+
+    private static IEnumerator CleanupGameplayScene()
+    {
         if (!gameplayStarted)
         {
             yield break;
         }
-        // A timed-out load is still owned by this fixture; wait for it before unloading.
         if (pendingLoad != null && !pendingLoad.isDone)
         {
+            pendingLoad.allowSceneActivation = true;
             yield return WaitForOperation(pendingLoad, "finishing the owned scene load for cleanup");
         }
-        ownedScene = SceneManager.GetSceneByPath(GameplayScenePath);
-        if (ownedCore == null)
+        if (!ownedScene.IsValid())
         {
-            ownedCore = CoreFacade.Instance;
+            ownedScene = SceneManager.GetSceneByPath(GameplayScenePath);
         }
         if (previousScene.IsValid() && previousScene.isLoaded)
         {
             SceneManager.SetActiveScene(previousScene);
         }
-        if (ownedScene.IsValid() && ownedScene.isLoaded)
+        if (pendingUnload == null && ownedScene.IsValid() && ownedScene.isLoaded)
         {
-            yield return WaitForOperation(SceneManager.UnloadSceneAsync(ownedScene), "unloading the owned gameplay scene");
+            pendingUnload = SceneManager.UnloadSceneAsync(ownedScene);
         }
-        if (ownedCore != null)
+        if (pendingUnload != null || (ownedScene.IsValid() && ownedScene.isLoaded))
         {
-            UnityEngine.Object.Destroy(ownedCore.gameObject);
-            yield return null;
+            yield return WaitForOperation(pendingUnload, "unloading the owned gameplay scene");
+            Require(!ownedScene.IsValid() || !ownedScene.isLoaded, "Gameplay unload completed but its scene remains loaded.");
         }
-        typeof(EnvironmentFacade).GetField("<Current>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
-            .SetValue(null, previousEnvironment);
-        ownedCore = null;
-        pendingLoad = null;
-        gameplayStarted = false;
+    }
+
+    private static void RestoreGameplayState()
+    {
+        if (!gameplayStarted)
+        {
+            return;
+        }
+        bool loadPending = pendingLoad != null && !pendingLoad.isDone;
+        IntegrationSceneWait.RestoreAll(
+            () =>
+            {
+                if (ownedCore == null && !loadPending)
+                {
+                    ownedCore = CoreFacade.Instance;
+                }
+                if (ownedCore != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(ownedCore.gameObject);
+                }
+                ownedCore = null;
+            },
+            () => previousState?.Restore(loadPending),
+            () =>
+            {
+                if (!loadPending && (pendingUnload == null || pendingUnload.isDone) &&
+                    (!ownedScene.IsValid() || !ownedScene.isLoaded))
+                {
+                    ownedCore = null;
+                    pendingLoad = null;
+                    pendingUnload = null;
+                    ownedScene = default;
+                    previousState = null;
+                    gameplayStarted = false;
+                    MainMenuIntegrationChecks.FinishDeferredProgressRelease();
+                }
+            });
     }
 
     private static void RaiseInput(InputManager input, string handler)
@@ -369,13 +414,7 @@ public static class SceneIntegrationChecks
 
     private static IEnumerator WaitForOperation(AsyncOperation operation, string description)
     {
-        Require(operation != null, $"Could not start {description}.");
-        float deadline = Time.realtimeSinceStartup + TimeoutSeconds;
-        while (!operation.isDone)
-        {
-            Require(Time.realtimeSinceStartup < deadline, $"Timed out {description}.");
-            yield return null;
-        }
+        return IntegrationSceneWait.Operation(operation, description, TimeoutSeconds);
     }
 
     private static List<T> FindComponents<T>(Scene scene) where T : Component

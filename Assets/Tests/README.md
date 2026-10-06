@@ -2,9 +2,11 @@
 
 Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 
-2026-10-06 逐文件核查：当前 EditMode 17 个、PlayMode 37 个用例。文件级职责及边界分别见 [EditMode](EditMode/README.md)、[PlayMode](PlayMode/README.md)、[Shared 反射桥](Shared/README.md)；实际断言、隔离和超时实现见 [Scripts/Editor](../Scripts/Editor/README.md)。
+清理缺陷修复最终验证（2026-10-06）：编译后 Console 无错误，独立审查通过；按顺序运行 EditMode 17/17（job `3eb8b79ef39f415abbed40cead84b714`）和 PlayMode 57/57（job `e648646396f14d7ab119a800823a87c8`），均终态通过。新增 20 项故障注入检查覆盖失败恢复、在途句柄保留、异常聚合和临时进度存储延期释放。
 
-本轮编译后串行执行通过：EditMode 17/17（job `3fa8c86afa1348cb8f60ce2d1e6faa98`），PlayMode 37/37（job `ed6e536d01d7477d941943af149956d1`）。该快照包含 `7c91a3a` 的碰撞体 offset 修复；本轮只改说明和一处检查脚本注释。独立审查已通过，后续行为改动需重新验证。
+2026-10-06 逐文件核查：当前 EditMode 17 个、PlayMode 57 个用例。文件级职责及边界分别见 [EditMode](EditMode/README.md)、[PlayMode](PlayMode/README.md)、[Shared 反射桥](Shared/README.md)；实际断言、隔离和超时实现见 [Scripts/Editor](../Scripts/Editor/README.md)。
+
+以下为清理修复前的审计验证记录：EditMode 17/17（job `3fa8c86afa1348cb8f60ce2d1e6faa98`），PlayMode 37/37（job `ed6e536d01d7477d941943af149956d1`）。该快照包含 `7c91a3a` 的碰撞体 offset 修复；本轮只改说明和一处检查脚本注释。独立审查已通过，后续行为改动需重新验证。
 
 ## 功能场景
 
@@ -44,6 +46,7 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个实际玩法场景用例 | `GameplayIntegration` 启动、帧推进、K 放置/J 收回 Anchor、绕线渲染、真实左上角自动挂线与反向退绕、换线、通关一次、重开、超限死亡及单次死亡通知 |
 | PlayMode | `PluggerHead.PlayModeTests` | 4 个地面极性用例 | 真实 2D 支撑接触、双向异极死亡、同极/无线安全、侧墙与天花板排除、Trigger/层过滤、禁用组件、站立换线与输入锁、自动物理帧死亡 |
 | PlayMode | `PluggerHead.PlayModeTests` | 7 个 Corner 用例 | 活动线段进入、方向退绕、高速多角顺序、静止/向外移动、微小位移累积、双线独立 Anchor、重开/禁用清理、真实碰撞体坐标、远程交互排除、自动 LateUpdate 与 Anchor 销毁 |
+| PlayMode | `PluggerHead.PlayModeTests` | 20 个清理故障用例 | 空操作、异常、超时、Dispose、操作终态检查、嵌套错误聚合、状态恢复、进度隔离和重试清理 |
 
 表中的断言数是用例内部的检查点数量，不是 NUnit 用例数量；实际用例数与结果以 Test Runner 报告为准。PlayMode 用例由 Runner 自动进入/退出播放；音频用例会创建缺失的 TimerRunner 和 AudioListener，玩法用例会加载并卸载自有场景和 Core，无需预先打开或手工配置运行场景。
 
@@ -86,7 +89,7 @@ EditMode 完成后，再运行 PlayMode 并同样轮询自己的 job：
 - Runner 启动前会要求处理未保存的场景修改；先保存自己的工作。测试实现不会保存被检查的场景。
 - EditMode 的 Player/Env 用例使用独立预览场景并恢复临时全局状态；场景参数用例只关闭自己打开的场景。
 - 音频用例在当前活动场景创建临时层级，协程 finally 清理自有对象并恢复其改动的全局设置；不属于独立场景隔离。10 秒外层期限仅属于原生命周期检查，Handle/Tail/Limit 的期限不同，详见 [Editor 检查说明](../Scripts/Editor/README.md)。
-- Gameplay 用例操作自有 Additive 场景；加载、卸载与动画锁等待各有 15 秒期限。Menu/Recovery 使用真实 Single 加载，会卸载原场景，不能还原原内容。各测试通过 TearDown 尝试清理；清理等待自身失败时，部分后续恢复可能未执行。
+- Gameplay 用例操作自有 Additive 场景；加载、卸载与动画锁等待各有 15 秒期限。Menu/Recovery 使用真实 Single 加载，会卸载原场景，不能还原原内容。场景等待均有期限；嵌套协程失败也执行同步状态恢复，未完成的操作和场景保留归属供清理重试。菜单/玩法加载未清完前保留临时进度存储并拒绝开始新夹具，成功重试后兑现延迟释放。
 - 玩法用例在自有场景加载回调中临时取消线长限制，完成交互流程后设置有限线长，验证真实物理帧的超限死亡。这样兼容开局即超限的诊断配置，不修改或保存原场景资源。
 - 地面极性用例创建独立的 2D 物理场景，并先验证实际接触与法向，再检查死亡结果；`UnityTearDown` 卸载自有场景、恢复环境静态引用并清理自有 Core，不保存或修改关卡资源。
 - Corner 用例使用独立 2D 物理场景及真实 Wire/Corner/Anchor，校验 LineRenderer 与 EdgeCollider2D 的顶点一致；包含旋转、非均匀缩放、非零 offset，以及只改变 offset 后重绘相同路径的实际碰撞查询。帧推进用例验证实际 LateUpdate 与延迟销毁。测试后卸载自有场景并恢复 Environment 静态引用，不修改场景资源。
