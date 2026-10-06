@@ -5,6 +5,45 @@ using System.Reflection;
 /// <summary>Settings persistence checks use temporary files, never the player's settings.</summary>
 public static class SettingsIntegrationChecks
 {
+    public static void CheckAudioSetters()
+    {
+        string[] names = { "MasterVolume", "OstVolume", "SfxVolume" };
+        float[] original = { 0.2f, 0.4f, 0.6f };
+        float[] inputs = { float.NaN, 0f, 1f, -0.5f, 1.5f, float.PositiveInfinity, float.NegativeInfinity, 0.35f };
+        float[] outputs = { 0f, 0f, 1f, 0f, 1f, 1f, 0f, 0.35f };
+        AudioSettings untouchedDefault = AudioSettings.Default();
+        AudioSettings data = AudioSettings.Default();
+        AudioSettings zero = new AudioSettings();
+        Require(!ReferenceEquals(data, untouchedDefault), "Each Default call must create an independent object.");
+        Require(zero.MasterVolume == 0f && zero.OstVolume == 0f && zero.SfxVolume == 0f,
+            "Direct construction must retain the established zero-value semantics.");
+        for (int index = 0; index < names.Length; index++)
+        {
+            for (int channel = 0; channel < names.Length; channel++)
+            {
+                typeof(AudioSettings).GetProperty(names[channel]).SetValue(data, original[channel]);
+            }
+            PropertyInfo property = typeof(AudioSettings).GetProperty(names[index]);
+            for (int inputIndex = 0; inputIndex < inputs.Length; inputIndex++)
+            {
+                property.SetValue(data, inputs[inputIndex]);
+                float expected = float.IsNaN(inputs[inputIndex]) ? original[index] : outputs[inputIndex];
+                Require((float)property.GetValue(data) == expected,
+                    names[index] + " must reject NaN without changing the previous value and clamp other invalid inputs.");
+                for (int channel = 0; channel < names.Length; channel++)
+                {
+                    if (channel != index)
+                    {
+                        Require((float)typeof(AudioSettings).GetProperty(names[channel]).GetValue(data) == original[channel],
+                            "Writing one audio bus must not change another bus.");
+                    }
+                }
+            }
+        }
+        Require(untouchedDefault.MasterVolume == 1f && untouchedDefault.OstVolume == 0.5f && untouchedDefault.SfxVolume == 0.5f,
+            "Mutating another default instance must leave the design defaults unchanged.");
+    }
+
     public static FileSettingStore CreateStore(string path)
     {
         var store = new FileSettingStore();

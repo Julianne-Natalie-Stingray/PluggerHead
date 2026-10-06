@@ -13,6 +13,12 @@ public class AudioSettings
         get => masterVolume;
         set
         {
+            if (float.IsNaN(value))
+            {
+                ReportIgnoredNaN(nameof(masterVolume));
+                return;
+            }
+
             if (value is >= 0f and <= 1f)
             {
                 masterVolume = value;
@@ -34,6 +40,12 @@ public class AudioSettings
         get => ostVolume;
         set
         {
+            if (float.IsNaN(value))
+            {
+                ReportIgnoredNaN(nameof(ostVolume));
+                return;
+            }
+
             if (value is >= 0f and <= 1f)
             {
                 ostVolume = value;
@@ -55,6 +67,12 @@ public class AudioSettings
         get => sfxVolume;
         set
         {
+            if (float.IsNaN(value))
+            {
+                ReportIgnoredNaN(nameof(sfxVolume));
+                return;
+            }
+
             if (value is >= 0f and <= 1f)
             {
                 sfxVolume = value;
@@ -76,6 +94,16 @@ public class AudioSettings
     [SerializeField] private float masterVolume;
     [SerializeField] private float ostVolume;
     [SerializeField] private float sfxVolume;
+
+    private static void ReportIgnoredNaN(string fieldName)
+    {
+        GameLog.Warning()
+            .Subsystem("Core")
+            .Name(LogName.Class)
+            .Issue(LogIssue.Invalid(fieldName))
+            .Action(LogAction.Ignore)
+            .Write();
+    }
 
     public static AudioSettings Default()
     {
