@@ -42,6 +42,10 @@ No project-specific command-line build script was found.
 
 ## Coding Style & Naming Conventions
 
+本次及后续合并以重构后的 `master` 为代码风格和项目结构基准：目录按功能组织，组件各自承担明确职责，公开接口表达实际业务行为；Player 通过 Env 的真实接口交互，不保留已被实现替代的示例门面或重复数据模型。合并时保留实现行为、有效文档及资源 GUID，并同步调用方和序列化引用。
+
+沿用 master 的四空格缩进、独立行花括号（包括条件及循环体）、显式访问修饰符、PascalCase 类型/方法/属性与 camelCase 字段/参数/局部变量。序列化配置优先使用 `[SerializeField] private` 字段；对外查询用只读属性，订阅与退订成对，初始化遵循 Unity 生命周期。说明应准确描述当前实现，避免保留已过期的示例约定。
+
 Use four-space indentation and braces on separate lines. Use PascalCase for types and methods, camelCase for parameters and locals, and match nearby field conventions. Match MonoBehaviour filenames to their class names.
 
 Preserve existing XML documentation and bilingual comments when updating behavior. Regenerate input bindings and `*.g.cs` integrations through their source tooling. No repository-specific formatter was identified.
