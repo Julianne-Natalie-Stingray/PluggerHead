@@ -74,10 +74,8 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
-# Global Agent settings
-/[Aa]ssets/AGENTS.md
+# Local Claude settings
 /[Aa]ssets/CLAUDE.md
-/[Aa]ssets/AGENTS.md.meta
 /[Aa]ssets/CLAUDE.md.meta
 
 # JetBrains IDE settings
