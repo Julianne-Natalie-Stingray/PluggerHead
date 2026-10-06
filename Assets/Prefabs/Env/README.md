@@ -17,7 +17,7 @@
 
 CircuitDiagnostics 使用 SceneRoot、MockPlayer、插口、Live/Neutral 与 Anchor，并以场景覆盖填写电线列表和绑定路由 Tilemap。GameplayIntegration 使用新提取的 Env、Environment Grid、GlobalUI 和 EventSystem prefab，仍通过 Anchor prefab 动态放置锚点。Env 内的插座和线是整体关卡预制体的一部分，与上表独立插口/线 prefab 没有继承关系。
 
-新增 `Env.prefab` 保存本关电路布局；`Environment Grid.prefab` 保存路由与地面 Tilemap；场景为 Env 绑定该实例的 Routing Tiles。`GlobalUI.prefab` 包含菜单按钮、SettingsScreen 和 RestartLevelScreen，已移除 InventoryUI；场景覆盖绑定 RestartLevelScreen.player。`EventSystem.prefab` 配置 InputSystemUIInputModule。复制这些预制体到其他关卡时，需重新绑定跨预制体的场景引用。
+新增 `Env.prefab` 保存本关电路布局；`Environment Grid.prefab` 保存路由与地面 Tilemap；场景为 Env 绑定该实例的 Routing Tiles。`GlobalUI.prefab` 包含菜单按钮、SettingsScreen 和 RestartLevelScreen，已移除 InventoryUI；RestartLevelScreen 保留手动指定的 Player；引用为空时自动查找同场景 Player（包含已死亡而停用的对象），未找到时每 0.5 秒重试。组件菜单 Find Player 可手动执行查找，无需逐场景绑定 player。`EventSystem.prefab` 配置 InputSystemUIInputModule。复制这些预制体到其他关卡时，需重新绑定跨预制体的场景引用。
 
 这些资源不是全都只用于查询：Socket 的非 Trigger 碰撞体可能形成实体阻挡。实例化时检查位置与父级缩放，不将保存的 Transform 当作通用关卡坐标；PowerSocket 不会创建线；已归属电线以插座格子为固定端。MockPlayer 对第三方示例图片有依赖，移除包示例前需同步替换引用。
 
