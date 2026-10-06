@@ -85,12 +85,12 @@ public class AudioManager : MonoBehaviour
 
     /// <summary>
     /// Submit a request, normally through AudioBuilder. Returns null when unavailable or refused.
-    /// Checks enabled/configs/pool, clip, frozen entry, limits, then pool capacity; missing clip and unavailable
+    /// Checks enabled/configs/pool, clip, numeric parameters, frozen entry, limits, then pool capacity; missing clip and unavailable
     /// service exits do not all log. Registers and configures the reserved voice before starting it.
     /// During Freezed, both AllowWhileFrozen and effective SurviveFreeze must be true.
     /// SurviveFreeze maps to ignoreListenerPause, independently of looping; it does not directly release voices.
     /// 提交播放请求, 正常由 AudioBuilder 调用. 服务不可用或拒绝时返回 null.
-    /// 依次检查 enabled/configs/pool、clip、冻结入口、实例上限与池容量; 部分前置退出不记录日志.
+    /// 依次检查 enabled/configs/pool、clip、数值参数、冻结入口、实例上限与池容量; 部分前置退出不记录日志.
     /// 借出后先注册和配置, 再启动. Freezed 期间需 AllowWhileFrozen 与有效 SurviveFreeze 同为 true.
     /// SurviveFreeze 对应 ignoreListenerPause, 与循环独立, 不直接停止或归还声部.
     /// </summary>
@@ -140,7 +140,7 @@ public class AudioManager : MonoBehaviour
             return null;
         }
 
-        if (!TryApplyInstanceLimits(requested, data.MaxInstances))
+        if (!TryApplyInstanceLimits(requested, data))
         {
             return null;
         }
@@ -287,13 +287,20 @@ public class AudioManager : MonoBehaviour
     /// <summary>
     /// Check the per-ID cap, then the global cap; each check can hard-stop one oldest non-looping candidate.
     /// No candidate means refusal. Earlier preemption is not rolled back if a later check fails.
-    /// Dynamic cap reductions and reentrant completion callbacks are not normalized by this single pass.
+    /// Recheck after preemption and check both current caps before admission, because Finished may reenter Play.
+    /// If one preemption cannot make room after a cap reduction or callback, refuse without chasing new victims.
     /// 先检查每 ID 上限, 再检查全局上限; 每级最多硬停一个最旧的非循环候选, 无候选则拒绝.
-    /// 后续检查失败不撤销之前的抢占; 单轮检查不归一化动态降低的上限或完成回调重入带来的变化.
+    /// 抢占后复查, 放行前检查两项当前上限; Finished 可能重入 Play 或更改上限.
+    /// 降低上限或回调后一次抢占仍不能腾出名额则拒绝, 不继续追逐新候选, 也不撤销之前的抢占.
     /// </summary>
-    private bool TryApplyInstanceLimits(AudioId requested, int maxInstances)
+    private bool TryApplyInstanceLimits(AudioId requested, AudioClipData data)
     {
-        if (registry.CountOf(requested) >= maxInstances)
+        if (data.MaxInstances <= 0 || configs.MaxSoundInstance <= 0)
+        {
+            return RefuseOverLimit($"Non-positive instance limit prevents playback of {requested}. ");
+        }
+
+        if (registry.CountOf(requested) >= data.MaxInstances)
         {
             if (registry.TryGetOldest(requested, false, out AudioEmitter sameClipVictim))
             {
@@ -302,9 +309,19 @@ public class AudioManager : MonoBehaviour
             else
             {
                 return RefuseOverLimit(
-                    $"Per-clip limit of {maxInstances} is reached for {requested} and every instance is " +
+                    $"Per-clip limit of {data.MaxInstances} is reached for {requested} and every instance is " +
                     "looping, so none of them may be preempted. ");
             }
+
+            if (registry.CountOf(requested) >= data.MaxInstances)
+            {
+                return RefuseOverLimit($"Per-clip limit of {data.MaxInstances} remains reached for {requested} after preemption. ");
+            }
+        }
+
+        if (configs.MaxSoundInstance <= 0)
+        {
+            return RefuseOverLimit($"Global limit of {configs.MaxSoundInstance} prevents playback after completion callbacks. ");
         }
 
         if (registry.Count >= configs.MaxSoundInstance)
@@ -319,6 +336,18 @@ public class AudioManager : MonoBehaviour
                     $"Global limit of {configs.MaxSoundInstance} is reached and every active sound is " +
                     "looping, so none of them may be preempted. ");
             }
+        }
+
+        // Global preemption callbacks may refill either cap, including the requested ID's slot.
+        // 全局抢占的回调可能占回任一名额, 包括请求 ID 的名额; 读取当前配置以覆盖回调内降限.
+        if (registry.CountOf(requested) >= data.MaxInstances)
+        {
+            return RefuseOverLimit($"Per-clip limit of {data.MaxInstances} is reached for {requested} after completion callbacks. ");
+        }
+
+        if (registry.Count >= configs.MaxSoundInstance)
+        {
+            return RefuseOverLimit($"Global limit of {configs.MaxSoundInstance} remains reached after preemption. ");
         }
 
         return true;

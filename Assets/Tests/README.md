@@ -35,6 +35,7 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 | PlayMode | `PluggerHead.PlayModeTests` | 4 个切换恢复用例 | 宿主失活/销毁、组件禁用、状态回调异常、重入拒绝与后续请求恢复 |
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个主菜单流程用例 | 实际按钮引用、无存档禁用 Continue、Settings 暂停恢复、保存后实际混音器即时更新、New Game、返回菜单、重新读盘 Continue、默认位置/空背包/默认电路、非玩法场景不覆盖存档 |
 | PlayMode | `PluggerHead.PlayModeTests` | 音频尾部及公开接口专项用例 | 变速尾部包络、淡入重叠、冻结中停止、自然完成与归池复用、NaN拒绝及Finished异常隔离 |
+| PlayMode | `PluggerHead.PlayModeTests` | 音频限流专项用例 | 完成回调重入、跨上限补位、运行时降低上限、普通最旧声部抢占、循环保护及非正上限拒绝 |
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个音频生命周期用例 | 原有 19 项断言：默认参数、Builder 覆盖、停止、自然结束、池复用、旧 Timer 隔离、循环及淡出 |
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个实际玩法场景用例 | `GameplayIntegration` 启动、帧推进、K 放置/J 收回 Anchor、绕线渲染、换线、通关一次、重开、超限死亡及单次死亡通知 |
 | PlayMode | `PluggerHead.PlayModeTests` | 4 个地面极性用例 | 真实 2D 支撑接触、双向异极死亡、同极/无线安全、侧墙与天花板排除、Trigger/层过滤、禁用组件、站立换线与输入锁、自动物理帧死亡 |
