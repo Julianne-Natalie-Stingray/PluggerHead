@@ -16,7 +16,7 @@ AudioManager 先查询数据并拒绝缺少实际 clip 的请求，再执行冻�
 
 DefaultSurviveFreeze 对应 AudioSource.ignoreListenerPause，与 Loop 独立。false 表示服从监听器暂停，不是直接 Stop 或归还池。冻结期间新请求还需 WithAllowWhileFrozen(true)，并且有效的 SurviveFreeze 为 true，才会被入口接受。
 
-FadeIn/FadeOut 默认 0。正数用于淡入、句柄请求的优雅停止，以及非循环音的尾部淡出；自然尾部检查只在淡出时间小于 clip.length 时启动。渐变使用非缩放时间；抢占采用立即停止。字段描述默认参数，不保证某个已播放声部会随着资产编辑自动更新。
+FadeIn/FadeOut 默认 0。正数用于淡入、句柄请求的优雅停止，以及非循环音的尾部淡出；自然尾部检查在淡出时间小于当前音高下的整段播放时长（clip.length / pitch）时启动。自然尾部音量由剩余播放时间决定，减速时不回升，音源暂停时保持；淡入和手动停止仍使用非缩放时间，抢占采用立即停止。字段描述默认参数，不保证某个已播放声部会随着资产编辑自动更新。
 
 空间字段只配置 AudioSource，未强制校验请求是否提供坐标；没有 Position/FollowTarget 时仍可播放，使用 emitter 当前坐标。MaxDistance 不是本项目实现的越界静音判断，距离效果还取决于音源本身的衰减配置；本类型不配置 rolloffMode 或自定义曲线。
 

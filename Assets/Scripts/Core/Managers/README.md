@@ -12,13 +12,14 @@ Awake 先创建 Registry，然后检查 emitterPrefab；缺失时记录错误并
 
 ## 请求与拒绝
 
-Play 依次检查 enabled/configs/池、解析 AudioId 与实际 clip、冻结入口、同 ID 上限、全局上限、池容量，再借出、注册、配置、定位并启动声部。返回 ISoundHandle 或 null。检查 enabled 不等于检查 activeInHierarchy；初始化后只让 Core 失活仍可能通过公开方法发起请求，但子声部无法正常活动，不应依赖该用法。
+Play 依次检查 enabled/configs/池、解析 AudioId 与实际 clip、数值参数、冻结入口、同 ID 上限、全局上限、池容量，再借出、注册、配置、定位并启动声部。返回 ISoundHandle 或 null。检查 enabled 不等于检查 activeInHierarchy；初始化后只让 Core 失活仍可能通过公开方法发起请求，但子声部无法正常活动，不应依赖该用法。
 
 | 拒绝原因 | 当前日志 |
 | --- | --- |
 | 组件禁用、缺配置、池尚未建立 | 本次 Play 静默返回 null；初始化可能已有日志。 |
 | 未找到 AudioId 映射 | Configs 与 ResolveClip 各记录 Error。 |
 | 找到 AudioClipData 但其中 Clip 为空 | 静默返回 null。 |
+| 默认或请求音量/音高为 NaN，或淡入淡出时长非有限 | Warning 后返回 null，在抢占与借池前拒绝；音量/音高无穷值仍按原规则夹取。 |
 | Freezed 期间没有同时允许进入并忽略监听器暂停 | Info 后返回 null。 |
 | 实例上限没有可抢占候选或池容量耗尽 | Warning 后返回 null。 |
 

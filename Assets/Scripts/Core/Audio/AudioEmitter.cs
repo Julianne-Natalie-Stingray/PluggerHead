@@ -18,7 +18,8 @@ using System;
 /// natural-end detector; a handle requests a graceful stop and preemption stops immediately. All three paths
 /// therefore funnel through one completion signal.
 /// Ramp model: a playback may fade in from silence, and it may fade out either at the tail of a non-looping
-/// clip or when it is stopped gracefully. Ramps run on unscaled time and multiply the playback volume rather
+/// clip or when it is stopped gracefully. Fade-in and explicit-stop ramps run on unscaled time; natural tails follow the pitched source position.
+/// All envelopes multiply the playback volume rather
 /// than replacing it. They are configured through AudioClipData or a builder override: 0 reproduces the hard
 /// start and hard cut exactly. Preemption never ramps, because it must free its pool slot in the same frame.
 /// Paradigms: none. It is a pooled component driven by AudioManager.
@@ -35,7 +36,7 @@ using System;
 /// 结束检测: Play 装载一个 Timer, 在 source 停止时报告自然结束;
 /// 句柄请求优雅停止, 抢占则立即停止. 三条路径汇入同一个结束信号.
 /// 渐变模型: 一次播放可以从静音淡入; 也可以在非循环 clip 的尾部淡出, 或被优雅停止时淡出.
-/// 渐变走 unscaled time, 且是**乘在**播放音量上的, 而不是替换它. 渐变由 AudioClipData 或 Builder 覆盖配置:
+/// 淡入与主动停止走 unscaled time, 自然尾部跟随变速后的音源位置; 包络**乘在**播放音量上, 而不是替换它. 渐变由 AudioClipData 或 Builder 覆盖配置:
 /// 时长为 0 即精确复现原先的硬起与硬切. 抢占永不走渐变, 因为它必须在同一帧释放池槽位.
 /// 使用范式: 无. 它是由 AudioManager 驱动的池化组件.
 /// </summary>
@@ -139,6 +140,9 @@ public class AudioEmitter : MonoBehaviour
     private float fadeTo = 1f;
     private float fadeScale = 1f;
     private FadePhase fadePhase;
+    private bool naturalTailStarted;
+    private float naturalTailScale = 1f;
+    private float naturalTailCeiling = 1f;
 
     private const float MinVolume = 0f;
     private const float MaxVolume = 1f;
@@ -167,16 +171,16 @@ public class AudioEmitter : MonoBehaviour
     /// Those last two are independent: gating the volume write on follow would silently drop it for every
     /// sound that does not follow, and syncing position for a sound that follows nothing would read a null
     /// target.
-    /// The gate is this emitter's own running flag rather than AudioSource.isPlaying, so a ramp keeps
-    /// advancing while the game is frozen and the source is paused: an emitter stopped during a freeze must
-    /// still be able to finish its fade and return to the pool.
+    /// The gate is this emitter's own running flag rather than AudioSource.isPlaying. Fade-in and explicit
+    /// stop keep advancing during freeze so a stopped emitter can return to the pool; the independent natural
+    /// tail follows the source position and therefore holds while that position is paused.
     /// 进行中的播放每帧工作的单一入口.
     /// 实现思路: 先推进渐变并在其后重新确认播放状态 —— 因为淡出完成正是在该渐变内部停止播放的;
     /// 再对每种播放立即写入待应用的音量, 因为句柄随时可能改音量; 之后只在确实请求了跟随目标时同步位置.
     /// 后两者互相独立: 用跟随去门控音量写入会让每个不跟随的声音静默丢失音量变更;
     /// 而给一个不跟随任何东西的声音做位置同步则会去读一个空目标.
     /// 这里的门控用的是本 emitter 自己的运行标志, 而不是 AudioSource.isPlaying:
-    /// 因此游戏冻结, 音源被暂停时渐变仍在推进 —— 冻结期间被停止的 emitter 必须仍能跑完淡出并归还池.
+    /// 冻结时淡入和主动停止仍推进, 使停止中的 emitter 能归还池; 独立自然尾包络则随暂停的音源位置保持.
     /// </summary>
     private void LateUpdate()
     {
@@ -444,6 +448,7 @@ public class AudioEmitter : MonoBehaviour
         fadeTo = 1f;
         fadeScale = 1f;
         fadePhase = FadePhase.None;
+        ResetNaturalTail();
         source.volume = volume;
         source.pitch = pitch;
         source.ignoreListenerPause = false;
@@ -537,6 +542,7 @@ public class AudioEmitter : MonoBehaviour
     /// </summary>
     private void BeginFadeOnPlay()
     {
+        ResetNaturalTail();
         if (fadeInDuration <= 0f)
         {
             ClearFade();
@@ -552,26 +558,29 @@ public class AudioEmitter : MonoBehaviour
     {
         fadePhase = phase;
         fadeElapsed = 0f;
-        fadeFrom = fadeScale;
+        fadeFrom = Mathf.Min(fadeScale, naturalTailScale);
         fadeTo = target;
     }
 
     /// <summary>
-    /// Single entry point for advancing whatever ramp this emitter is running.
-    /// Implementation approach: driven from LateUpdate with unscaled time, so a ramp keeps running while
-    /// GameStateManager has set Time.timeScale to 0. The scale multiplies the playback volume rather than
+    /// Single entry point for advancing playback envelopes.
+    /// Implementation approach: natural tails use the source position; fade-in and explicit stop are driven
+    /// from LateUpdate with unscaled time and keep running when GameStateManager sets Time.timeScale to 0. The scale multiplies the playback volume rather than
     /// replacing it, so a handle that changes volume mid-ramp still takes effect once the ramp ends.
     /// A ramp that reaches its target either ends, or ends and stops the playback when it was a stop.
-    /// 推进本 emitter 正在执行的渐变的单一入口.
-    /// 实现思路: 由 LateUpdate 以 unscaled time 驱动, 因此 GameStateManager 把 Time.timeScale 设为 0 时渐变仍在推进.
+    /// 推进本 emitter 播放包络的单一入口.
+    /// 实现思路: 自然尾部取音源位置; 淡入与主动停止由 LateUpdate 以 unscaled time 驱动, 时间缩放为零也继续推进.
     /// 该系数是**乘在**播放音量上的, 而不是替换它, 因此渐变途中改音量的效果在渐变结束后依然生效.
     /// 到达目标的渐变要么就此结束, 要么在它是"停止"时结束并停止播放.
     /// </summary>
     private void AdvanceFade()
     {
+        if (source.clip)
+        {
+            AdvanceNaturalTail(source.clip.length, source.time, source.loop);
+        }
         if (fadePhase == FadePhase.None)
         {
-            BeginTailFadeIfDue();
             return;
         }
 
@@ -607,36 +616,49 @@ public class AudioEmitter : MonoBehaviour
     }
 
     /// <summary>
-    /// Single entry point for deciding whether a natural playback has reached its tail.
-    /// Implementation approach: reads the position from the source itself, so a schedule left over from an
-    /// earlier playback cannot start a ramp on a later one, and a paused source simply reaches its tail later.
-    /// A looping clip has no tail, and a fade-out at least as long as the clip is ignored rather than fading
-    /// from the very first frame.
-    /// 判断一次自然播放是否已到尾巴的单一入口.
-    /// 实现思路: 播放位置直接取自音源本身, 因此上一次播放遗留的排程不可能给后一次播放启动渐变;
-    /// 被暂停的音源只是更晚到达尾巴. 循环 clip 没有尾巴; 淡出时长不小于 clip 长度时忽略,
-    /// 而不是从第一帧就开始淡出.
+    /// Advances a natural tail from remaining playback seconds, including the current positive pitch.
+    /// Unlike fade-in and explicit Stop, this envelope follows the source position and therefore pauses
+    /// with a listener-paused source. Slower pitch, a seek, or time resetting at completion never raises it.
+    /// A loop has no tail. Before a tail starts, durations covering the entire pitched clip are ignored.
+    /// 按剩余实际播放秒数与当前正音高推进自然尾包络; 与淡入和主动停止不同, 它随音源位置暂停.
+    /// 降低音高、回跳及播放结束时归零的播放头都不会抬高音量. 循环无尾部;
+    /// 尚未开始尾部时, 不短于变速后整段播放时长的淡出仍忽略.
     /// </summary>
-    private void BeginTailFadeIfDue()
+    private void AdvanceNaturalTail(float clipDuration, float playbackTime, bool looping)
     {
-        if (fadeOutDuration <= 0f)
+        if (fadeOutDuration <= 0f || looping)
         {
             return;
         }
 
-        if (!source.clip || source.loop)
+        float remainingSeconds = Mathf.Max(0f, clipDuration - playbackTime) / pitch;
+        if (!naturalTailStarted)
         {
-            return;
+            if (fadeOutDuration >= clipDuration / pitch || remainingSeconds > fadeOutDuration)
+            {
+                return;
+            }
+
+            naturalTailStarted = true;
+            naturalTailCeiling = Mathf.Min(fadeScale, naturalTailScale);
+            // Do not let an overlapping fade-in raise the volume after the tail has begun.
+            // 尾部优先于重叠的淡入, 从当时有效音量继续下降.
+            if (fadePhase == FadePhase.In)
+            {
+                fadePhase = FadePhase.None;
+            }
         }
 
-        float tailStart = source.clip.length - fadeOutDuration;
+        float envelope = Mathf.Clamp01(remainingSeconds / fadeOutDuration);
+        naturalTailScale = Mathf.Min(naturalTailScale, naturalTailCeiling * envelope);
+        ApplyVolume();
+    }
 
-        if (tailStart <= 0f || source.time < tailStart)
-        {
-            return;
-        }
-
-        BeginFade(FadePhase.Tail, 0f);
+    private void ResetNaturalTail()
+    {
+        naturalTailStarted = false;
+        naturalTailScale = 1f;
+        naturalTailCeiling = 1f;
     }
 
     private void ClearFade()
@@ -650,7 +672,7 @@ public class AudioEmitter : MonoBehaviour
     }
 
     private void ApplyVolume()
-        => source.volume = volume * fadeScale;
+        => source.volume = volume * Mathf.Min(fadeScale, naturalTailScale);
 
     private void InitializeInternal()
     {
@@ -668,7 +690,6 @@ public class AudioEmitter : MonoBehaviour
     {
         None,
         In,
-        Tail,
         Out
     }
 }

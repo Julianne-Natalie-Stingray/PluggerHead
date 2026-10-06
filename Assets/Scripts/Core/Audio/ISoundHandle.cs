@@ -38,8 +38,10 @@ public interface ISoundHandle
 
     /// <summary>
     /// Raised once on invalidation. A graceful Stop invalidates before the audible fade has ended.
+    /// Subscriber exceptions are logged independently and do not prevent later subscribers from running.
     /// External emitter destruction does not currently guarantee this notification.
     /// 句柄失效时触发一次; 优雅停止会在实际淡出结束前通知. 外部销毁 emitter 不保证触发此事件.
+    /// 各订阅者异常分别记录, 不阻止后续订阅者执行.
     /// </summary>
     event System.Action<ISoundHandle> Finished;
 
@@ -53,14 +55,16 @@ public interface ISoundHandle
     bool Stop();
 
     /// <summary>
-    /// Set the live volume of this playback. Fails on an invalidated handle and clamps out-of-range values.
-    /// 设置本次播放的实时音量. 句柄失效时失败, 并对越界值做钳制.
+    /// Set the live volume. An invalidated handle or NaN returns false without changing volume.
+    /// Other out-of-range values, including infinities, are clamped.
+    /// 设置实时音量. 句柄失效或传入 NaN 时返回 false 且保留原值; 其他越界值(包括无穷)做钳制.
     /// </summary>
     bool TrySetVolume(float volume);
 
     /// <summary>
-    /// Set the live pitch of this playback. Fails on an invalidated handle and clamps out-of-range values.
-    /// 设置本次播放的实时音高. 句柄失效时失败, 并对越界值做钳制.
+    /// Set the live pitch. An invalidated handle or NaN returns false without changing pitch.
+    /// Other out-of-range values, including infinities, are clamped.
+    /// 设置实时音高. 句柄失效或传入 NaN 时返回 false 且保留原值; 其他越界值(包括无穷)做钳制.
     /// </summary>
     bool TrySetPitch(float pitch);
 }

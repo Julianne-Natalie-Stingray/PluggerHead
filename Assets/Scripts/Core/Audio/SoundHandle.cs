@@ -78,7 +78,7 @@ public sealed class SoundHandle : ISoundHandle
 
     public bool TrySetVolume(float volume)
     {
-        if (!isValid)
+        if (!isValid || float.IsNaN(volume))
         {
             return false;
         }
@@ -89,7 +89,7 @@ public sealed class SoundHandle : ISoundHandle
 
     public bool TrySetPitch(float pitch)
     {
-        if (!isValid)
+        if (!isValid || float.IsNaN(pitch))
         {
             return false;
         }
@@ -101,9 +101,9 @@ public sealed class SoundHandle : ISoundHandle
     /// <summary>
     /// Single entry point for invalidating this handle.
     /// Implementation approach: latches invalid state and reason, unsubscribes, then raises Finished once.
-    /// Finished subscribers are not individually exception-isolated here.
+    /// Finished subscribers are individually exception-isolated so each receives the notification.
     /// 使本句柄失效的单一入口.
-    /// 实现思路: 先锁定失效状态与原因, 再退订并触发一次 Finished; 此处不逐一隔离订阅者异常.
+    /// 实现思路: 先锁定失效状态与原因, 再退订并触发一次 Finished; 逐一隔离订阅者异常, 保证后续通知.
     /// </summary>
     private void Invalidate(bool finishedNaturally)
     {
@@ -117,7 +117,23 @@ public sealed class SoundHandle : ISoundHandle
 
         emitter.onAudioFinished -= OnPlaybackEnded;
 
-        Finished?.Invoke(this);
+        Delegate[] callbacks = Finished?.GetInvocationList();
+        if (callbacks == null)
+        {
+            return;
+        }
+
+        foreach (Delegate callback in callbacks)
+        {
+            try
+            {
+                ((Action<ISoundHandle>)callback)(this);
+            }
+            catch (Exception exception)
+            {
+                UnityEngine.Debug.LogException(exception);
+            }
+        }
     }
 
     private void OnPlaybackEnded(AudioEmitter source)
