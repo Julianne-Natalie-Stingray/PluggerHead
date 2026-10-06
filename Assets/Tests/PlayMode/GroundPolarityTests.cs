@@ -31,7 +31,7 @@ namespace PluggerHead.Tests
         [TestCase(true, false)]
         [TestCase(false, true)]
         [TestCase(true, true)]
-        public void GroundTerrain_RequiresCarriedGroundWire(bool keepPoweredWire, bool releaseGroundWire)
+        public void CarriedGroundWire_DoesNotReplaceMatchingPoweredWire(bool keepPoweredWire, bool releaseGroundWire)
         {
             IntegrationCheckBridge.Invoke("GroundPolarityIntegrationChecks", "CheckCarriedGroundWire", keepPoweredWire, releaseGroundWire);
         }

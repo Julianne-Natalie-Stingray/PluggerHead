@@ -17,7 +17,7 @@
 | `SceneIntegrationChecks.cs` | `CheckSceneRegistry()` 核对枚举、配置及五场景构建列表；`CheckSceneAsset(path)` 核对脚本/预制体/材质/组件与布局；`CheckGameplay()` 运行真实 GameplayIntegration，验证 J/K 处理器、回路、真实 Tilemap 落地与路径回退和超长死亡。 |
 | `MainMenuIntegrationChecks.cs` | `CheckProgressStorage()` 检查临时关卡存档；`CheckMenuFlow()` 调用实际按钮事件，检查设置、菜单往返及仅恢复关卡默认状态的 Continue。提供进度存储替换/恢复与清理入口。 |
 | `SceneSwitchRecoveryChecks.cs` | `CheckRecovery(interruption)` 的失活、销毁、禁用及异常回调四条路径，检查重入拒绝、加载结束、预约释放与下一次请求；`Cleanup()` 清理服务与加载场景。 |
-| `GroundPolarityIntegrationChecks.cs` | 真实 2D 接触、同极持线存活、空手/异极/放下线死亡、独立地线与环境隔离、法向/层/Trigger/禁用过滤、换线/放线、输入锁及自动物理帧死亡。 |
+| `GroundPolarityIntegrationChecks.cs` | 真实 2D 接触、同极持线存活、空手/异极/放下线死亡、地线不替代主线与环境隔离、法向/层/Trigger/禁用过滤、换线/放线、输入锁及自动物理帧死亡。 |
 | `TilemapIntegrationChecks.cs` | 六个同步检查与一个帧推进协程；格子长度、跨格/对角回退、Anchor 固定与收回、每线独立/重开、变换/offset 和实际帧推进。 |
 | `OwnedPhysicsSceneCleanup.cs` | Tilemap/Ground 专用清理：先尝试所有自有场景，以有界等待确认卸载；保留未完成句柄供重试，汇总失败。 |
 | `PhysicsCleanupIntegrationChecks.cs` | Run(owner, failure) 通过两组真实 Cleanup 注入各六种情形，共 12 用例：空操作、异常、超时、Dispose、场景已卸载但句柄未确认，以及句柄完成但场景仍加载；Cleanup 供独立 TearDown 等待剩余卸载。 |

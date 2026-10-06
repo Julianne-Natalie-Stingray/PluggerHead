@@ -1,5 +1,7 @@
 # 整合集成测试
 
+2026-10-07 地面极性配置限制：GroundPolarity 仅允许 Live/Neutral；Inspector 使用受限下拉，Awake/OnValidate/Polarity/CanSupport 对 None、Ground、组合及未知值抛出 InvalidOperationException。新增 11 项 EditMode 配置/选项验证，原地线持有测试改为验证地线不能代替匹配主线。独立复审通过，EditMode **64/64**（`6e9495fd130349daabe92d371c42d1fc`）、PlayMode **79/79**（`105f0c02ef9141b88037e8e75b8c9e41`）顺序终态通过，无失败或跳过。以下较早允许 Ground 地面等规则为历史记录。
+
 2026-10-07 极性地面：仅持有与脚下地面相同单极性（Live/Neutral/Ground）的电线才能存活，主线或独立地线任一匹配即可；空手、已放下的匹配线、异极线、None/非法组合均不能保护玩家。保留普通地面、禁用组件、侧墙/天花板、Trigger 和层过滤。地面组现有 10 个展开用例，覆盖站立时换线/放线、双持/独持地线、同场景环境隔离、自动物理帧死亡及单次通知。独立审查通过。复用菜单重开会话在同一最终代码工作区顺序完成的 EditMode **53/53**（`532d644b23a14c6685789311f778cb79`）、PlayMode **79/79**（`d1712a8dbf214f65b5c839989b5c5ac1`），无失败或跳过；已核对 PlayMode 终态及全部地面用例明细，测试后未修改行为代码。此前本会话 EditMode **53/53**（`f2ed382693c74f79bfff1e6ebd0bddc3`）亦通过。场景/预制体未因本次规则修改而调整，原有 EditorSettings 修改保留。
 
 2026-10-07 Socket 单次占用：出线也占用极性锚点，拒绝占用端口和电线自身起点回环；接入后若异极已占用则放下主线。新增 PowerSocket/PolaritySocket 双极与地线共四类占用、重复/自身回插、刷新保持、重开释放检查，以及无主线地线拾取、模板继承、路由、长度及完成检查。旧“重复换线/始终持线”断言同步更新。编译无错误、独立复审通过；EditMode **53/53**（`f9854e72a1e14d9ca7580cf2cce6bca2`）、PlayMode **72/72**（`8b693e952c12448f90fc1377ead7f996`）顺序终态通过，无失败或跳过。Level0 现有两个双极插座在新规则下无法完成回插，用户明确自行调整布局，本次未改关卡资源。
@@ -79,7 +81,7 @@ FinalScene 加入前验证（2026-10-06）：代码及文档独立审查通过�
 | PlayMode | `PluggerHead.PlayModeTests` | 10 个音频限流用例 | 完成回调重入、跨上限补位、运行时降低上限、普通最旧声部抢占、循环保护及非正上限拒绝 |
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个音频生命周期用例 | 原有 19 项断言：默认参数、Builder 覆盖、停止、自然结束、池复用、旧 Timer 隔离、循环及淡出 |
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个实际玩法场景用例 | `GameplayIntegration` 启动、帧推进、K 放置/J 收回 Anchor、绕线渲染、真实 Tilemap 落地、格子移动与逐格回退、换线、通关一次、重开、超限死亡及单次死亡通知 |
-| PlayMode | `PluggerHead.PlayModeTests` | 10 个地面极性用例 | 真实 2D 支撑接触、同极持线存活、空手/异极/已放下线死亡、独立地线匹配及环境隔离、侧墙与天花板排除、Trigger/层过滤、禁用组件、站立换线与输入锁、自动物理帧死亡 |
+| PlayMode | `PluggerHead.PlayModeTests` | 10 个地面极性用例 | 真实 2D 支撑接触、同极持线存活、空手/异极/已放下线死亡、地线不替代主线及环境隔离、侧墙与天花板排除、Trigger/层过滤、禁用组件、站立换线与输入锁、自动物理帧死亡 |
 | PlayMode | `PluggerHead.PlayModeTests` | 7 个 Tilemap 用例 | L 形长度边界、快速跨格、对角可逆、同格微动、空格拒绝放置、Anchor 固定/释放、每线独立与重开、真实碰撞体坐标、远程交互排除、自动 LateUpdate |
 | PlayMode | `PluggerHead.PlayModeTests` | 22 个清理故障用例 | 空操作、异常、超时、Dispose、场景已卸载但句柄未确认、句柄完成但场景仍加载两种归属保护、嵌套错误聚合、状态恢复、进度隔离和重试清理 |
 

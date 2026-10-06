@@ -21,15 +21,70 @@ public static class GroundPolarityIntegrationChecks
     private static bool hasEnvironmentSnapshot;
     private static readonly OwnedPhysicsSceneCleanup sceneCleanup = new OwnedPhysicsSceneCleanup();
 
+    public static void CheckConfiguration(int value, bool valid)
+    {
+        var root = new GameObject("GroundConfigurationCheck");
+        GroundPolarity ground = root.AddComponent<GroundPolarity>();
+        try
+        {
+            Set(ground, "polarity", (WirePolarity)value);
+            Action[] checks =
+            {
+                () => { WirePolarity ignored = ground.Polarity; },
+                () => ground.CanSupport(null),
+                () => typeof(GroundPolarity).GetMethod("Awake", PrivateInstance).Invoke(ground, null),
+                () => typeof(GroundPolarity).GetMethod("OnValidate", PrivateInstance).Invoke(ground, null)
+            };
+            foreach (Action check in checks)
+            {
+                Exception failure = null;
+                try
+                {
+                    check();
+                }
+                catch (TargetInvocationException exception)
+                {
+                    failure = exception.InnerException;
+                }
+                catch (Exception exception)
+                {
+                    failure = exception;
+                }
+                Require(valid ? failure == null : failure is InvalidOperationException &&
+                    failure.Message.Contains("Live or Neutral") && failure.Message.Contains($"({value})"),
+                    "All configuration entry points must accept Live/Neutral and throw a diagnostic exception for invalid values.");
+            }
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(root);
+        }
+    }
+
+    public static void CheckInspectorOptions()
+    {
+        var root = new GameObject("GroundInspectorCheck");
+        try
+        {
+            GroundPolarity ground = root.AddComponent<GroundPolarity>();
+            FieldInfo field = typeof(GroundPolarity).GetField("polarity", PrivateInstance);
+            var dropdown = (NaughtyAttributes.DropdownAttribute)Attribute.GetCustomAttribute(field, typeof(NaughtyAttributes.DropdownAttribute));
+            Require(dropdown != null, "The serialized polarity must use the restricted Inspector dropdown.");
+            var options = (WirePolarity[])typeof(GroundPolarity).GetProperty(dropdown.ValuesName, PrivateInstance).GetValue(ground);
+            Require(options.Length == 2 && options[0] == WirePolarity.Live && options[1] == WirePolarity.Neutral,
+                "The Inspector must offer only Live and Neutral, never None, Ground or combinations.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(root);
+        }
+    }
+
     public static void CheckNonMatchingPolarities()
     {
         BeginChecks();
         CheckLethal(WirePolarity.Live, WirePolarity.Neutral, false);
         CheckLethal(WirePolarity.Neutral, WirePolarity.Live, true);
-        CheckLethal(WirePolarity.Live | WirePolarity.Neutral, WirePolarity.Live, false);
-        CheckLethal(WirePolarity.None, WirePolarity.None, false);
-        CheckLethal((WirePolarity)8, (WirePolarity)8, false);
-        CheckLethal(WirePolarity.Ground, WirePolarity.Live, false);
         CheckLethal(WirePolarity.Live, WirePolarity.Ground, false);
         CheckLethal(WirePolarity.Live, WirePolarity.None, false);
         CheckLethal(WirePolarity.Live, WirePolarity.Live | WirePolarity.Neutral, false);
@@ -101,7 +156,7 @@ public static class GroundPolarityIntegrationChecks
     public static void CheckCarriedGroundWire(bool keepPoweredWire, bool releaseGroundWire)
     {
         BeginChecks();
-        Fixture fixture = new Fixture(WirePolarity.Ground, WirePolarity.Live, true, true);
+        Fixture fixture = new Fixture(WirePolarity.Live, WirePolarity.Live, true, true);
         Wire ground = fixture.PickUpGroundWire();
         Require(ground && ground.IsHeld && fixture.Environment.HeldWire == fixture.Wire,
             "A real ground socket must provide a separate carried ground wire.");
@@ -119,8 +174,8 @@ public static class GroundPolarityIntegrationChecks
         }
         fixture.EstablishContact(Vector2.down);
         fixture.Tick();
-        Require(fixture.Player.IsDead == releaseGroundWire,
-            "Ground terrain requires a genuinely carried ground wire, with or without a main wire.");
+        Require(fixture.Player.IsDead == !keepPoweredWire,
+            "Only the matching main wire protects on Live terrain; carrying or releasing ground must not change that.");
 
         Fixture mismatch = new Fixture(WirePolarity.Neutral, WirePolarity.Live);
         mismatch.PickUpGroundWire();

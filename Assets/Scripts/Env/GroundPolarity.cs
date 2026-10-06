@@ -1,3 +1,5 @@
+using System;
+using NaughtyAttributes;
 using UnityEngine;
 
 /// <summary>
@@ -7,17 +9,43 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class GroundPolarity : MonoBehaviour
 {
-    [SerializeField]
-    [Tooltip("仅持有同极性电线时安全（Live、Neutral 或 Ground）；None 和组合值不允许通行。")]
+    [SerializeField, Dropdown(nameof(AllowedPolarities))]
+    [Tooltip("地面只允许 Live 或 Neutral；其他值属于配置错误。")]
     private WirePolarity polarity = WirePolarity.Live;
 
-    public WirePolarity Polarity => polarity;
+    private WirePolarity[] AllowedPolarities => new[] { WirePolarity.Live, WirePolarity.Neutral };
+
+    public WirePolarity Polarity
+    {
+        get
+        {
+            ValidatePolarity();
+            return polarity;
+        }
+    }
+
+    private void Awake()
+    {
+        ValidatePolarity();
+    }
+
+    private void OnValidate()
+    {
+        ValidatePolarity();
+    }
+
+    private void ValidatePolarity()
+    {
+        if (polarity != WirePolarity.Live && polarity != WirePolarity.Neutral)
+        {
+            throw new InvalidOperationException($"GroundPolarity requires Live or Neutral; received {polarity} ({(int)polarity}).");
+        }
+    }
 
     /// <summary>只有正在持有且单极性完全相同的电线能保护站在此地面上的玩家。</summary>
     public bool CanSupport(Wire wire)
     {
-        bool validPolarity = polarity == WirePolarity.Live || polarity == WirePolarity.Neutral ||
-            polarity == WirePolarity.Ground;
-        return validPolarity && wire && wire.IsHeld && wire.Polarity == polarity;
+        ValidatePolarity();
+        return wire && wire.IsHeld && wire.Polarity == polarity;
     }
 }
