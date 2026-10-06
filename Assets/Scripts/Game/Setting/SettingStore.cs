@@ -14,9 +14,9 @@ using UnityEngine;
 /// JSON shape: TData must be a plain serializable class. JsonUtility cannot serialize Dictionary or
 /// interface-typed fields, so this type deliberately offers no key-value surface; a store whose data must be
 /// dynamic should persist a serializable list of pairs in its own data class instead.
-/// Corruption is expected, not exceptional: a missing, unreadable, empty, syntactically broken, or
-/// member-less file all resolve to design defaults with a log entry, because a damaged settings file must
-/// never stop a game from starting.
+/// Missing files use defaults with an info log; read failures, whitespace, and a false deserialize result
+/// report warnings. A successfully parsed partial object does not itself produce a warning.
+/// The subclass is responsible for parse and business validation; this base does not validate fields.
 /// 某一组持久化设置的泛型存储.
 /// Subsystem 归属: Setting.
 /// 存在位置: 自身无处. 具体子类由自举创建, 或由拥有自身设置的系统创建; 本基类型永不贴在 GameObject 上.
@@ -26,16 +26,15 @@ using UnityEngine;
 /// 生命周期: 创建一次, 预期比每个场景都长寿. 由自举持有; 本类型自身不创建也不销毁自己.
 /// JSON 形态: TData 必须是普通可序列化类. JsonUtility 无法序列化 Dictionary 或接口类型字段,
 /// 因此本类型刻意不提供键值接口; 若某个存储的数据必须动态, 应在自己的数据类里持久化一个可序列化的键值对列表.
-/// 损坏是预期情况而非异常情况: 文件缺失, 不可读, 空白, 语法损坏, 或缺少成员, 一律落到设计默认值并记录一条日志,
-/// 因为损坏的设置文件绝不应阻止游戏启动.
+/// 文件缺失时使用默认值并记录 info; 读取失败、空白或反序列化返回 false 时记录 warning.
+/// 成功解析但缺少字段本身不会触发 warning. 解析与业务校验属于子类, 基类不校验字段.
 /// </summary>
 public abstract class SettingStore<TData>
     where TData : class, ISettingData, new()
 {
     /// <summary>
-    /// The live data. Readable at any time, because loading happens during bootstrap before any scene object
-    /// exists, so no reader can observe a half-loaded store.
-    /// 当前数据. 任意时刻可读, 因为加载发生在自举期, 早于任何场景对象存在, 因此读者不会看到半加载的存储.
+    /// The live data, null before Load. Load replaces the instance; ResetToDefault mutates it in place.
+    /// 当前数据, Load 前为 null. Load 替换实例, ResetToDefault 在当前实例上重置.
     /// </summary>
     public TData Data => data;
 
@@ -49,13 +48,11 @@ public abstract class SettingStore<TData>
     /// <summary>
     /// Single entry point for producing the live data.
     /// Implementation approach: starts from design defaults and lets the subclass apply the file on top of
-    /// them. Seeding defaults first is what makes a file that lacks some members fall back to the designed
-    /// value for those members rather than to the type's zero value; a value of zero is almost never a
-    /// sensible audio volume or frame rate.
+    /// them. This explicitly seeds the intended baseline before the subclass deserializes the file;
+    /// preservation of omitted members depends on that deserialization strategy.
     /// 产生当前数据的单一入口.
     /// 实现思路: 先从设计默认值开始, 再由子类把文件覆盖在其上.
-    /// 之所以先铺默认值, 是为了让"文件里缺少某些成员"回退到**被设计出的值**, 而不是该类型的零值;
-    /// 而零值几乎从不可能是合理的音量或帧率.
+    /// 在子类反序列化前明确建立设计基线; 缺失成员是否保留基线取决于具体反序列化策略.
     /// </summary>
     public void Load()
     {
@@ -82,15 +79,14 @@ public abstract class SettingStore<TData>
 
     /// <summary>
     /// Single entry point for the file half of loading, applied on top of an already defaulted instance.
-    /// Implementation approach: every failure path -- unreadable file, unparseable content, or content missing
-    /// required members -- falls through to the caller's defaults with a log entry, and the method itself never
-    /// throws. A subclass must therefore report failure through its return value rather than by propagating an
-    /// exception, because JsonUtility signals a parse error by throwing, and letting that escape would abort
-    /// bootstrap and leave the game with no settings at all.
+    /// Implementation approach: catches read exceptions and reports blank content. A false deserialize result
+    /// resets any partially overwritten fields before warning. Missing members are not validated here.
+    /// Subclasses must report parse failure through the return value; exceptions from TryDeserialize,
+    /// ResetToDefault or Configure are not caught by this loading pipeline.
     /// 加载中"文件那一半"的单一入口, 且作用于一个已经填好默认值的实例之上.
-    /// 实现思路: 每条失败路径 —— 文件不可读, 内容无法解析, 或内容缺少必需成员 —— 都带着一条日志回落到调用方的默认值,
-    /// 且本方法自身从不抛异常. 因此子类必须通过返回值报告失败, 而不是让异常传播:
-    /// JsonUtility 对解析错误是以抛异常的方式报错的, 若让它逃出去, 自举会被中断, 游戏将完全没有设置可用.
+    /// 实现思路: 捕获读取异常、检查空白内容; 反序列化返回 false 后先重置部分覆盖的字段, 再报告 warning.
+    /// 此处不检查缺失成员. 子类须通过返回值报告解析失败;
+    /// 加载流程不捕获 TryDeserialize、ResetToDefault 或 Configure 抛出的异常.
     /// </summary>
     protected void LoadInto(TData target)
     {
@@ -128,11 +124,11 @@ public abstract class SettingStore<TData>
     /// <summary>
     /// Single entry point for writing the live data to disk.
     /// Implementation approach: serializes and writes immediately, and reports success through its return
-    /// value so a caller can decide what to do; it never throws, because a failed save must not break the
-    /// caller's flow.
+    /// value so a caller can decide what to do. Serialization and write exceptions are caught and logged.
+    /// This is a direct overwrite, without a temporary replacement file or backup.
     /// 把当前数据写入磁盘的单一入口.
     /// 实现思路: 立即序列化并写入, 并通过返回值报告成功与否, 使调用方自行决定后续;
-    /// 它从不抛异常, 因为保存失败不应打断调用方的流程.
+    /// 序列化与写入异常会被捕获并记录. 直接覆盖原文件, 没有临时文件替换或备份.
     /// </summary>
     public bool Save()
     {
@@ -181,11 +177,10 @@ public abstract class SettingStore<TData>
 
     /// <summary>
     /// Single entry point for the type-specific half of persistence.
-    /// Implementation approach: abstract rather than varied, because JsonUtility cannot serialize a generic
-    /// type parameter, so each concrete store must name its own type. It must not throw.
+    /// Implementation approach: an abstract hook isolates the serialization strategy from file I/O.
+    /// Save catches exceptions from this hook and reports failure.
     /// 持久化中与类型相关的那一半的单一入口.
-    /// 实现思路: 为抽象而非多态, 因为 JsonUtility 无法序列化泛型类型参数, 每个具体存储必须写出自己的类型.
-    /// 它不得抛异常.
+    /// 实现思路: 抽象钩子把序列化策略与文件 I/O 分开. Save 捕获此钩子异常并报告失败.
     /// </summary>
     protected abstract string Serialize(TData target);
 

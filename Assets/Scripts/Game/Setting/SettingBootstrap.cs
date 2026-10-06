@@ -3,13 +3,12 @@ using UnityEngine;
 /// <summary>
 /// The Setting subsystem's entry point and owner of the live settings.
 /// Subsystem: Setting.
-/// What service it provides: it creates the settings store before any scene exists, loads the persisted values
+/// What service it provides: it creates the settings store in BeforeSceneLoad, loads the persisted values
 /// once, and exposes the resulting data for the whole session.
-/// Who needs to call it: nothing has to. Reading is done through Settings at any time; writing is done by
-/// whichever system owns the setting. Only Save is expected to be called by consumers.
+/// Unity calls initialization. Consumers read Settings after initialization and may Save or ResetToDefault.
+/// Changing values does not save immediately; Application.quitting also attempts to save current values.
 /// Why it is a static class rather than a Component: settings must be readable before the first scene object
-/// awakes, and a Component cannot guarantee that without an object the user has to place by hand, which would
-/// break the template's "no manual wiring" convention. The cost is that this object is implicit and cannot be
+/// awakes, without adding a bootstrap GameObject. The cost is that this object is implicit and cannot be
 /// found in the Hierarchy.
 /// Who calls the bootstrap: Unity itself, through RuntimeInitializeOnLoadMethod before the scene loads. No
 /// user code calls Initialize.
@@ -18,11 +17,11 @@ using UnityEngine;
 /// Data overview: holds no data of its own beyond the store reference; the data lives in SettingStore.Data.
 /// Setting 子系统的入口与当前设置的持有者.
 /// Subsystem 归属: Setting.
-/// 提供什么服务: 在任何场景存在之前建立设置存储, 一次性加载持久化的值, 并在整个会话中暴露所得到的数据.
-/// 谁需要调用: 无需任何人调用. 读取随时通过 Settings 进行; 写入由拥有该设置项的系统进行.
-/// 预期由消费方调用的只有 Save.
+/// 提供什么服务: 在 BeforeSceneLoad 建立存储, 加载持久化的值, 并在整个会话中暴露所得到的数据.
+/// Unity 调用初始化. 消费方在初始化完成后读 Settings, 可调用 Save 或 ResetToDefault.
+/// 修改值不会立即保存; Application.quitting 也会尝试保存当前值.
 /// 为什么是静态类而不是 Component: 设置必须在第一个场景对象 Awake 之前即可读,
-/// 而 Component 要做到这一点就得依赖一个必须由你手动放置的物体, 那会破坏模版"无需手动装配"的约定.
+/// 使用运行时初始化回调避免额外装配自举 GameObject.
 /// 代价是这个对象是隐式的, 无法在 Hierarchy 中找到它.
 /// 谁调用本自举: Unity 自身, 通过 RuntimeInitializeOnLoadMethod 在场景加载之前. 没有任何用户代码调用 Initialize.
 /// 生命周期: 存储每次运行创建一次, 从不销毁. Application.quitting 的订阅出于同一原因也只建立一次.
@@ -31,9 +30,10 @@ using UnityEngine;
 public static class SettingBootstrap
 {
     /// <summary>
-    /// The live settings. Valid from before the first scene loads until the process ends, so any code may read
-    /// it at any time without checking for readiness.
-    /// 当前设置. 从第一个场景加载之前到进程结束均有效, 因此任何代码随时可读, 无需检查是否就绪.
+    /// The live settings after Initialize has completed. No lazy initialization or null guard is provided;
+    /// EditMode and earlier runtime initialization callbacks must not assume readiness.
+    /// Initialize 完成后的当前设置. 没有延迟初始化或空值保护;
+    /// EditMode 或更早的运行时初始化回调不能假定它已就绪.
     /// </summary>
     public static GameSettings Settings => store.Data;
 
@@ -42,12 +42,11 @@ public static class SettingBootstrap
     /// <summary>
     /// Single entry point for creating and loading the settings store.
     /// Implementation approach: runs before the first scene loads, which is what makes Settings safe to read
-    /// from any Awake. It never throws: a missing, unreadable, or corrupt file falls back to defaults inside
-    /// Load, so a broken settings file cannot prevent the game from starting.
+    /// from scene Awake. Load handles missing files, read failures and parser exceptions with defaults;
+    /// successfully parsed values are not validated for business correctness.
     /// 创建并加载设置存储的单一入口.
     /// 实现思路: 在第一个场景加载之前运行, 这正是 Settings 能被任何 Awake 安全读取的原因.
-    /// 它从不抛异常: 文件缺失, 不可读, 或损坏都会在 Load 内部回退到默认值,
-    /// 因此损坏的设置文件无法阻止游戏启动.
+    /// Load 对缺失文件、读取失败和解析异常使用默认值; 成功解析的数值没有业务校验.
     /// </summary>
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Initialize()
@@ -92,12 +91,9 @@ public static class SettingBootstrap
     }
 
     /// <summary>
-    /// TODO: Provide a way to trigger a save from the Inspector for manual verification. Not implemented
-    /// because this bootstrap is a static class, and NaughtyAttributes' Button attribute only appears on a
-    /// Component's inspector, so there is no surface to hang it on. Verification therefore goes through
-    /// Application.quitting or an explicit Save call from gameplay code.
-    /// TODO: 提供从 Inspector 触发保存以进行人工验证的手段. 未实现原因: 本自举是静态类,
-    /// 而 NaughtyAttributes 的 Button 属性只出现在 Component 的 Inspector 上, 没有可挂载的面.
-    /// 因此验证途径是 Application.quitting, 或由玩法代码显式调用 Save.
+    /// Manual verification is available through SettingsScreen.SaveSettings in the main menu and gameplay
+    /// scenes, explicit Save calls, and the quitting hook. This static class has no Inspector button.
+    /// 人工验证可通过主菜单和玩法场景的 SettingsScreen.SaveSettings、显式 Save 或退出钩子进行.
+    /// 本静态类自身没有 Inspector 按钮.
     /// </summary>
 }
