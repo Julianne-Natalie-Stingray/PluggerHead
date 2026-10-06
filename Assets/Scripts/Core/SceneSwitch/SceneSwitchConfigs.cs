@@ -5,25 +5,26 @@ using UnityEngine;
 /// <summary>
 /// The whitelist of switchable scenes: which SceneId resolves to which scene name.
 /// Subsystem: Core (SceneSwitch).
-/// Where it lives: nowhere. It is an asset referenced by SceneSwitchManager, which is the only reader.
-/// Responsibility: hold the SceneId to scene-name mapping, answer lookups for it, and keep itself free of
-/// duplicates and blank names.
+/// Where it lives: an asset read by SceneSwitchManager, MainMenuScreen and LevelProgressTracker.
+/// Responsibility: hold scene mappings and gameplay flags, answer lookups, warn about blank names on validation,
+/// and offer a manual button to remove duplicate IDs. Runtime queries do not sanitize the list.
 /// Does NOT own: whether the named scene is registered for loading. That is Unity's Build Settings, and
 /// SceneSwitchManager checks it separately, so a whitelist entry pointing at an unregistered scene is reported
 /// rather than silently trusted.
-/// Lifetime: an asset; it lives as long as the project does. It is never created or destroyed at runtime.
-/// Data overview: one flat list of entries, each pairing a SceneId with a scene name. The name must equal the
-/// scene file name without its extension, which is what Unity's build-index lookup accepts.
+/// Lifetime: the project supplies a shared configuration asset; this type has no automatic creation logic.
+/// Data overview: a flat list of SceneId, scene name and gameplay flag. This project uses file names without
+/// extensions, also matching the exact Scene.name comparison used for progress tracking.
 /// Paradigms: none. It is a data lookup.
 /// 可切换场景的白名单: 哪个 SceneId 解析到哪个场景名.
 /// Subsystem 归属: Core (SceneSwitch).
-/// 存在位置: 无. 它是被 SceneSwitchManager 引用的资产, 而后者是它唯一的读者.
-/// 职能: 持有 SceneId 到场景名的映射, 为它提供查找, 并保持自身无重复、无空名.
+/// 存在位置: 由 SceneSwitchManager、MainMenuScreen 和 LevelProgressTracker 读取的资产.
+/// 职能: 持有场景映射与玩法标记、提供查找、校验时警告空名, 并提供手动按键移除重复 ID.
+/// 运行时查询不会清理列表.
 /// 不负责: 被命名的场景是否已注册可加载. 那属于 Unity 的 Build Settings, 由 SceneSwitchManager 另行检查,
 /// 因此指向未注册场景的白名单条目会被报告出来, 而不是被静默信任.
-/// 生命周期: 资产; 与工程同寿. 运行时既不创建也不销毁.
-/// 数据概览: 一张扁平的条目列表, 每条把一个 SceneId 与一个场景名配对. 名字必须等于场景文件名(不含扩展名),
-/// 因为 Unity 的构建索引查找接受的就是它.
+/// 生命周期: 项目提供共享配置资产; 类型自身没有自动创建逻辑.
+/// 数据概览: 扁平的 SceneId、场景名与玩法标记列表. 本项目使用不带扩展名的场景文件名,
+/// 也与进度追踪按 Scene.name 精确比较的约定一致.
 /// 使用范式: 无. 它是数据查找.
 /// </summary>
 [CreateAssetMenu(
@@ -57,12 +58,11 @@ public class SceneSwitchConfigs : ScriptableObject
 
     /// <summary>
     /// Single entry point for resolving a key to the scene name it stands for.
-    /// Implementation approach: a linear scan over a list whose length is the number of switchable scenes, and
-    /// it runs once per switch request rather than per frame, so a lookup index would add a second source of
-    /// truth for no measurable gain.
+    /// Implementation approach: a linear scan returning the first matching ID, even if its name is blank.
+    /// Called by switch requests and by the main menu's per-frame availability refresh.
     /// 把键解析为它所代表的场景名的单一入口.
-    /// 实现思路: 对一张长度等于可切换场景数的列表做线性扫描, 且每次切换请求只运行一次而非每帧运行,
-    /// 因此建查找索引只会多出一个真相来源, 而换不来可度量的收益.
+    /// 实现思路: 线性扫描并返回首个匹配 ID, 即使其名字为空也返回 true.
+    /// 切换请求和主菜单每帧的可用性刷新都会调用.
     /// </summary>
     public bool TryGetSceneName(SceneId requested, out string sceneName)
     {
@@ -132,11 +132,10 @@ public class SceneSwitchConfigs : ScriptableObject
 #endif
 
     /// <summary>
-    /// One mapping from a switchable scene's key to its scene name.
-    /// It is nested because it has no meaning outside this list: a whitelist entry is not a concept anything
-    /// else in the project should be able to name.
-    /// 一条从可切换场景的键到其场景名的映射.
-    /// 它之所以嵌套, 是因为它在这张列表之外没有意义: 白名单条目不是一个工程中其他东西应当能够命名的概念.
+    /// Internal serialized mapping with a gameplay flag for menu availability and reverse progress lookup.
+    /// Callers query through the configuration API rather than depending on the entry representation.
+    /// 内部序列化映射, 含用于菜单可用性及进度反向查询的玩法标记.
+    /// 调用方通过配置 API 查询, 不依赖条目的内部表示.
     /// </summary>
     [System.Serializable]
     private struct Entry

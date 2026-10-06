@@ -4,34 +4,32 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Scene switcher of the Core subsystem. It is the only entry point for loading another scene.
+/// Scene switch service used by production gameplay. Editor tests also load scenes directly for isolation.
 /// Subsystem: Core (SceneSwitch).
 /// Where it lives: on the Core GameObject, reached through CoreFacade.SceneSwitch.
 /// Responsibility: validate a switch request against the whitelist and Unity's Build Settings, enforce that only
-/// one switch is in flight, own the Loading state for exactly as long as the new scene is not yet shown, and
-/// load the scene.
+/// one switch is in flight per instance, and bracket asynchronous Single loading with the Loading label.
 /// Does NOT own: which scene the game should go to next -- that is the caller's decision, passed as an argument,
 /// because a "next scene" field on a bus would put a gameplay decision in a configuration asset. It also does
 /// not own progress reporting (AsyncOperation already exposes it), transitions or loading screens, what happens
 /// to audio already playing, or whether input is blocked; those are gameplay and presentation decisions.
 /// Lifetime: created with the Core GameObject and kept alive by CoreFacade's DontDestroyOnLoad, so one instance
-/// serves every scene for the whole session. It is never created at runtime.
-/// Loading state: entered once the load has begun and left as soon as the new scene is activated, which is the
-/// window in which no new scene is visible yet. It applies no mechanism -- game time and audio are untouched --
-/// because a load is a transition, not a suspension.
+/// serves subsequent scenes; scene loading can create duplicate Core instances, removed by CoreFacade.
+/// Loading state: entered after loading begins and left after the coroutine observes operation.isDone.
+/// This service does not write timeScale or listener pause directly, but Changed subscribers may do so.
 /// Paradigms: none. It is a MonoBehaviour service, reached through CoreFacade rather than a Singleton.
-/// 场景切换器, 属于 Core 子系统. 它是加载另一个场景的唯一入口.
+/// 生产玩法使用的 Core 场景切换服务; Editor 测试也会直接加载场景以隔离验证.
 /// Subsystem 归属: Core (SceneSwitch).
 /// 存在位置: Core GameObject 上, 通过 CoreFacade.SceneSwitch 访问.
-/// 职能: 依据白名单与 Unity 的 Build Settings 校验切换请求; 强制同一时刻只有一次切换在途;
-/// 在"新场景尚未显示"的整段时间内拥有 Loading 状态; 并加载场景.
+/// 职能: 依据白名单与 Unity 的 Build Settings 校验请求; 单个实例同一时刻只允许一次切换;
+/// 异步 Single 加载前后进入和退出 Loading 标签.
 /// 不负责: 游戏接下来该去哪个场景 —— 那是调用方的决定, 以参数传入, 因为把"下一个场景"字段放在总线上
 /// 等于把玩法决定塞进配置资产. 它也不负责进度上报(AsyncOperation 已经暴露了),
 /// 不负责转场或加载界面, 不负责已在播放的音频如何处置, 也不负责是否屏蔽输入; 那些是玩法与表现的决定.
 /// 生命周期: 随 Core GameObject 创建, 并由 CoreFacade 的 DontDestroyOnLoad 保活,
-/// 因此一个实例服务整场会话中的每个场景. 运行时从不创建它.
-/// Loading 状态: 在加载开始后进入, 在新场景被激活的瞬间离开 —— 那正是"新场景尚不可见"的窗口.
-/// 它不施加任何机制: 游戏时间与音频都不动, 因为加载是一次过渡而不是一次挂起.
+/// 因此首个实例服务后续场景; 场景加载可以创建重复 Core, 由 CoreFacade 移除.
+/// Loading 状态: 加载开始后进入, 协程观察到 operation.isDone 后退出, 不保证与首个可见帧精确同步.
+/// 本服务不直接写 timeScale 或监听器暂停, 但 Changed 订阅者仍可能改变它们.
 /// 使用范式: 无. 它是 MonoBehaviour 服务, 通过 CoreFacade 而非单例访问.
 /// </summary>
 [DisallowMultipleComponent]
@@ -70,12 +68,12 @@ public class SceneSwitchManager : MonoBehaviour
     /// Implementation approach: refuses without starting anything when the whitelist is missing, when a switch
     /// is already in flight, when the key has no mapping, or when the mapped scene is not registered for
     /// loading. Only after all four checks pass does it start the load. Returning null on refusal keeps the
-    /// caller's failure handling to a single null check, and every refusal states its own reason in the log
-    /// rather than silently doing nothing.
+    /// caller's refusal handling to a null check. Missing configuration and busy refusals are silent here;
+    /// missing mappings and missing build entries log errors. Exceptions from loading are not caught.
     /// 请求切换到另一个场景的单一入口.
     /// 实现思路: 在白名单缺失, 已有切换在途, 键无映射, 或映射到的场景未注册可加载时, 不启动任何东西直接拒绝.
     /// 四项检查全部通过后才开始加载. 被拒时返回 null, 使调用方的失败处理收敛为一次 null 判断;
-    /// 且每次拒绝都在日志中写明各自的原因, 而不是静默地什么都不做.
+    /// 此处缺配置或忙碌时静默返回, 无映射或无构建项时记录错误; 未捕获加载调用抛出的异常.
     /// </summary>
     public AsyncOperation RequestSwitch(SceneId requested)
     {
@@ -118,15 +116,12 @@ public class SceneSwitchManager : MonoBehaviour
 
     /// <summary>
     /// Single entry point for driving one switch from start to finish.
-    /// Implementation approach: holds activation back until the load has all but finished, so that the Loading
-    /// state covers every frame in which the old scene is on screen or the new one is not, then releases
-    /// activation and ends Loading once the new scene is active. Activation is deferred rather than automatic
-    /// because Unity activates as soon as it can, which would otherwise leave Loading set for frames after the
-    /// new scene had already appeared.
+    /// Implementation approach: holds activation until progress reaches 0.9, then releases it and waits for
+    /// isDone before leaving Loading and clearing local bookkeeping. This is not synchronized to rendering.
+    /// There is no timeout or finally cleanup if the coroutine is interrupted or a state callback throws.
     /// 驱动一次切换从开始到结束的单一入口.
-    /// 实现思路: 把激活压住直到加载基本完成, 使 Loading 覆盖"旧场景还在屏幕上、或新场景尚未出现"的每一帧;
-    /// 随后放行激活, 并在新场景激活后结束 Loading. 之所以推迟激活, 是因为 Unity 一旦能激活就会立刻激活,
-    /// 否则 Loading 会滞后到新场景已经显示之后的若干帧.
+    /// 实现思路: progress 达到 0.9 后放行激活, 等 isDone 才退出 Loading 并清理本地标记;
+    /// 不与渲染帧同步. 协程中断或状态回调抛异常时没有超时或 finally 清理.
     /// </summary>
     private IEnumerator RunSwitch(SceneId requested, string sceneName)
     {

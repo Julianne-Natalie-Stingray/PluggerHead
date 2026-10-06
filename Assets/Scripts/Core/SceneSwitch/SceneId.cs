@@ -8,8 +8,8 @@
 /// Does NOT own: the scene names themselves or the Build Settings order. SceneSwitchConfigs maps each key to a
 /// name, and Unity owns whether that name is registered for loading.
 /// Extending it: a scene and its key are added together, in the same change -- create the scene file, add the
-/// matching member here, and add the mapping to SceneSwitchConfigs. Doing it in that order is what keeps every
-/// delivery compiling; adding the key first would reference a scene that does not exist yet.
+/// matching member here, register Build Settings, and add the mapping to SceneSwitchConfigs. Compilation
+/// checks enum member names, not whether the scene asset or its runtime registration exists.
 /// Paradigms: none. It is an identifier set.
 /// 工程可切换场景的键.
 /// Subsystem 归属: Core (SceneSwitch).
@@ -18,7 +18,7 @@
 /// 不负责: 场景名本身, 也不负责 Build Settings 的顺序. SceneSwitchConfigs 把每个键映射到一个名字,
 /// 而该名字是否已注册可加载由 Unity 掌管.
 /// 扩展方式: 场景与其键必须**在同一次改动中一起加入** —— 创建场景文件, 在此加一个成员, 并在
-/// SceneSwitchConfigs 中加映射. 按这个顺序做, 才能保证每份交付都编译得过; 先加键会引用一个尚不存在的场景.
+/// SceneSwitchConfigs 中加映射并注册 Build Settings. 编译器只检查枚举成员名, 不验证场景资源或加载注册.
 /// 使用范式: 无. 它是标识符集合.
 /// </summary>
 public enum SceneId
