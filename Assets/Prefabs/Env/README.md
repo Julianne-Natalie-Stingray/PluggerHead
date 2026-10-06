@@ -21,4 +21,6 @@ CircuitDiagnostics 使用 SceneRoot、MockPlayer、插口、Live/Neutral 与 Anc
 
 这些资源不是全都只用于查询：Socket 的非 Trigger 碰撞体可能形成实体阻挡。实例化时检查位置与父级缩放，不将保存的 Transform 当作通用关卡坐标；PowerSocket 不会创建线；已归属电线以插座格子为固定端。MockPlayer 对第三方示例图片有依赖，移除包示例前需同步替换引用。
 
+GlobalUI 左上角 `GameplayHUD` 包含实时剩余线长文本与等宽空白 `ScoreText`。WireLengthDisplay 自动查询同场景当前持线，无需绑定具体 Wire；两个文本均不拦截射线，菜单及模态面板绘制在 HUD 上方。ScoreText 只预留布局空间，尚无计分行为。
+
 接入与行为边界见 [Env 实现](../../Scripts/Env/README.md)。最近场景测试已通过，但不等于每个 prefab 均已单独实例化验证；Tilemap 改造删除了 Corner prefab，保留其他 prefab 的 GUID。

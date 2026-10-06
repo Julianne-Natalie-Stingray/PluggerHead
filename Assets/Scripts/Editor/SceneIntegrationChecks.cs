@@ -238,6 +238,15 @@ public static class SceneIntegrationChecks
         Require(initialWire != null && initialWire.IsHeld && !environment.IsCircuitClosed,
             "The environment must start with an open circuit and a held wire.");
 
+        WireLengthDisplay lengthDisplay = FindComponents<WireLengthDisplay>(ownedScene).Single();
+        TMPro.TMP_Text lengthText = lengthDisplay.transform.Find("RemainingLengthText").GetComponent<TMPro.TMP_Text>();
+        TMPro.TMP_Text scoreText = lengthDisplay.transform.Find("ScoreText").GetComponent<TMPro.TMP_Text>();
+        Require(lengthText.text == "Wire left: Unlimited",
+            "An unrestricted carried wire must display Unlimited.");
+        Require(scoreText.text == string.Empty && scoreText.rectTransform.rect.width >= 300f &&
+            !scoreText.raycastTarget && !lengthText.raycastTarget,
+            "The HUD must reserve an empty score column without intercepting input.");
+
         Rigidbody2D body = movement.GetComponent<Rigidbody2D>();
         UnityEngine.Tilemaps.TilemapCollider2D ground =
             FindComponents<UnityEngine.Tilemaps.TilemapCollider2D>(ownedScene).Single();
@@ -303,9 +312,19 @@ public static class SceneIntegrationChecks
             Require(initialWire.PlugTarget == dual.transform && environment.HeldWire != null &&
                 environment.HeldWire != initialWire && environment.SwapCount == 1,
                 "The authored dual socket must hand over the second wire and count one swap.");
+            typeof(Wire).GetField("maxLength", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(environment.HeldWire, 1000f);
+            yield return null;
+            yield return null;
+            Require(lengthText.text.StartsWith("Wire left: ") && lengthText.text != "Wire left: Unlimited" &&
+                lengthText.text != "Wire left: --",
+                "Swapping to a finite wire must refresh the carried wire display.");
             outlet.Interact(new InteractionDetails(interaction.gameObject, outlet.gameObject));
             Require(environment.IsCircuitClosed && environment.HeldWire == null && clearedCount == 1,
                 "Returning the second wire to its outlet must clear the scene once.");
+            yield return null;
+            yield return null;
+            Require(lengthText.text == "Wire left: --", "A completed circuit with no held wire must clear the length.");
             environment.EvaluateCircuit();
             Require(clearedCount == 1, "Repeated evaluation must not emit another clear event.");
             typeof(EnvironmentFacade).GetMethod("DebugRestartRun", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -320,11 +339,14 @@ public static class SceneIntegrationChecks
         }
 
         UnityEngine.Tilemaps.Tilemap map = environment.RoutingTilemap;
+        typeof(Wire).GetField("maxLength", BindingFlags.Instance | BindingFlags.NonPublic)
+            .SetValue(initialWire, 500f);
         Vector3 routeStart = map.GetCellCenterWorld(map.WorldToCell(interaction.transform.position));
         body.position = routeStart;
         movement.transform.position = routeStart;
         yield return null;
         int startCount = initialWire.TilePath.Cells.Count;
+        float remainingAtStart = 500f - initialWire.TilePath.GetLength(map);
         Vector3Int startCell = map.WorldToCell(routeStart);
         Vector3 farTile = map.GetCellCenterWorld(startCell + Vector3Int.up * 4);
         body.position = farTile;
@@ -333,12 +355,16 @@ public static class SceneIntegrationChecks
         yield return null;
         Require(initialWire.TilePath.Cells.Count >= startCount + 4,
             "The real scene Player must extend the wire along every crossed tile.");
+        Require(lengthText.text == "Wire left: " + (remainingAtStart - 4f).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
+            "Moving four unit tiles must reduce the displayed remaining length by four.");
         body.position = routeStart;
         movement.transform.position = routeStart;
         yield return null;
         yield return null;
         Require(initialWire.TilePath.Cells.Count == startCount,
             "Returning over the real scene Player's tile path must retract the same cells.");
+        Require(lengthText.text == "Wire left: " + remainingAtStart.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
+            "Backtracking must restore the displayed remaining length.");
 
         int diedCount = 0;
         Action onDied = () => diedCount++;
@@ -358,6 +384,9 @@ public static class SceneIntegrationChecks
                 "Player death must show an actionable restart prompt.");
             yield return new WaitForFixedUpdate();
             Require(diedCount == 1, "Later physics frames must not repeat the death notification.");
+            yield return null;
+            yield return null;
+            Require(lengthText.text == "Wire left: 0.0", "Exceeding the wire limit must display zero rather than a negative length.");
         }
         finally
         {
