@@ -10,9 +10,7 @@ namespace PluggerHead.Tests
         [TestCase("Complete", true)]
         [TestCase("MissingInterface", false)]
         [TestCase("WalkOnly", false)]
-        [TestCase("NoReturnRestriction", false)]
-        [TestCase("NoReturnRestriction", true)]
-        public void Circuit_RequiresEverySocketAndKeepsPoweredWire(string scenario, bool neutralFirst)
+        public void Circuit_RequiresEverySocketWithoutReusingEndpoints(string scenario, bool neutralFirst)
         {
             IntegrationCheckBridge.Invoke("CircuitClosureIntegrationChecks", "CheckCircuit", scenario, neutralFirst);
         }
@@ -24,6 +22,21 @@ namespace PluggerHead.Tests
         public void Circuit_GroundAndVoltageFollowSuccessRules(string scenario)
         {
             IntegrationCheckBridge.Invoke("CircuitClosureIntegrationChecks", "CheckGroundAndVoltage", scenario);
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void Socket_RejectsSelfLoopsAndRepeatedEndpointUse(bool powerSocket, bool ground)
+        {
+            IntegrationCheckBridge.Invoke("CircuitClosureIntegrationChecks", "CheckSingleUse", powerSocket, ground);
+        }
+
+        [Test]
+        public void GroundWire_CanRouteAndConnectAfterPoweredWireIsReleased()
+        {
+            IntegrationCheckBridge.Invoke("CircuitClosureIntegrationChecks", "CheckGroundWithoutPoweredWire");
         }
 
         [TestCase("Dual")]

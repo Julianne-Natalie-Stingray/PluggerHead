@@ -37,21 +37,18 @@ public static class CircuitClosureIntegrationChecks
             Wire third = fixture.Environment.HeldWire;
             Require(third && third != fixture.Second && third.Polarity == fixture.First.Polarity &&
                 third.IsHeld && fixture.Environment.SwapCount == 2, "Exhausted authored wires must still produce an opposite-polarity handover.");
-            if (scenario == "NoReturnRestriction")
-            {
-                // Same-polarity return fills the remaining source slot through its outgoing opposite wire.
-                fixture.Interact(fixture.Outlet);
-                Require(fixture.Environment.IsCircuitClosed && cleared == 1 && fixture.Environment.HeldWire.IsHeld,
-                    "All socket anchors are wired: no opposite-return or closed-loop restriction may remain.");
-            }
-            else
-            {
-                fixture.Interact(first);
-                Require(fixture.Environment.SwapCount == 3 && fixture.Environment.HeldWire.Polarity != third.Polarity,
-                    "Each repeated dual socket interaction must still switch polarity.");
-                fixture.Interact(fixture.Outlet);
-                Require(fixture.Environment.IsCircuitClosed && cleared == 1, "Every socket is connected and voltage is within target.");
-            }
+            fixture.Interact(first);
+            Require(fixture.Environment.SwapCount == 2 && fixture.Environment.HeldWire == third,
+                "An occupied socket must reject repeated connections without handing over another wire.");
+            fixture.Interact(fixture.Outlet);
+            Require(fixture.Environment.HeldWire == third && !fixture.Environment.IsCircuitClosed,
+                "The initial outgoing endpoint is already occupied and cannot accept a same-polarity return.");
+            PolaritySocket last = fixture.AddInterface("Last", 0, 3);
+            fixture.Environment.RefreshNodes();
+            fixture.Interact(last);
+            fixture.Interact(fixture.Outlet);
+            Require(fixture.Environment.IsCircuitClosed && cleared == 1 && !fixture.Environment.HeldWire,
+                "Connecting the vacant return endpoint must finish without reusing its occupied outgoing endpoint.");
             fixture.Environment.RefreshNodes();
             Require(fixture.Environment.EvaluateCircuit() && cleared == 1, "Refresh must retain connections without repeating victory.");
             fixture.Restart();
@@ -65,6 +62,7 @@ public static class CircuitClosureIntegrationChecks
     {
         using (var fixture = new Fixture(false))
         {
+            PolaritySocket dual = fixture.AddInterface("Dual", 2, 2);
             PolaritySocket groundA = fixture.AddInterface("GroundA", 3, 0);
             PolaritySocket groundB = fixture.AddInterface("GroundB", 3, 3);
             Set(groundA, "accepted", WirePolarity.Ground);
@@ -92,6 +90,7 @@ public static class CircuitClosureIntegrationChecks
                 Require(!fixture.Environment.IsCircuitClosed, "Every ground socket must also be wired.");
                 return;
             }
+            fixture.Interact(dual);
             fixture.Interact(groundB);
             Require(!fixture.Environment.HeldGroundWire && ground.PlugTarget == groundB.transform && !ground.IsHeld,
                 "Second ground interaction must connect and release only the ground wire.");
@@ -104,7 +103,13 @@ public static class CircuitClosureIntegrationChecks
                 "Refresh must preserve ground endpoints and deduplicated reducer connections.");
             if (scenario == "VoltageTooHigh")
             {
+                fixture.Restart();
+                fixture.Interact(groundA);
+                fixture.Interact(groundB);
+                fixture.Interact(reducer);
                 fixture.Interact(unused);
+                fixture.Interact(dual);
+                fixture.Interact(fixture.Outlet);
                 Require(fixture.Environment.IsCircuitClosed && fixture.Environment.CurrentVoltage == 90d && cleared == 1,
                     "A newly connected second reducer must add its drop and re-evaluate victory.");
             }
@@ -116,6 +121,88 @@ public static class CircuitClosureIntegrationChecks
             fixture.Restart();
             Require(!fixture.Environment.HeldGroundWire && fixture.Environment.CurrentVoltage == 220d &&
                 !fixture.Environment.IsCircuitClosed, "Restart must clear ground, voltage drops and victory.");
+        }
+    }
+
+    public static void CheckSingleUse(bool powerSocket, bool ground)
+    {
+        using (var fixture = new Fixture(false))
+        {
+            Component first = powerSocket ? (Component)fixture.AddOutlet("A", 2, 0) : fixture.AddInterface("A", 2, 0);
+            Component second = powerSocket ? (Component)fixture.AddOutlet("B", 2, 3) : fixture.AddInterface("B", 2, 3);
+            if (ground)
+            {
+                Set(first, powerSocket ? "isGroundTerminal" : "accepted", powerSocket ? (object)true : WirePolarity.Ground);
+                Set(second, powerSocket ? "isGroundTerminal" : "accepted", powerSocket ? (object)true : WirePolarity.Ground);
+            }
+            fixture.Restart();
+            Wire initial = fixture.Environment.HeldWire;
+            fixture.Interact(fixture.Outlet);
+            Require(fixture.Environment.HeldWire == initial && !initial.PlugTarget && !fixture.Outlet.CanInteract,
+                "The initial wire cannot loop back into its own socket.");
+            fixture.Interact((IEnvironmentInteractable)first);
+            Wire carried = ground ? fixture.Environment.HeldGroundWire : fixture.Environment.HeldWire;
+            Require(carried && carried.CircuitStart == first.transform, "The first interaction must establish the outgoing endpoint.");
+            int swaps = fixture.Environment.SwapCount;
+            fixture.Move(fixture.Outlet.transform.position);
+            fixture.Interact((IEnvironmentInteractable)first);
+            Require(!((IEnvironmentInteractable)first).CanInteract && carried.IsHeld && !carried.PlugTarget &&
+                (ground ? fixture.Environment.HeldGroundWire : fixture.Environment.HeldWire) == carried &&
+                fixture.Environment.SwapCount == swaps,
+                "Returning to a wire's own socket must not connect, release, or replace it.");
+            fixture.Interact((IEnvironmentInteractable)second);
+            Require(carried.PlugTarget == second.transform && !carried.IsHeld,
+                "A different unoccupied socket must accept the wire.");
+            Wire next = ground ? fixture.Environment.HeldGroundWire : fixture.Environment.HeldWire;
+            fixture.Environment.RefreshNodes();
+            fixture.Interact((IEnvironmentInteractable)first);
+            fixture.Interact((IEnvironmentInteractable)second);
+            Require((ground ? fixture.Environment.HeldGroundWire : fixture.Environment.HeldWire) == next &&
+                !((IEnvironmentInteractable)first).CanInteract && !((IEnvironmentInteractable)second).CanInteract,
+                "Both occupied sockets must stay unavailable after refresh and repeated interactions.");
+            fixture.Restart();
+            Require(((IEnvironmentInteractable)first).CanInteract, "Restart must release socket endpoints.");
+            fixture.Interact((IEnvironmentInteractable)first);
+            Require(ground ? fixture.Environment.HeldGroundWire != null : fixture.Environment.HeldWire != initial,
+                "A released endpoint must be usable again in the next run.");
+        }
+    }
+
+    public static void CheckGroundWithoutPoweredWire()
+    {
+        using (var fixture = new Fixture(false))
+        {
+            PolaritySocket dual = fixture.AddInterface("Dual", 2, 0);
+            PolaritySocket groundA = fixture.AddInterface("GroundA", 1, 0);
+            PowerSocket groundB = fixture.AddOutlet("GroundB", 3, 3);
+            Set(groundA, "accepted", WirePolarity.Ground);
+            Set(groundB, "isGroundTerminal", true);
+            fixture.Restart();
+            fixture.Interact(dual);
+            fixture.Interact(fixture.Outlet);
+            Require(!fixture.Environment.HeldWire, "Returning to the remaining source endpoint must release the main wire.");
+            Set(fixture.First, "maxLength", 100f);
+            LineRenderer sourceLine = fixture.First.GetComponent<LineRenderer>();
+            sourceLine.textureMode = LineTextureMode.Tile;
+            sourceLine.textureScale = new Vector2(2f, 3f);
+            fixture.Interact(groundA);
+            Wire groundWire = fixture.Environment.HeldGroundWire;
+            Require(groundWire && groundWire.IsHeld, "Ground pickup must work without a powered wire.");
+            LineRenderer groundLine = groundWire.GetComponent<LineRenderer>();
+            Require(groundWire.MaxLength == fixture.First.MaxLength &&
+                groundLine.sharedMaterial == sourceLine.sharedMaterial && groundLine.widthMultiplier == sourceLine.widthMultiplier &&
+                groundLine.textureMode == sourceLine.textureMode && groundLine.textureScale == sourceLine.textureScale,
+                "Ground pickup without a main wire must inherit its initial wire template's configuration.");
+            int before = groundWire.TilePath.Cells.Count;
+            fixture.Move(groundB.transform.position);
+            Require(groundWire.TilePath.Cells.Count > before, "Ground routing must continue without a powered wire.");
+            Set(groundWire, "maxLength", groundWire.TilePath.GetLength(fixture.Environment.RoutingTilemap) / 2f);
+            Vector2 resistance = fixture.Environment.GetResistance(fixture.Player.transform.position);
+            Require(float.IsNegativeInfinity(resistance.x) && float.IsNegativeInfinity(resistance.y),
+                "A ground-only carried wire must still enforce its explicit test length limit.");
+            fixture.Interact(groundB);
+            Require(!fixture.Environment.HeldGroundWire && groundWire.PlugTarget == groundB.transform &&
+                fixture.Environment.IsCircuitClosed, "Ground-only completion must connect the final free endpoint.");
         }
     }
 
@@ -147,14 +234,15 @@ public static class CircuitClosureIntegrationChecks
     {
         using (var fixture = new Fixture(false))
         {
+            PowerSocket other = fixture.AddOutlet("Other", 0, 3);
             fixture.Restart();
             fixture.Move(new Vector3(3.5f, 0.5f));
             fixture.Move(new Vector3(3.5f, 3.5f));
             fixture.Move(new Vector3(0.5f, 3.5f));
-            fixture.Interact(fixture.Outlet);
+            fixture.Interact(other);
             Wire next = fixture.Environment.HeldWire;
             int before = next.TilePath.Cells.Count;
-            fixture.Move(new Vector3(0.5f, 1.5f));
+            fixture.Move(new Vector3(1.5f, 3.5f));
             Require(next.TilePath.Cells.Count == before + 1,
                 "PowerSocket handover must pin the inherited route; walking back lays a new tail.");
             AssertAdjacent(next);

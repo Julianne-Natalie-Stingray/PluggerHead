@@ -103,6 +103,8 @@ public class Wire : MonoBehaviour
         {
             LineRenderer original = source.GetComponent<LineRenderer>();
             line.sharedMaterial = original.sharedMaterial;
+            line.textureMode = original.textureMode;
+            line.textureScale = original.textureScale;
             line.widthCurve = original.widthCurve;
             line.widthMultiplier = original.widthMultiplier;
             line.numCornerVertices = original.numCornerVertices;

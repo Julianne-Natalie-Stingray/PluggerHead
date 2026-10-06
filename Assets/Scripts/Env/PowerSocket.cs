@@ -17,7 +17,8 @@ using UnityEngine;
 [RequireComponent(typeof(Collider2D))]
 public class PowerSocket : MonoBehaviour, IEnvironmentInteractable
 {
-    public bool CanInteract => canInteract && isActiveAndEnabled;
+    public bool CanInteract => canInteract && isActiveAndEnabled &&
+        EnvironmentFacade.ForScene(gameObject.scene) is EnvironmentFacade environment && environment.CanConnectSocket(this);
     public bool IsGroundTerminal => isGroundTerminal;
     public IReadOnlyList<Wire> Wires => wires;
     public Vector3 PlugPosition => transform.position;

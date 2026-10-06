@@ -175,19 +175,22 @@ public class EnvironmentFacade : MonoBehaviour
     /// 记录矩形网格上的移动，补齐两次采样之间跨过的格子。</summary>
     public void SamplePlayerPath(Vector3 worldPosition)
     {
-        if (!routingTilemap || !heldWire || !heldWire.IsHeld ||
+        if (!routingTilemap ||
             float.IsNaN(worldPosition.x) || float.IsInfinity(worldPosition.x) ||
             float.IsNaN(worldPosition.y) || float.IsInfinity(worldPosition.y) ||
             float.IsNaN(worldPosition.z) || float.IsInfinity(worldPosition.z))
         {
             return;
         }
-        if (heldWire.TilePath.Cells.Count == 0)
+        if (heldWire && heldWire.IsHeld)
         {
-            heldWire.TilePath.Reset(PathCell(heldWire.FixedEndPosition));
+            if (heldWire.TilePath.Cells.Count == 0)
+            {
+                heldWire.TilePath.Reset(PathCell(heldWire.FixedEndPosition));
+            }
+            Vector3 from = hasPlayerSample ? previousPlayerPosition : heldWire.FixedEndPosition;
+            TraceCells(heldWire.TilePath, from, worldPosition);
         }
-        Vector3 from = hasPlayerSample ? previousPlayerPosition : heldWire.FixedEndPosition;
-        TraceCells(heldWire.TilePath, from, worldPosition);
         if (heldGroundWire && heldGroundWire.IsHeld)
         {
             TraceCells(heldGroundWire.TilePath, previousGroundPosition, worldPosition);
@@ -584,9 +587,39 @@ public class EnvironmentFacade : MonoBehaviour
         EvaluateCircuit();
     }
 
+    /// <summary>Each polarity endpoint has one connection, including its outgoing wire.
+    /// 每个极性锚点仅容纳一条连接，出线同样占用；禁止接回当前线的起点插座。</summary>
+    public bool CanConnectSocket(Component target)
+    {
+        if (!target || target.gameObject.scene != gameObject.scene || !routingTilemap ||
+            !(target is IEnvironmentInteractable node) || !nodes.Contains(node) ||
+            (target is PolaritySocket configured && !configured.IsConfigurationValid))
+        {
+            return false;
+        }
+        bool ground = target is PolaritySocket terminal ? terminal.Accepted == WirePolarity.Ground :
+            target is PowerSocket outlet && outlet.IsGroundTerminal;
+        Wire wire = ground ? heldGroundWire : heldWire;
+        if (ground && !wire && !heldWire && (!socket || !socket.StartingWire))
+        {
+            return false;
+        }
+        if (!ground && (!wire || !wire.IsHeld))
+        {
+            return false;
+        }
+        if (wire && wire.CircuitStart == target.transform)
+        {
+            return false;
+        }
+        RebuildOccupancy();
+        WirePolarity polarity = ground ? WirePolarity.Ground : wire.Polarity;
+        return !occupied.TryGetValue(target, out WirePolarity taken) || (taken & polarity) == 0;
+    }
+
     private void ApplyPlug(PolaritySocket target)
     {
-        if (!routingTilemap || !heldWire || !heldWire.IsHeld || !target.CanInteract)
+        if (!target.CanInteract || !CanConnectSocket(target))
         {
             return;
         }
@@ -595,14 +628,35 @@ public class EnvironmentFacade : MonoBehaviour
             ApplyGround(target.transform);
             return;
         }
-        TraceToNode(heldWire, target.transform);
-        heldWire.ConnectInterface(target);
+        ApplyPoweredSocket(target, false);
+    }
+
+    private void ApplyPoweredSocket(Component target, bool closesCircuit)
+    {
         Wire previous = heldWire;
-        previous.PlugInto(target.transform, false);
+        WirePolarity opposite = previous.Polarity == WirePolarity.Live ? WirePolarity.Neutral : WirePolarity.Live;
+        occupied.TryGetValue(target, out WirePolarity taken);
+        TraceToNode(previous, target.transform);
+        if (target is PolaritySocket incoming)
+        {
+            previous.ConnectInterface(incoming);
+        }
+        previous.PlugInto(target.transform, closesCircuit);
+        heldWire = null;
+        // An occupied outgoing endpoint cannot supply another wire (e.g. the starting outlet).
+        // 异极端口已有出线时仅完成接入，不在已占用锚点再次出线。
+        if ((taken & opposite) != 0)
+        {
+            return;
+        }
         Wire next = NextPoweredWire(previous);
         next.TilePath.CopyFrom(previous.TilePath);
         HoldWire(next, previous);
-        next.ConnectInterface(target);
+        next.TilePath.CommitConnection();
+        if (target is PolaritySocket outgoing)
+        {
+            next.ConnectInterface(outgoing);
+        }
         swapCount++;
     }
 
@@ -660,7 +714,8 @@ public class EnvironmentFacade : MonoBehaviour
         }
         else
         {
-            heldGroundWire = CreateWire(WirePolarity.Ground, heldWire, target);
+            Wire template = heldWire ? heldWire : socket.StartingWire;
+            heldGroundWire = CreateWire(WirePolarity.Ground, template, target);
             heldGroundWire.BeginConnection(target, null);
             heldGroundWire.TilePath.Reset(PathCell(target.position));
             heldGroundWire.SetRenderOrder(wireSortingLayerId, nextWireRenderOrder++);
@@ -671,7 +726,7 @@ public class EnvironmentFacade : MonoBehaviour
 
     private void ApplyOutlet(PowerSocket outlet)
     {
-        if (!routingTilemap || !heldWire || !heldWire.IsHeld || !outlet.CanInteract)
+        if (!outlet.CanInteract || !CanConnectSocket(outlet))
         {
             return;
         }
@@ -680,13 +735,7 @@ public class EnvironmentFacade : MonoBehaviour
             ApplyGround(outlet.transform);
             return;
         }
-        Wire previous = heldWire;
-        TraceToNode(previous, outlet.transform);
-        previous.PlugInto(outlet.transform, true);
-        Wire next = NextPoweredWire(previous);
-        next.TilePath.CopyFrom(previous.TilePath);
-        HoldWire(next, previous);
-        next.TilePath.CommitConnection();
+        ApplyPoweredSocket(outlet, true);
     }
 
     private void ResolvePlayer()
@@ -1117,15 +1166,17 @@ public class EnvironmentFacade : MonoBehaviour
         {
             // Complete every authored socket, including ground sockets, through the normal interaction path.
             // 通过正常交互补齐全部插座与降压器，而不是假定回原插座必定获胜。
-            foreach (IEnvironmentInteractable node in new List<IEnvironmentInteractable>(nodes))
+            var remaining = new List<IEnvironmentInteractable>(nodes);
+            remaining.Sort((left, right) => AcceptanceOrder(left).CompareTo(AcceptanceOrder(right)));
+            foreach (IEnvironmentInteractable node in remaining)
             {
                 if ((node is PolaritySocket || node is PowerSocket || node is VoltageReducer) && node.CanInteract)
                 {
                     DebugInteractAt((MonoBehaviour)node);
                 }
             }
-            ReportStep("5 every interaction preserves a powered wire",
-                heldWire && heldWire.IsHeld && (heldWire.Polarity == WirePolarity.Live || heldWire.Polarity == WirePolarity.Neutral),
+            ReportStep("5 the carried wire or completed endpoint is consistent",
+                !heldWire || (heldWire.IsHeld && (heldWire.Polarity == WirePolarity.Live || heldWire.Polarity == WirePolarity.Neutral)),
                 $"held={Describe(heldWire)} voltage={CurrentVoltage}");
             ReportStep("6 configured sample meets the success conditions",
                 IsCircuitClosed && cleared,
@@ -1147,6 +1198,11 @@ public class EnvironmentFacade : MonoBehaviour
 
     // Scripted acceptance moves the actor through the same tiles before driving each node.
     // 脚本化验收先移动角色并采样到目标格，再驱动节点；不模拟输入或物理移动。
+    private int AcceptanceOrder(IEnvironmentInteractable node)
+    {
+        return node is VoltageReducer ? 0 : ReferenceEquals(node, socket) ? 2 : 1;
+    }
+
     private void DebugInteractAt(MonoBehaviour target)
     {
         GameObject actor = DebugActor();

@@ -129,7 +129,7 @@ public static class TilemapIntegrationChecks
         AssertCells(fixture.Wire, firstPath);
         Require(anchor.EngagedBy == fixture.Wire, "A swap must keep the first wire's Anchor ownership.");
         fixture.Outlet.Interact(new InteractionDetails(fixture.Player, fixture.Outlet.gameObject));
-        Require(fixture.SecondWire.IsClosed && fixture.Environment.HeldWire && fixture.Environment.HeldWire.IsHeld,
+        Require(fixture.SecondWire.IsClosed && !fixture.Environment.HeldWire,
             "Closing the return wire must preserve the first wire's independent path.");
         fixture.Restart();
         Require(!anchor.IsEngaged && fixture.Environment.HeldWire == fixture.Wire && !fixture.SecondWire.IsClosed,

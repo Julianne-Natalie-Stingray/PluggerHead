@@ -25,7 +25,8 @@ using UnityEngine;
 [RequireComponent(typeof(Collider2D))]
 public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
 {
-    public bool CanInteract => canInteract && isActiveAndEnabled && IsConfigurationValid;
+    public bool CanInteract => canInteract && isActiveAndEnabled && IsConfigurationValid &&
+        EnvironmentFacade.ForScene(gameObject.scene) is EnvironmentFacade environment && environment.CanConnectSocket(this);
     public WirePolarity Accepted => accepted;
     public bool IsConfigurationValid => accepted == (WirePolarity.Live | WirePolarity.Neutral) ||
         accepted == WirePolarity.Ground;

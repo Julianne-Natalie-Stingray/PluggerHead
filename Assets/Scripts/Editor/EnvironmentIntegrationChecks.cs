@@ -155,7 +155,7 @@ public static class EnvironmentIntegrationChecks
             Check(live.PlugTarget == dual.transform && environment.HeldWire == neutral && environment.SwapCount == 1,
                 "Refreshing nodes preserves active circuit state", ref checks);
             outlet.Interact(new InteractionDetails(player, outlet.gameObject));
-            Check(neutral.IsClosed && environment.IsCircuitClosed && environment.HeldWire != null && environment.HeldWire.IsHeld && clearedCount == 1,
+            Check(neutral.IsClosed && environment.IsCircuitClosed && environment.HeldWire == null && clearedCount == 1,
                 "Closing the return wire completes the circuit exactly once", ref checks);
             outlet.Interact(new InteractionDetails(player, outlet.gameObject));
             environment.EvaluateCircuit();
@@ -163,8 +163,6 @@ public static class EnvironmentIntegrationChecks
                 "Repeated interactions do not repeat the win event", ref checks);
 
             // Explicitly exercise defensive placement with a missing powered wire.
-            environment.HeldWire.PlugInto(null, false);
-            Set(environment, "heldWire", null);
             Check(interaction.TryPlaceAnchor(), "Placement remains safe if the powered wire is missing", ref checks);
             Anchor wireless = Get<List<Anchor>>(environment, "anchors").Find(node => node != farther);
             Check(wireless != null && !wireless.IsEngaged,
