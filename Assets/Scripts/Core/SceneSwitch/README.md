@@ -31,16 +31,24 @@ OnValidate 只警告空名。Inspector 的 Remove Duplicates 按钮会实际修�
 
 ## 切换流程
 
-Awake 缺 configs 时记录一次错误并禁用组件。RequestSwitch 的拒绝顺序为：缺配置/本实例忙碌时静默返回 null；无映射时记录错误；构建索引不存在时记录错误。后两者也返回 null。通过后调用 LoadSceneAsync(Single)、设 isSwitching=true、启动协程并返回原始 AsyncOperation。方法未检查组件 enabled 或 activeInHierarchy，也未捕获加载调用异常。
+Awake 缺 configs 时记录一次错误并禁用组件。RequestSwitch 先拒绝失活/禁用、缺配置、本实例忙碌、另一服务持有切换预留或已有 Loading 的请求，静默返回 null；无映射或构建索引不存在时记录错误并返回 null。通过后取得跨实例预留并调用 LoadSceneAsync(Single)。同步启动异常释放预留并向调用方传播，Unity 返回 null 时释放预留并返回 null。
 
-协程先禁用自动激活并 EnterLoading，等 progress>=0.9 后放行激活，再等 isDone 后 ExitLoading、清空本地标记。这不保证与第一帧画面显示精确同步。加载同一个场景不会自动拒绝，而是重新加载；没有玩法标记限制，因此主菜单和诊断场景也能请求。全局单次切换依赖 CoreFacade 去重，IsSwitching 本身是实例字段。
+加载保留默认 allowSceneActivation=true，进入 Loading 后注册 AsyncOperation.completed；即使操作已完成而注册立即触发回调，也保证先进入再退出 Loading。完成委托不依赖宿主协程，组件失活或销毁不会中断实际加载与状态清理。EnterLoading/ExitLoading 的订阅者异常会记录，但不阻止加载或 finally 中的清理；GameState 在通知前已更新标签。完成通知期间仍持有预留，拒绝回调重入请求，随后清空 operation、IsSwitching 及属于本实例的跨实例预留。
 
-本服务不直接写时间倍率或监听器暂停；GameState 的 Changed 订阅者会响应，AudioManager 在 Loading 时解除监听器暂停。冻结与加载的转换约束见 [GameState](../../Game/GameState/README.md)，以当前状态管理器实现为准。调用方应保持 Core 存活且激活，并把 AsyncOperation 当作观察对象，不与管理器争夺 allowSceneActivation。
+完成与第一帧画面显示不保证精确同步。加载同一个场景仍会重新加载；没有玩法标记限制，因此主菜单和诊断场景也能请求。返回值是本次实际 AsyncOperation，可用于观察进度；调用方不应修改 allowSceneActivation，否则仍可主动阻塞 Unity 加载。
+
+本服务不直接写时间倍率或监听器暂停；GameState 的 Changed 订阅者会响应，AudioManager 在 Loading 时解除监听器暂停。冻结与加载的转换约束见 [GameState](../../Game/GameState/README.md)，以当前状态管理器实现为准。新请求要求服务激活；已启动操作即使原 Core 失活或销毁仍完成清理。调用方应把 AsyncOperation 当作观察对象。
 
 ## 已知缺口与核查（2026-10-06）
 
-没有取消、排队、超时或 try/finally/OnDestroy 状态恢复。Core 失活/销毁或 Changed 回调抛异常可使协程无法到达尾部，遗留 Loading/忙碌标记；EnterLoading 在禁止激活之后执行，若该回调抛异常，加载还可能停在等待放行激活。这些是当前实现风险，本次文档检查不修改行为。
+Unity Single 异步加载不支持取消，本服务不提供取消、排队或超时，也不会在 OnDestroy 假装取消进行中的加载。通过实际完成事件解决原先协程中断遗留 Loading/忙碌以及禁止激活后异常卡住的问题；外部调用方若主动设置 allowSceneActivation=false，仍须自行放行。静态预留仅协调本服务请求，不替其他 SceneManager 调用管理状态。
 
-已逐一核对三个脚本与 meta，再比对默认配置、Core prefab、主菜单/进度调用、Build Settings 及测试。SceneAssetTests 检查当前注册表和场景资源；MainMenu PlayMode 流程实际切换并检查目标活动场景、IsSwitching 结束及返回菜单后的状态。未覆盖错误/重复配置、忙碌拒绝、同场景重载、回调异常或中断清理，不能用正常流程通过证明这些路径正确。
+已逐一核对三个脚本与 meta，再比对默认配置、Core prefab、主菜单/进度调用、Build Settings 及测试。SceneAssetTests 检查当前注册表和场景资源；MainMenu PlayMode 流程实际切换并检查目标活动场景、IsSwitching 结束及返回菜单后的状态。新增 SceneSwitchRecoveryTests 使用只有切换服务的隔离持久物体和纯相机 SceneSwitchTarget，覆盖失活/禁用拒绝、加载中组件禁用/宿主失活/销毁、进入和退出状态回调抛异常、同实例及跨实例重入拒绝，以及后续同场景重载。测试不创建 Core、不读写玩家进度或设置。错误/重复配置仍未覆盖。新增测试的运行结果以本轮 Test Runner 报告为准。
 
-独立文档复审通过。本轮只改本目录注释与文档；最终工作区同时包含同期 GameState/Setting 修复及新增测试，已核对交叉说明不再将修复前的状态转换缺陷写作当前行为。编译后 Console 无 error，EditMode job `ffde23500166454aad0d97b5b4ec39f2` 通过 10/10，随后 PlayMode job `cb4f5995eafe45c3aaad666f473cb1cf` 通过 14/14。本目录异常清理风险仍存在。
+独立文档复审通过。本轮只改本目录注释与文档；最终工作区同时包含同期 GameState/Setting 修复及新增测试，已核对交叉说明不再将修复前的状态转换缺陷写作当前行为。编译后 Console 无 error，EditMode job `ffde23500166454aad0d97b5b4ec39f2` 通过 10/10，随后 PlayMode job `cb4f5995eafe45c3aaad666f473cb1cf` 通过 14/14。这些结果属于修复前的文档核查，不作为本轮异常清理修复的验证结果。
+
+## 问题修复验证（2026-10-06）
+
+功能与新增回归经独立代码审查和复审通过。最终编译完成后无编译错误，依次运行 EditMode job `d44f3debefcc408abe77997773b0add8`（11/11）和 PlayMode job `1bef65db930a49189759caf3775d0762`（20/20），均已结束并通过。覆盖真实旋转位置保持与暂停恢复、EditMode 设置按钮保护，以及实际场景切换的失活/销毁/异常通知恢复。Gizmos 坐标转换仅作代码审查，不将运动测试视作绘制断言。
+
+首次 PlayMode job `2f09ea5d698f4c1196b406167003fa30` 为 18/20：两条旋转恢复断言仅等两帧，尚未产生足够可测角度。测试改为等待 0.05 秒实际缩放时间（5 秒实时超时），并逐帧检查位置不变后通过，未放宽原行为要求。Test Runner 临时场景已清理，Enter Play Mode Options 恢复运行前设置。

@@ -28,9 +28,14 @@ public class DebugScript : MonoBehaviour
         CoreFacade core = CoreFacade.Instance;
     }
 
-    [Button("Test Write in Settings")]
+    [Button("Test Write in Settings", EButtonEnableMode.Playmode)]
     private void TestWriteInSettings()
     {
+        if (!Application.isPlaying)
+        {
+            return;
+        }
+
         var random = Random.value;
         
         SettingBootstrap.Settings.Audio.MasterVolume = random;
@@ -42,9 +47,14 @@ public class DebugScript : MonoBehaviour
                   $"SfxVolume: {SettingBootstrap.Settings.Audio.SfxVolume}");
     }
 
-    [Button("Test Resetting Settings")]
+    [Button("Test Resetting Settings", EButtonEnableMode.Playmode)]
     private void TestResettingSettings()
     {
+        if (!Application.isPlaying)
+        {
+            return;
+        }
+
         SettingBootstrap.ResetToDefault();
         Debug.Log($"###MasterVolume: {SettingBootstrap.Settings.Audio.MasterVolume}\n" +
                   $"OstVolume: {SettingBootstrap.Settings.Audio.OstVolume}\n" +

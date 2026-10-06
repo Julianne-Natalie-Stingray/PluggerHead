@@ -27,7 +27,7 @@
 
 ## 与场景、音频和设置的关系
 
-`SceneSwitchManager` 在开始异步加载后调用 EnterLoading，放行激活并等到 `AsyncOperation.isDone` 后调用 ExitLoading；不是在首个可见帧的精确瞬间切换状态。Loading 不自行恢复倍率，所以从 Freezed 进入 Loading 时，倍率仍为 0。
+`SceneSwitchManager` 在开始异步加载后调用 EnterLoading，保持默认允许激活，并在 AsyncOperation.completed 回调中调用 ExitLoading；回调不依赖组件保持激活或存活，也不代表首个可见帧的精确瞬间。Loading 不自行恢复倍率，所以从 Freezed 进入 Loading 时，倍率仍为 0。
 
 当前生产代码中 Changed 的订阅者是 `AudioManager`，在 OnEnable/OnDisable 成对订阅；它按 `state == Freezed` 设置监听器暂停。因此 Core 存在且音频组件订阅时，`Freezed → Loading` 会解除监听器暂停，`ExitLoading → Freezed` 才重新暂停。没有该订阅者时，EnterLoading/ExitLoading 都保留原监听器值。不能把管理器“不直接写音频”描述成全系统“不影响音频”。
 

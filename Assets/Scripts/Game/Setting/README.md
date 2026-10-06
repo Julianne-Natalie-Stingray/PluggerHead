@@ -63,11 +63,11 @@ SettingsScreen 在保存成功后应用音量；没有 Core/Audio 的独立场�
 
 修复前 MainMenuTests 只覆盖面板打开/关闭、暂停恢复和返回菜单，没有调用 SaveSettings；它不能证明 JSON 健壮性、写失败回滚或实际音量生效。手工检查保存功能时应先备份个人设置：打开面板修改并保存、重开后确认滑块值、重启确认读盘；即时混音器应用另行验证。不要通过破坏个人设置文件验证错误分支，应使用隔离路径或内存对象。
 
-本次 Unity 2022.3.43f1c1 内存探针使用真实 FileSettingStore.TryDeserialize：`{}`、`{"audio":{}}`、`{"audio":null}` 均解析成功并保留 1/0.5/0.5；`{"audio":{"masterVolume":2,"ostVolume":-1}}` 也返回成功，实际读到 2/-1/0.5，确认越界读盘未被校验；`{broken` 返回 false。这些结果仅覆盖所列载荷，不是所有目标平台或 JSON 输入的保证。
+修复前 Unity 2022.3.43f1c1 内存探针使用真实 FileSettingStore.TryDeserialize：`{}`、`{"audio":{}}`、`{"audio":null}` 均解析成功并保留 1/0.5/0.5；`{"audio":{"masterVolume":2,"ostVolume":-1}}` 也返回成功，实际读到 2/-1/0.5，确认越界读盘未被校验；`{broken` 返回 false。这些结果仅覆盖所列载荷，不是所有目标平台或 JSON 输入的保证。
 
 另用独立 FileSettingStore 及临时文件调用真实 Save/LoadInto，确认 MasterVolume=0.3 保存成功并读回（JSON 中有浮点表示误差）；已删除探针文件，没有改动玩家真实设置或 Bootstrap 存储。此检查覆盖成功 I/O，不覆盖磁盘写入中断或权限失败。
 
-本次仅修改文档与 XML 注释，独立复审通过；最终脚本编译后 Console 无 error，依次运行 EditMode job `09479b2f716e406c8c0fbb3e3922d8d8`（7/7 通过）与 PlayMode job `c8bff04aa225440c9c3ee3fddb483899`（14/14 通过）。集成回归通过不代表前述未覆盖的设置缺口已修复。
+原文档核查仅修改文档与 XML 注释，独立复审通过；当时脚本编译后 Console 无 error，依次运行 EditMode job `09479b2f716e406c8c0fbb3e3922d8d8`（7/7 通过）与 PlayMode job `c8bff04aa225440c9c3ee3fddb483899`（14/14 通过）。集成回归通过不代表前述未覆盖的设置缺口已修复。
 
 
 ## 检查问题修复验证（2026-10-06）
