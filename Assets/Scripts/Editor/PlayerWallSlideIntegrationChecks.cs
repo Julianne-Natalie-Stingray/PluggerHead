@@ -61,15 +61,28 @@ public static class PlayerWallSlideIntegrationChecks
             fixture.Step(1);
             Require(Mathf.Abs(fixture.Body.velocity.x) < 0.01f,
                 "Releasing movement must still stop horizontal motion without material friction.");
+            float jumpSpeed = fixture.JumpSpeed;
+            Require(jumpSpeed > 0f, "The Player prefab must configure a positive jump speed.");
+            float initialHeight = fixture.Body.position.y;
+            const int steps = 5;
+            float acceleration = Physics2D.gravity.y * fixture.Body.gravityScale;
+            float expectedVelocity = jumpSpeed + acceleration * Fixture.StepSeconds * steps;
+            float expectedRise = jumpSpeed * Fixture.StepSeconds * steps +
+                acceleration * Fixture.StepSeconds * Fixture.StepSeconds * steps * (steps + 1) / 2f;
             fixture.RequestJump();
-            fixture.Step(5);
-            Require(fixture.Body.position.y > 0.5f && fixture.Body.velocity.y > 6f,
-                "Jump input from the floor must retain the normal jump height and velocity.");
+            fixture.Step(steps);
+            Require(fixture.Body.position.y > initialHeight &&
+                Mathf.Abs(fixture.Body.position.y - initialHeight - expectedRise) < 0.02f &&
+                Mathf.Abs(fixture.Body.velocity.y - expectedVelocity) < 0.02f,
+                $"Jump must follow the configured speed {jumpSpeed}: " +
+                $"rise={fixture.Body.position.y - initialHeight} (expected {expectedRise}), " +
+                $"vy={fixture.Body.velocity.y} (expected {expectedVelocity}).");
         }
     }
 
     private sealed class Fixture : IDisposable
     {
+        public const float StepSeconds = 0.02f;
         private readonly Scene scene;
         private readonly Keyboard keyboard;
         private readonly PlayerControls controls;
@@ -80,6 +93,7 @@ public static class PlayerWallSlideIntegrationChecks
         private readonly PropertyInfo editModeUpdates;
         private readonly bool previousEditModeUpdates;
         public Rigidbody2D Body { get; }
+        public float JumpSpeed => new SerializedObject(player).FindProperty("jumpSpeed").floatValue;
 
         public Fixture()
         {
@@ -142,7 +156,7 @@ public static class PlayerWallSlideIntegrationChecks
             for (int index = 0; index < count; index++)
             {
                 Invoke("FixedUpdate");
-                Require(physics.Simulate(0.02f), "The isolated physics scene must simulate.");
+                Require(physics.Simulate(StepSeconds), "The isolated physics scene must simulate.");
             }
         }
 
