@@ -25,18 +25,19 @@ public enum GameState
     Playing,
 
     /// <summary>
-    /// Play is suspended: game time is stopped and audio is paused.
-    /// 游玩被挂起: 游戏时间停止, 音频暂停.
+    /// Play is suspended: scaled game time is stopped and the audio listener is paused.
+    /// Sources configured to ignore listener pause can keep playing.
+    /// 游玩被挂起: 缩放游戏时间停止, 音频监听器暂停; 忽略监听器暂停的声源仍可播放.
     /// </summary>
     Freezed,
 
     /// <summary>
-    /// A scene switch is in flight and the new scene is not shown yet.
-    /// Unlike Freezed it applies no mechanism: game time keeps running and audio keeps playing, because a load
-    /// is a transition rather than a suspension. It is entered and left only by SceneSwitchManager.
-    /// 场景切换正在进行, 而新场景尚未显示.
-    /// 与 Freezed 不同, 它不施加任何机制: 游戏时间照常推进, 音频照常播放, 因为加载是一次过渡而不是一次挂起.
-    /// 只有 SceneSwitchManager 会进入与离开此状态.
+    /// SceneSwitchManager uses this label while waiting for its asynchronous load to complete.
+    /// GameStateManager preserves timeScale on entry and exit; a load entered while frozen stays at zero.
+    /// Subscribers may apply their own effects: AudioManager unpauses the listener on Loading.
+    /// SceneSwitchManager 用此标签表示正在等待异步加载完成, 不保证与首个可见帧精确同步.
+    /// GameStateManager 进入和退出时保留 timeScale; 从冻结进入加载时仍为零.
+    /// 订阅者可以施加自己的效果: AudioManager 在 Loading 通知中解除监听器暂停.
     /// </summary>
     Loading
 }

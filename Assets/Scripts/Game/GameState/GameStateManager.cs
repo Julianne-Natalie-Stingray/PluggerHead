@@ -12,8 +12,8 @@ using UnityEngine;
 /// components decide for themselves what a state means to them.
 /// Does NOT own: which component should react, what a reaction should be, or which systems other than time
 /// and the audio listener are affected. It holds no reference to any subsystem, including AudioManager.
-/// Lifetime: created once per play session and never destroyed. Restoring state on exit is the session's
-/// responsibility, not this class's.
+/// Lifetime: static fields initialize with the scripting domain, not on every scene load. There is no
+/// runtime reset hook; disabling Domain Reload requires callers to arrange session cleanup.
 /// Idempotence: repeated Freeze or repeated Resume are no-ops. Freeze records the time scale in force when it
 /// is entered and restores exactly that value, and it must not overwrite the record while already frozen --
 /// otherwise a slow-motion game would either lose its scale permanently or restore to zero.
@@ -27,7 +27,8 @@ using UnityEngine;
 /// 触发 Changed 是它对外的全部信号, 因此组件自行决定某个状态对它们意味着什么.
 /// 不负责: 哪个组件应当响应, 响应应当是什么, 或除时间与音频监听器之外还有哪些系统受影响.
 /// 它不持有任何 Subsystem 的引用, 包括 AudioManager.
-/// 生命周期: 每次运行创建一次, 从不销毁. 退出时恢复状态是会话的责任, 不是本类的.
+/// 生命周期: 静态字段随脚本域初始化, 不随场景重置. 没有运行时重置钩子;
+/// 禁用 Domain Reload 时需要调用方安排会话清理.
 /// 幂等: 重复 Freeze 或重复 Resume 都是空操作. Freeze 会记录进入时所生效的时间缩放, 并在解冻时精确还原该值;
 /// 且它不得在已处于 Freezed 时覆盖该记录 —— 否则慢动作游戏要么永久丢失其缩放, 要么被还原成零.
 /// 使用范式: 静态访问器. 已否决 Singleton Component, 因为状态必须在第一个场景对象 Awake 之前就是正确的,
@@ -36,16 +37,16 @@ using UnityEngine;
 public static class GameStateManager
 {
     /// <summary>
-    /// The state the game is currently in. Readable at any time; it is correct from before the first scene
-    /// loads, so no reader has to wait for readiness.
-    /// 游戏当前所处的状态. 任意时刻可读; 它在第一个场景加载之前就是正确的, 因此读者无需等待就绪.
+    /// The current label, initialized to Playing with the scripting domain. No readiness wait is needed,
+    /// but disabling Domain Reload does not reset it between play sessions.
+    /// 当前标签, 随脚本域初始化为 Playing, 读取无需等待; 禁用 Domain Reload 后不会在播放会话间自动重置.
     /// </summary>
     public static GameState Current { get; private set; }
 
     /// <summary>
-    /// Raised after Current has changed, never before, so a handler that reads Current sees the value that
-    /// belongs to this notification.
-    /// 在 Current 改变之后触发, 绝不在之前, 因此读取 Current 的处理函数看到的正是本次通知所属的值.
+    /// Raised synchronously after assigning Current. Reentrant changes by an earlier subscriber can make
+    /// Current differ from this notification's argument for later subscribers.
+    /// 赋值 Current 后同步触发; 前序订阅者重入转换可能使后续订阅者读到的 Current 与本次通知参数不同.
     /// </summary>
     public static event Action<GameState> Changed;
 
@@ -60,6 +61,8 @@ public static class GameStateManager
     /// 挂起游玩的单一入口.
     /// 实现思路: 已处于冻结时拒绝动作, 这正是防止已记录的时间缩放被零覆盖的关键.
     /// 它记录当前时间缩放, 停止游戏时间, 暂停音频监听器, 然后才宣布状态.
+    /// Callers must not interleave this with Loading; only an already-Freezed state is guarded here.
+    /// 调用方不得在 Loading 中交错调用; 本方法只拦截已经 Freezed 的情况.
     /// </summary>
     public static void Freeze()
     {
@@ -89,6 +92,8 @@ public static class GameStateManager
     /// 恢复游玩的单一入口.
     /// 实现思路: 还原进入 Freeze 时所生效的时间缩放, 而不是假定某个值; 随后解除监听器暂停并宣布状态.
     /// 与 Freeze 一样, 它是幂等的.
+    /// Calling it during Loading replaces the label with Playing, so ExitLoading can no longer restore it.
+    /// 加载期间调用会把标签改为 Playing, 导致后续 ExitLoading 无法还原加载前的标签.
     /// </summary>
     public static void Resume()
     {
@@ -113,12 +118,12 @@ public static class GameStateManager
     /// <summary>
     /// Single entry point for declaring that a scene switch has begun.
     /// Implementation approach: records whatever state was in force first, so the state can be restored rather
-    /// than assumed. It applies no mechanism: a load is a transition, not a suspension, so game time and audio
-    /// are left alone. Entering it twice is a no-op, which keeps a second record from overwriting the first and
+    /// than assumed. It does not directly write timeScale or listener pause; Changed subscribers can still
+    /// change them. Entering it twice is a no-op, which keeps a second record from overwriting the first and
     /// silently losing what the game was doing before the first load started.
     /// 宣布场景切换已开始的单一入口.
-    /// 实现思路: 先记录当时生效的状态, 以便之后**还原**而不是假定. 它不施加任何机制:
-    /// 加载是一次过渡而非一次挂起, 因此游戏时间与音频都不动. 重复进入是空操作,
+    /// 实现思路: 先记录当时生效的状态, 以便之后还原而不是假定. 本方法不直接写时间倍率和监听器暂停;
+    /// Changed 订阅者仍可改变它们. 重复进入是空操作,
     /// 这防止第二次记录覆盖第一次, 从而静默丢失第一次加载开始前游戏在做什么.
     /// </summary>
     public static void EnterLoading()
@@ -137,10 +142,12 @@ public static class GameStateManager
     /// Single entry point for declaring that a scene switch has finished.
     /// Implementation approach: restores the state recorded by EnterLoading instead of assuming Playing, because
     /// a switch may have been requested while the game was frozen; forcing Playing would silently unfreeze a
-    /// game that nobody asked to unfreeze. It is a no-op when no switch is in flight.
+    /// game that nobody asked to unfreeze. It is a no-op whenever Current is not Loading, even if an async
+    /// scene operation is still in flight. Only the label is restored; subscribers handle their own effects.
     /// 宣布场景切换已结束的单一入口.
     /// 实现思路: 还原 EnterLoading 记录的状态, 而不是假定 Playing, 因为切换可能在游戏已冻结时被请求;
-    /// 强制回到 Playing 会静默解冻一个没人要求解冻的游戏. 当前没有切换在进行时, 它是空操作.
+    /// 强制回到 Playing 会静默解冻一个没人要求解冻的游戏. Current 不为 Loading 时为空操作,
+    /// 不检查异步场景操作是否仍在进行. 这里只恢复标签, 订阅者负责自己的响应.
     /// </summary>
     public static void ExitLoading()
     {
@@ -154,11 +161,11 @@ public static class GameStateManager
 
     /// <summary>
     /// Single entry point for applying a state change and announcing it.
-    /// Implementation approach: assigns first and raises last, in that order, because handlers read Current;
-    /// announcing before assigning would make every handler observe the previous state.
+    /// Implementation approach: assigns first and raises last, because handlers may read Current.
+    /// This does not isolate subscriber exceptions or prevent reentrant state changes.
     /// 应用状态变化并宣布它的单一入口.
-    /// 实现思路: 先赋值, 后触发, 顺序不可颠倒, 因为处理函数会读取 Current;
-    /// 若先宣布再赋值, 每个处理函数观察到的都会是上一个状态.
+    /// 实现思路: 先赋值, 后触发, 因为处理函数可能读取 Current;
+    /// 这里不隔离订阅者异常, 也不拦截订阅者重入修改状态.
     /// </summary>
     private static void Apply(GameState state)
     {
