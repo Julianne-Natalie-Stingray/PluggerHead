@@ -25,10 +25,16 @@
 
 原有 Markdown、HTML、PDF、许可和归属文本均纳入核查。第三方 PDF、许可正文及历史记录保留原文，通过相邻 README 或定位说明解释版本差异和过时示例。TMP 两份断行字符文本作为运行数据检查，不作为说明文档改写。开发截图逐张查看，未把静态图当作当前运行结果。`Samples~` 是工具样例目录，其 README 没有 Unity meta；不因常规资源规则而补造样例 meta。
 
-## 验证及尚待同步的变化
+## 验证与后续修复复核
 
 截至根导航提交，66 份 Markdown 的本地链接检查没有发现失效目标；除上述 Samples~ 文档外，对应 Markdown meta 均存在。独立审查发现的音频覆盖、在途加载状态恢复、清理错误聚合和 PhysicsCleanup fallback 边界已修正文档。仓库权限规则及历史 MCP 快照保持原义。
 
 已直接查询确认的清理修复回归为 EditMode **17/17**（job `3eb8b79ef39f415abbed40cead84b714`）及 PlayMode **57/57**（job `e648646396f14d7ab119a800823a87c8`），均已结束且通过。测试范围与失败清理限制见[测试总说明](../../Tests/README.md)，不扩展为真实输入、听感或完整游戏体验已验证。
 
-本快照之后，工作区出现 Timer、MenuTool 的代码修复及新增测试，以及 PhysicsCleanup 的失败清理和 CompletedLoaded 用例改动，尚未纳入上述通过结果。整体审计收尾前需要逐文件核对这些变化，同步工具与测试目录说明，并确认最终代码版本的审查、编译和串行 Test Runner 结果。仅文档变化不要求重复运行 Unity 测试。
+后续逐文件复核了 Timer、MenuTool 修复及新增测试，以及 PhysicsCleanup 的失败清理和 CompletedLoaded 用例。对应文档同步提交为 Timer `90c712c`、MenuTool `509e11d`、Editor `8c4142b`、EditMode `fcabf85`、PlayMode `5584502`、Tests 总览 `ff0e22e`；生成输出迁移说明 `6c5a077`。生成输出仅新增与源 meta 一致的 GUID 注释，未改变菜单常量或输出 meta GUID。
+
+最终覆盖复查统计为 **67 份 Markdown、55 个文档目录、55 份 README**，新增迁移说明后全量检查的 **165 个本地链接目标**均存在。主要功能目录及全部现有文档目录均有总说明。第三方 HTML 的 Grip 站点样式依赖未随仓提供，已在相邻说明标明离线展示限制（`e5f6fc9`），保留原 HTML。
+
+本轮测试负责方记录 EditMode **21/21**（job `21b6cbceec95472ca70ce3a965876b63`）通过。首次 PlayMode 会话中断后，服务已无法查询旧 job；重连后的新 PlayMode job `a8881108238d4eb5860ef817658ccfdf` 已由文档审计方直接查询，终态 succeeded，**71/71** 通过、0 失败、0 跳过。新增覆盖包括 MenuTool 4 项、Timer 12 项及 Physics 2 项；具体覆盖与未验证边界见测试目录说明。仅文档变化不重复运行 Unity 测试。
+
+测试与代码提交由另一项工作负责，最终修复提交为 `d43b5fd`，包含上述工具、生成输出、测试及最终结果说明。提交后检查确认测试临时场景与 Editor 设置修改已清理，除本审计记录的收尾修改外没有剩余工作区差异。文档审计按目录独立提交说明，没有代为提交其他工作的代码。
