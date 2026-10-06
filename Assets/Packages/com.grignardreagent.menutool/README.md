@@ -10,13 +10,17 @@
 
 - Save 可保存无效定义；验证失败时不生成新 C#，旧输出仍可能保留。Save + Generate 也受 importer 的 Generate C# 开关控制，不强制越过关闭状态。
 - 未显式填写的节点 FileName 回退到根 DefaultFileName，不继承父节点自己的 FileName。
-- 节点 label 禁止 `/`，根 label 只要求非空。标识符校验不是编译保证：根名 Label、Path、DefaultFileName 仍可能与生成成员冲突。
-- 输出应使用专属路径。生成器可能覆盖配置路径上的已有 `.cs`，没有来源归属检查；删除动作按当前解析路径执行，也未复用完整生成校验或验证文件归属。UI 确认框不能替代这些校验。
+- 节点 label 禁止 `/`，根 label 只要求非空。根标识符拒绝 Label、Path、DefaultFileName；节点还拒绝 FileName、同级重复及与直接父类型同名。生成入口另检查外层类名、命名空间，以及根类型与外层类同名冲突。跨定义或手写 partial 类型冲突仍需调用方协调，不保证任意组合都能编译。
+- 生成和删除共用输出路径校验：要求 Assets 内的 `.cs` 路径，规范化绝对路径后拒绝逃逸到 Assets 外。操作现有文件还要求来源归属可确认：标准生成头第二行的源 GUID 与当前资产一致，或无 GUID 的旧文件与按当前定义及 importer 设置重建的完整旧格式内容一致；比较忽略换行差异。不能确认归属时拒绝覆盖或删除。
 - 禁用生成不会删除旧文件，且当前 Inspector 的删除按钮也在禁用区域内。移动源资产、改变输出路径或删除源资产不会自动清理旧生成文件。
 - 切换定义、关闭窗口或域重载可能丢失未保存编辑，没有统一确认流程；先保存需要保留的改动。未知 JSON 字段读取时忽略，保存后不保留。
 - 自定义 JSON codec 服务于本格式，不是严格通用 JSON 校验器；未设置显式递归深度上限。导入对象只保存标量摘要，树由 codec 读写。
 
-本轮未操作导入/生成/删除，没有 MenuTool 专项自动测试结果；项目玩法回归也不证明这些编辑器流程、无效输入或其他 Unity 版本已验证。
+新生成及成功迁移的输出加入源 GUID 标记。已有匹配 GUID 标记的文件可在定义无效时删除；无标记旧文件必须能按当前定义重建并完整匹配，文件名相同不能证明归属。旧文件首次迁移前若已改动定义或 importer 设置，可能因无法匹配而拒绝操作。写入源码不改现有 `.meta`；正常删除通过 AssetDatabase.DeleteAsset 执行。同 GUID 文件即使被手工改动仍可被覆盖或删除，因此不要手改生成文件。此校验不保证符号链接或并发修改场景的安全，写入使用 File.WriteAllText，不是原子替换。
+
+首次文档核查未操作导入/生成/删除，当时没有 MenuTool 专项自动测试结果。后续新增四个 MenuToolSafetyTests，覆盖真实文件读写归属守卫、生成/删除共用路径校验、标识符冲突，以及现有项目定义和常量兼容。测试通过反射调用内部实现，在临时目录操作文件；删除使用注入委托，不执行真实 AssetDatabase 删除，也不导入生成脚本或触发 Domain Reload。新增用例的运行记录见[测试总说明](../../Tests/README.md)，不据此宣称完整 Inspector、AssetPostprocessor、真实资产删除、代码编译、所有 I/O 故障或其他 Unity 版本已验证。
+
+后续修复已通过独立代码审查，并调用真实 `GenerateForAssetPath` 迁移本项目 `Game.MenuTool.g.cs`：仅新增源 GUID 注释，原菜单常量及 `.meta` GUID 保持不变；迁移后编译完成，Console 错误为 0。此生成与编译证据和专项 Test Runner 结果覆盖不同路径，均不扩大到真实资产删除流程。
 
 `Menu Tool` is an Editor-only Unity 2022.3 package that turns project-specific `CreateAssetMenu` structure into an imported `.menutool` asset and a generated compile-time C# API.
 
@@ -114,7 +118,7 @@ The importer Inspector also provides **Generate C# Now** and **Delete Generated 
 
 ## Asset-pipeline behavior
 
-Whenever a `.menutool` asset is imported or moved, an `AssetPostprocessor` queues generation after the import completes. The generator compares the desired source with the existing `.cs` file and only writes when content changed. This avoids unnecessary script recompiles.
+Whenever a `.menutool` asset is imported or moved, an `AssetPostprocessor` queues generation after the import completes. Before writing, the generator validates the definition, output path and source ownership. It compares normalized newlines and only writes when the owned output differs. Migrating an exact legacy output adds its source GUID header and therefore writes once.
 
 Editing a definition and pressing **Save** reimports the source asset. Valid definitions generate when generation is enabled. **Save + Generate** invokes generation immediately and logs the result, but still respects that setting and validation.
 
@@ -139,7 +143,7 @@ Editing a definition and pressing **Save** reimports the source asset. Valid def
 }
 ```
 
-`identifier` and sibling identifiers must pass the package's identifier validation. Node labels may contain spaces but not `/`; the root label is only checked for emptiness. Hierarchy is represented by child nodes. Validation does not detect every possible generated member collision.
+`identifier` and sibling identifiers must pass the package's identifier validation. Root identifiers cannot be Label, Path or DefaultFileName; node identifiers also cannot be FileName, duplicate a sibling, or match their immediate containing type. Generation also rejects a root identifier matching the outer class. Node labels may contain spaces but not `/`; the root label is only checked for emptiness. Hierarchy is represented by child nodes. Validation does not detect collisions across separate definitions or hand-written partial types.
 
 ## Migration from a hand-written `MenuTools` class
 
