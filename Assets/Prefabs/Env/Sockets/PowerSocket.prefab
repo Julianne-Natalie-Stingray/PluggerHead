@@ -10,8 +10,8 @@ GameObject:
   m_Component:
   - component: {fileID: 7423644832427117950}
   - component: {fileID: 254027175997455592}
-  - component: {fileID: 4803599873218673227}
-  - component: {fileID: 7130057279543699365}
+  - component: {fileID: 7679108883699363702}
+  - component: {fileID: 3443888433943991114}
   m_Layer: 0
   m_Name: PowerSocket
   m_TagString: Untagged
@@ -86,7 +86,7 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!60 &4803599873218673227
+--- !u!60 &7679108883699363702
 PolygonCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -130,14 +130,12 @@ PolygonCollider2D:
   m_AutoTiling: 0
   m_Points:
     m_Paths:
-    - - {x: -0.08, y: 0.08}
-      - {x: -0.08, y: -0.08}
-      - {x: 0.074999996, y: -0.08}
-      - {x: 0.08, y: -0.06}
-      - {x: 0.08, y: 0.07}
-      - {x: 0.055, y: 0.08}
+    - - {x: -0.5, y: 0.5}
+      - {x: -0.5, y: -0.5}
+      - {x: 0.16666667, y: -0.5}
+      - {x: 0.16918437, y: 0.5}
   m_UseDelaunayMesh: 0
---- !u!114 &7130057279543699365
+--- !u!114 &3443888433943991114
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

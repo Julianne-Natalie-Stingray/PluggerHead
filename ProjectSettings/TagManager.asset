@@ -42,6 +42,9 @@ TagManager:
   - name: Background
     uniqueID: 539929051
     locked: 0
+  - name: Wire
+    uniqueID: 221185287
+    locked: 0
   - name: WorldGeometry
     uniqueID: 1394750107
     locked: 0
