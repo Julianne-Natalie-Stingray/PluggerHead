@@ -29,7 +29,7 @@ public class EnvironmentFacade : MonoBehaviour
     [SerializeField, Min(0f)]
     private float initialVoltage = 220f;
     [SerializeField, Min(0f)]
-    private float targetVoltage = 220f;
+    private float targetVoltage = 190f;
     public bool IsCircuitClosed => isCircuitClosed;
     public int SwapCount => swapCount;
     public Tilemap RoutingTilemap => routingTilemap;

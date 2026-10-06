@@ -42,6 +42,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 36bc2450ae71e724186373202cd34b06, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
+  initialVoltage: 220
+  targetVoltage: 190
+  routingTilemap: {fileID: 0}
   playerTag: Player
+  debugTarget: {fileID: 0}
