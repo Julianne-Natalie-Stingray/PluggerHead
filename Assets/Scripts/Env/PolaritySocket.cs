@@ -12,14 +12,14 @@ using UnityEngine;
 /// Does NOT own: which wire is held, whether the plug is legal right now, or which polarity slot is already taken.
 /// Occupancy and the swap are circuit state, so the facade derives them from the circuit it already tracks: one
 /// owner for that state instead of two that can disagree.
-/// Lifetime: part of the level object; never created at runtime.
+/// Lifetime: normally authored in a level; refresh the environment after runtime creation.
 /// 带电接口: 线必须电性对应才能插入的地方, 也是玩家**换线**的双性接口.
 /// Subsystem 归属: Environment.
 /// 存在位置: 代表该接口的场景物体上, 与一个 Collider2D 同处, 以便 Player 的范围检测能找到它.
 /// 职能: 声明它接受哪些电性, 并广播"此处收到了交互请求".
 /// 不负责: 哪根线被持有, 此刻这次插入是否合法, 以及某个极性槽位是否已被占用.
 /// 占用与换线属于回路状态, 因此由门面从它已持有的回路推导: 这份状态只有一个拥有者, 而不是两个可能互相矛盾的拥有者.
-/// 生命周期: 属于关卡物体; 从不在运行时创建.
+/// 生命周期: 通常随关卡预设；运行时创建后需刷新环境节点。
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider2D))]

@@ -4,23 +4,14 @@ using NaughtyAttributes;
 using UnityEngine;
 
 /// <summary>
-/// The outlet: where the wires' fixed ends live, where the player enters the level, and where the circuit closes.
-/// Subsystem: Environment.
-/// Where it lives: on the scene object that represents the outlet, next to a Collider2D so the Player's range
-/// detection can find it.
-/// Responsibility: own the wires that leave it, and announce that a plug request arrived here.
-/// Does NOT own: which wire is held, whether a wire is already closed, or the win check. Those are circuit state
-/// and live in EnvironmentFacade.
-/// Lifetime: part of the level object; never created at runtime.
-/// The ground wire of a broken ground line may terminate here as well, which is why that is a per-outlet flag
-/// rather than a separate kind of object.
-/// 插座孔: 两根线固定端所在, 玩家由此进入关卡, 也是回路闭合处.
-/// Subsystem 归属: Environment.
-/// 存在位置: 代表插座孔的场景物体上, 与一个 Collider2D 同处, 以便 Player 的范围检测能找到它.
-/// 职能: 拥有从它引出的线, 并广播"此处收到一次插入请求".
-/// 不负责: 哪根线被持有, 某根线是否已闭合, 以及通关判定. 那些是回路状态, 位于 EnvironmentFacade.
-/// 生命周期: 属于关卡物体; 从不在运行时创建.
-/// 破裂地线的地线也可以在此终止, 因此这是一个"每个插座孔各自"的开关, 而不是另一种物体.
+/// Scene outlet owning a configured list of wires and announcing plug requests to EnvironmentFacade.
+/// 场景插座，维护配置的电线列表，并向 EnvironmentFacade 通知插入请求。
+/// LinkWires assigns ownership but does not position fixed ends or spawn a player.
+/// LinkWires 设置归属，不设置固定端位置，也不创建玩家。
+/// Interact checks canInteract only; Actor, Target and component enable state are not validated here.
+/// Interact 仅检查 canInteract，不校验 Actor、Target 或组件启用状态。
+/// IsGroundTerminal is retained configuration with no current gameplay consumer.
+/// IsGroundTerminal 是保留配置，当前玩法没有读取或执行该开关。
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider2D))]
@@ -32,8 +23,8 @@ public class PowerSocket : MonoBehaviour, IEnvironmentInteractable
     public Vector3 PlugPosition => transform.position;
 
     /// <summary>
-    /// The wire the level starts the run with: the first one wired here. Null when the outlet has no wires.
-    /// 关卡开局时玩家手中那根线: 此处接线的第一根. 插座孔没有线时为 null.
+    /// The wire the level starts the run with: the first valid reference in the configured list. Null when none exists.
+    /// 关卡开局时玩家手中那根线: 配置列表中的首个有效引用. 没有有效引用时为 null.
     /// </summary>
     public Wire StartingWire
     {
@@ -58,7 +49,7 @@ public class PowerSocket : MonoBehaviour, IEnvironmentInteractable
     private bool canInteract = true;
 
     [SerializeField, BoxGroup("Socket")]
-    [Tooltip("Whether this outlet may also terminate the ground wire of a broken ground line.")]
+    [Tooltip("Reserved ground-terminal flag; currently not consumed by circuit logic.")]
     private bool isGroundTerminal = false;
 
     [SerializeField, BoxGroup("Socket")]

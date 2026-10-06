@@ -3,26 +3,12 @@ using NaughtyAttributes;
 using UnityEngine;
 
 /// <summary>
-/// One electrical wire: a fixed end at its outlet, a free end the player carries, and the points it bends through.
-/// Subsystem: Environment.
-/// Where it lives: in the level. Its points are its children, so the path's authored candidates are found through
-/// the hierarchy and need no Inspector wiring.
-/// Responsibility: hold the wire's polarity, its fixed end, and the state of its free end (held by a player, or
-/// plugged somewhere), and render the polyline the facade hands it.
-/// Does NOT own: which wire the player holds, the order of engaged points, the polarity rules, or the win check.
-/// Those are circuit state and live in EnvironmentFacade, which is the only place that holds them.
-/// Lifetime: part of the level object; never created at runtime.
-/// Geometry: straight segments with a query-only trigger collider, no rope simulation or animation. The path is the outlet, then every engaged
-/// point in engagement order, then the free end, which is why the wire is a polyline rather than a simulated rope.
-/// 一根电线: 固定端在插座孔, 自由端由玩家携带, 中间是它折向经过的点.
-/// Subsystem 归属: Environment.
-/// 存在位置: 关卡中. 它的点是它的子物体, 因此路径的候选点通过层级找到, 无需 Inspector 接线.
-/// 职能: 持有线的电性, 固定端, 以及自由端的状态(被某个玩家持有, 或已插在某处), 并渲染门面交给它的折线.
-/// 不负责: 玩家持有哪根线, 已接入点的顺序, 电性规则, 以及通关判定.
-/// 那些是回路状态, 位于 EnvironmentFacade —— 唯一持有它们的地方.
-/// 生命周期: 属于关卡物体; 从不在运行时创建.
-/// 几何: 直线段附带查询用 Trigger 碰撞体, 不做绳索物理或动画. 路径 = 插座孔 -> 按接入顺序排列的所有已接入点 -> 自由端,
-/// 因此线是折线而不是被模拟的绳子.
+/// Electrical wire storing polarity, fixed/free ends, plug state and an engagement sequence counter.
+/// 电线保存极性、固定端/自由端、插入状态及接入序号计数器。
+/// WirePoint and Anchor store sequence numbers; EnvironmentFacade sorts them and supplies the rendered path.
+/// WirePoint 与 Anchor 保存序号，由 EnvironmentFacade 排序并提供渲染路径。
+/// The polyline uses a query-only trigger collider, with no rope simulation. Authored or runtime-created wires need Initialize.
+/// 折线使用查询用 Trigger 碰撞体，不模拟绳索；预设或运行时创建的线均需 Initialize。
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(LineRenderer))]
@@ -155,10 +141,10 @@ public class Wire : MonoBehaviour
 
     /// <summary>
     /// Single entry point for the state "this wire's free end is plugged into something".
-    /// Implementation approach: records where, and whether that place completes the wire; a wire plugged into an
-    /// interface is terminated there, a wire plugged back into its outlet is closed.
+    /// Implementation approach: records where, and whether that place completes the wire; a wire plugged into a
+    /// dual interface counts as terminated in the facade; this method itself only records the supplied values.
     /// 状态"本线自由端已插入某处"的单一入口.
-    /// 实现思路: 记录插入点以及该处是否使本线闭环; 插入带电接口即为在该处终止, 插回插座孔即为闭合.
+    /// 实现思路: 仅记录传入的插入点与闭合标志；门面把双电性接口视为终止，不是任意接口都算终止。
     /// </summary>
     public void PlugInto(Transform target, bool closesCircuit)
     {
@@ -169,10 +155,10 @@ public class Wire : MonoBehaviour
 
     /// <summary>
     /// Single entry point for drawing the polyline the facade computed.
-    /// Implementation approach: reuses one buffer, because this runs every frame while the carried end follows the
-    /// player, and a per-frame array allocation would be pure waste.
+    /// Implementation approach: reuses the buffer while point count stays unchanged; count changes allocate a new array. The
+    /// carried end can move each frame without changing the point count.
     /// 绘制门面算出的折线的单一入口.
-    /// 实现思路: 复用同一个缓冲区, 因为被携带的一端跟随时每帧都会执行, 每帧分配数组纯属浪费.
+    /// 实现思路: 点数相同时复用缓冲区，点数变化时重新分配；自由端逐帧移动不必改变点数。
     /// </summary>
     public void RenderPath(IReadOnlyList<Vector3> positions)
     {

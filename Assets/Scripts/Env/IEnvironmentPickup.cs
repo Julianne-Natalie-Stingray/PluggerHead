@@ -1,18 +1,8 @@
 /// <summary>
-/// Contract for environment content that exists in the scene and can be taken into the player's inventory.
-/// Subsystem: Environment.
-/// Who should implement this contract: inventory items (Anchor is not an inventory item). It is implemented
-/// alongside IEnvironmentInteractable when the same object can also be interacted with, which is why the two
-/// contracts are separate: CanPickup answers "may this be moved", CanInteract answers "may this be used here".
-/// What this contract grants: a state query (CanPickup) and the ability to be taken.
-/// The generic parameter of the original sketch was dropped in favour of the shared InteractionDetails base, so
-/// that the facade can hold and dispatch every environment object uniformly.
-/// 场景中存在、并可被收进玩家背包的环境内容的契约.
-/// Subsystem 归属: Environment.
-/// 谁应该实现这个契约: 可进入背包的环境道具（不包括 Anchor）. 当同一物体也能被交互时, 它会同时实现 IEnvironmentInteractable,
-/// 这正是两个契约分开的原因: CanPickup 回答"能不能被搬动", CanInteract 回答"能不能在这里被使用".
-/// 契约赋予了什么特性: 状态查询(CanPickup)与被拾取的能力.
-/// 原稿的泛型参数已改为共用的 InteractionDetails 基类, 使门面能统一持有并分派所有环境物体.
+/// Contract for scene items that PlayerInventory can pick up through InteractionDetails.
+/// PlayerInventory 使用 InteractionDetails 拾取场景道具的契约；Anchor 不实现此接口。
+/// The project currently supplies consumers but no concrete pickup implementation.
+/// 当前项目提供调用方，尚无具体道具实现；环境门面不负责统一分派拾取。
 /// </summary>
 public interface IEnvironmentPickup
 {

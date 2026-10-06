@@ -7,8 +7,8 @@ using UnityEngine;
 /// 无限放置、收回的绕线锚点，不是背包道具。
 /// Remembers its wire and routing order; Environment owns the circuit and polyline.
 /// 只记录绕线归属与顺序；回路及路径由 Environment 管理。
-/// Lifetime: authored in a level or created by Player, destroyed on reclaim.
-/// 生命周期：关卡预设或 Player 创建，收回时销毁。
+/// Lifetime: authored, placed by Player, or created by Corner; destroyed on reclaim or automatic release.
+/// 生命周期：关卡预设、Player 放置或 Corner 自动创建，收回或自动释放时销毁。
 /// </summary>
 [DisallowMultipleComponent]
 public class Anchor : MonoBehaviour, IEnvironmentInteractable

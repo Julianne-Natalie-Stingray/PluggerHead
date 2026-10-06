@@ -15,9 +15,9 @@
 ## 回路与 Inspector 配置
 
 1. 场景放置一个 `EnvironmentFacade`。玩家使用 `Player` Tag，其子挂点使用 `WireAttach` Tag；携带电线的自由端跟随挂点。
-2. `PowerSocket.wires` 配置本插座电线，第一根作为开局持线。`Wire` 配置电性、固定端及 LineRenderer；其子 `WirePoint` 与场景 `Anchor` 按交互先后决定折线路径。
+2. `PowerSocket.wires` 配置本插座电线，首个有效引用作为开局持线。`Wire` 配置电性、固定端及 LineRenderer；其子 `WirePoint` 与场景 `Anchor` 按接入序号决定折线路径。
 3. `PolaritySocket` 按可接受的电性拒绝错误插入。双电性插口接入当前线后交出同插座另一根未终止的线并计一次换线；在原插座闭合时交出下一根未终止线，不计换线。完成最后一根后不再持线。
-4. 火线、零线完成终止且换线不超过 `maxSwaps` 才能通关；`requireGround` 开启时还需地线完成。`LevelCleared` 在状态首次变为闭合时触发。重开清除绕线、插入、换线及通关状态。刷新节点保留当前回路状态。
+4. 火线、零线完成终止且换线不超过 `maxSwaps` 才能通关；`requireGround` 开启时还需地线完成。`LevelCleared` 在每次判定由未闭合变为闭合时触发；断开后重新闭合可再次通知。重开清除绕线、插入、换线及通关状态；刷新节点的边界见下文。
 5. 可操作目标需有可被 Player 扫描到的 Collider2D；`Anchor.canInteract` 控制是否允许绕线，不限制收回。`PlayerInteraction.anchorPrefab` 绑定 `Prefabs/Env/Anchor.prefab`，其中包含可见 SpriteRenderer 和 Trigger CircleCollider2D，供 K 放置使用。
 
 `Wire.maxLength` 是整条绕线路径的长度上限，**0 表示不限长**。`EnvironmentFacade.GetResistance` 累加固定端、所有折点和玩家挂点之间的长度；严格超过上限时返回 `Vector2.negativeInfinity`，由 `PlayerMove` 在物理帧调用 `Die()`。未超限（含恰好等于上限）、无持线或不限长时返回零。`pullStrength` 仅为旧资源兼容保留，不再参与超限处理。
@@ -52,3 +52,52 @@ Environment 在 LateUpdate 同步线碰撞体后，由 Corner 查询真实 Colli
 - `Scenes/Tests/CircuitDiagnostics.unity`：保留独立回路诊断场景及模拟玩家，不是完整 Player 操作场景；可用 EnvironmentFacade 的调试按钮驱动交互和验收。
 - Edit Mode 执行菜单 **Tools > PluggerHead > Verify Player and Environment**，或调用 `EnvironmentIntegrationChecks.Run()`。验证在独立未保存的预览场景中运行真实组件，覆盖 Anchor 放置/收回、J 最近目标选择、操作限制、绕线、阻力、极性拒绝、换线、通关及重开，并清理测试对象；包含跨场景隔离和无效 Actor 检查。这不替代 Play Mode 场景冒烟测试。
 - 关闭同项目 Editor 后可批处理运行：`Unity.exe -batchmode -projectPath <项目根目录> -executeMethod EnvironmentIntegrationChecks.RunBatch -quit -logFile <日志路径>`。使用项目指定 Unity 2022.3.43f1c1，并检查退出码及日志中的 PASS。
+
+## 逐文件核查（2026-10-06）
+
+本轮逐项对照实现、调用方、测试与资源引用；修改说明和 Inspector 提示，未改变玩法逻辑。
+
+| 文件 | 职责与当前边界 |
+| --- | --- |
+| `EnvironmentFacade.cs` | 场景扫描、插接状态、路径与简化通关判定；生命周期和刷新边界见下文。 |
+| `Anchor.cs` | 手动或 Corner 自动锚点；手动收回不依赖 `canInteract`，自动锚点拒绝手动操作。已接入点可被同场景 Actor 解绑，不要求其持有原线。 |
+| `Corner.cs` | 由环境 LateUpdate 驱动查询及活动末段扫掠；维护每根线的自动 Anchor，不依赖 Trigger 回调。 |
+| `Wire.cs` | 线状态、序号分配、绘制与 Trigger 路径；`Initialize` 只收集启用层级中的子 WirePoint。 |
+| `WirePoint.cs` | 翻转接入并保存序号；默认未接入，关闭 `canInteract` 不会自动成为固定折点。缓存父 Wire 后，改父级不会在旧引用有效时重新绑定。 |
+| `PowerSocket.cs` | 配置电线归属并通知闭合请求；不设置固定端位置，不创建玩家。`IsGroundTerminal` 当前没有玩法读取者。 |
+| `PolaritySocket.cs` | `Accepts` 判断任意电性位相交；`IsDual` 只要求同时包含 Live 与 Neutral。事件不保证插入成功。 |
+| `GroundPolarity.cs` | 火/零相反位判断；接触、层、组件启用状态由 PlayerMove 筛选。现有默认关卡未挂载它，测试动态创建。 |
+| `WirePolarity.cs` | None/Live/Neutral/Ground 分别为 0/1/2/4，可组合；用于电线、接口与地面，枚举本身不校验未知值。 |
+| `IEnvironmentInteractable.cs` | 节点交互与通知契约；公开接口本身不提供 Player 的范围或操作锁保护。 |
+| `InteractionDetails.cs` | Actor/Target 载荷，构造时不校验；不是向全场节点广播的消息。 |
+| `WirePointDetails.cs` | 无额外字段的派生载荷；WirePoint 当前不读取或要求该类型。 |
+| `IEnvironmentPickup.cs` | PlayerInventory 调用的拾取契约，目前没有项目具体实现；Anchor 不属于道具。 |
+| `IPickupInstance.cs` | 来源、放下与堆叠元数据；PlayerInventory 当前不合并堆叠。 |
+
+### 场景生命周期与直接调用
+
+`Current` 是最后一次 Awake/RefreshNodes 写入的全局引用，不是每场景一个独立单例。`ForScene` 校验目标场景已加载，优先返回场景匹配的 Current，否则搜索该场景的活动层级；缓存命中不检查启用状态，回退结果不写入 Current。每场景一个环境由资源装配保证。禁用环境不会退订节点事件，仅停止其帧更新；销毁时才退订。
+
+`RefreshNodes` 重订阅并重建清单、归属、占用及路径：Corner/Anchor 包含 inactive，Wire/Socket/WirePoint 只收集活动层级。它保留持线引用、换线数和闭合值，不重新找挂点、不重新判定通关；删除或禁用对象后不能依赖它自动修复全部旧状态。Wire 初始化可能补建碰撞体，故刷新也不是只读扫描。调试 Refresh 按钮另外执行挂点解析和判定。
+
+开局选择首个具有有效 StartingWire 的插座。重开会释放自动 Anchor、重置线与节点的绕线状态，但保留手动 Anchor 对象及线的序号计数器；不会复位 Player 的位置、死亡、背包或 GameState。找不到插座时提前返回。挂点解析失败不会在普通刷新中自动重试；应修正配置后使用完整刷新入口。
+
+Player 入口负责距离、暂停、死亡和操作锁。直接调用 PowerSocket、PolaritySocket、WirePoint 的 `Interact` 只受 `canInteract` 控制，不校验 details、Actor、Target 或组件启用状态。Anchor 校验 Actor 非空且同场景，Target 可空或为自身，不校验 Player Tag 或距离。`HeldWireOf` 读取 Actor 所在场景的共享持线，不是每个 Actor 的独立持线。
+
+`LinkWires` 不拒绝跨场景或多插座共享同一根线，后一次绑定会覆盖归属；应由资源装配避免。`Wires`、`Points` 返回底层列表的只读接口视图，不是不可变快照。节点及通关事件同步调用订阅者，没有异常隔离或重入保护。
+
+### 通关与几何边界
+
+通关只选择扫描顺序中首条电性**精确等于** Live、Neutral、Ground 的线。终止表示 `IsClosed`，或 PlugTarget 上存在双电性 PolaritySocket；普通单电性接口不算终止。额外线参与插口极性检查，但不要求全部终止，也不验证火零线连接同一插座/接口。这是简化状态判定，不是完整电路拓扑验证。超过 `maxSwaps` 仍可换线，只是无法通关。运行时销毁线后应先刷新清单，判定循环没有逐项失效引用保护。
+
+路径缓存保存折点世界坐标，移动已接入节点后需重建路径。RenderPath 仅在点数不变时复用数组；线碰撞体在局部坐标平方距离不大于 `1e-8` 时合并相邻点，少于两点则禁用。初始化只在首次缓存碰撞体时设置 Trigger/零半径；保留 EdgeCollider2D 的 offset，并在顶点换算时抵消它，保证实际碰撞路径与渲染一致。已补充非零 offset 及只改变 offset 后重绘的真实碰撞回归。
+
+Corner 扫掠记录自由端移动，假设该采样段的拐角和前一个折点固定；移动拐角、固定端或已有折点不在同等保证内。每轮处理上限为 `corners.Count * 2 + 1`；未验证病态重叠布局、任意缩放或大量长折线性能。
+
+### 验证范围
+
+现有集成检查的无效 Actor/跨场景断言针对 Anchor、HeldWireOf 等指定入口，不证明所有节点直接调用都有相同保护。尚无针对地线终止开关、重复线归属、WirePoint 改父级、同场景多 Facade、反复断开闭合通知或失效线列表的完整回归。
+
+EnvironmentFacade 调试按钮没有 Play Mode 限制，会直接操作当前场景，绕过 Player 范围与操作锁，不提供预览场景隔离或状态恢复。脚本化验收缺少节点时允许跳过，最终 PASS 只表示执行步骤没有记录失败，不能证明全部步骤已执行；也不适用于任意多插座/地线配置。应与 Test Runner 的隔离验证区分。
+
+本轮 Test Runner：EditMode 17/17（job `bd3da355d26e4b5190a73048a9b3feb9`）、PlayMode 37/37（job `313f078e635746a795cff58eca214104`）通过。随后另一项工作开始修复上述 EdgeCollider offset 边界并补充断言；该行为改动需以其后续测试与提交为准，本轮通过结果不覆盖后写入的修复。独立审查确认本轮 Env 修改仅为说明与 Tooltip，提出的绝对表述问题已修正。

@@ -5,30 +5,14 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// The environment hub of one level: it owns the circuit state, applies interactions, and decides whether the
-/// level is cleared.
-/// Subsystem: Environment.
-/// Where it lives: on the persistent SceneRoot object of the level.
-/// Responsibility: sweep the scene for nodes, hold the circuit (which wire the player carries, what is plugged
-/// where, how many swaps happened), apply one interaction at a time, rebuild every wire's polyline, render them,
-/// and evaluate the win condition.
-/// Does NOT own: the range check that decides which node the player is aiming at (Player side), the pickup and
-/// carry loop (Player side), or the node's own flags, which they toggle themselves before notifying this hub.
-/// Lifetime: one per level, created and destroyed with the scene. It deliberately does not survive a scene switch:
-/// the only thing that does is CoreFacade.
-/// Paradigms: a per-scene access point (Current), because a routing node has to ask "which wire does this actor
-/// carry" and only this hub can answer that. It is the same kind of exception CoreFacade documents, kept as small
-/// as possible: one lookup, no service locator.
-/// 一个关卡的环境枢纽: 它拥有回路状态, 施加交互, 并判定关卡是否通关.
-/// Subsystem 归属: Environment.
-/// 存在位置: 关卡常驻 SceneRoot 物体上.
-/// 职能: 扫描场景中的节点, 持有回路(玩家携带哪根线, 什么插在哪里, 换过几次线), 一次施加一个交互,
-/// 重建每根线的折线并渲染, 以及判定通关.
-/// 不负责: 决定玩家瞄准哪个节点的范围检测(归 Player), 拾取与携带回路(归 Player), 以及节点自身的旗标 ——
-/// 它们在通知本枢纽之前已自行翻转.
-/// 生命周期: 每关一个, 随场景创建与销毁. 它刻意不跨场景存活: 唯一跨场景的是 CoreFacade.
-/// 使用范式: 每场景一个访问点(Current), 因为绕线节点必须问"这个交互者携带哪根线", 而只有本枢纽能回答.
-/// 它与 CoreFacade 记录的是同一类例外, 并尽可能小: 一次查询, 不是服务定位器.
+/// Per-level circuit controller: scans nodes, tracks held wires and sockets, rebuilds paths and evaluates completion.
+/// 每关的回路控制器：扫描节点、管理持线与插口、重建路径并判定通关。
+/// Place one in each level scene; the component does not enforce scene-wide uniqueness or persist itself across loads.
+/// 每个关卡场景应配置一个；组件不强制场景内唯一，也不主动跨场景保留自身。
+/// Current is the last instance assigned by Awake or RefreshNodes. Use ForScene for scene-specific lookup.
+/// Current 是最近经 Awake 或 RefreshNodes 赋值的实例；按场景查询应使用 ForScene。
+/// Player owns range/input checks and inventory. Sockets notify requests; routing nodes also maintain their own engagement state.
+/// Player 负责范围、输入与背包；插口通知请求，绕线节点还维护各自接入状态。
 /// </summary>
 [DisallowMultipleComponent]
 public class EnvironmentFacade : MonoBehaviour
@@ -68,8 +52,8 @@ public class EnvironmentFacade : MonoBehaviour
     }
 
     /// <summary>
-    /// Raised the first time the win condition becomes true during a run.
-    /// 本次运行中通关条件第一次成立时触发.
+    /// Raised whenever evaluation changes the win condition from false to true.
+    /// 每次判定结果由未闭合变为闭合时触发，不是整局仅一次。
     /// </summary>
     public event Action LevelCleared;
 
@@ -136,10 +120,9 @@ public class EnvironmentFacade : MonoBehaviour
     /// <summary>
     /// Single entry point for the per-frame drawing of every wire.
     /// Implementation approach: the free end follows the carrying player, so the polyline is rebuilt every frame
-    /// from the cached waypoint order rather than recomputed from scratch; the waypoint order only changes when an
-    /// interaction does.
+    /// from cached waypoint positions. Corner routing and explicit node operations can also rebuild the path.
     /// 每根线每帧绘制的单一入口.
-    /// 实现思路: 自由端跟随携带者, 因此折线每帧由缓存的绕线顺序重建, 而不是从头重算; 绕线顺序只在发生交互时改变.
+    /// 实现思路: 自由端跟随携带者, 因此折线每帧由缓存的绕线顺序重建, 而不是从头重算；Corner 自动绕线及节点操作也可重建路径。
     /// </summary>
     private void LateUpdate()
     {
@@ -180,13 +163,13 @@ public class EnvironmentFacade : MonoBehaviour
     /// <summary>
     /// Single entry point for rebuilding the scene's node lists.
     /// Implementation approach: one sweep per concrete type, because an interface cannot be searched for directly;
-    /// it re-subscribes from scratch so a second call cannot double-subscribe. It also claims the per-scene access
-    /// point, because Awake does not run while the Editor drives a run without entering play mode, and the routing
+    /// it re-subscribes from scratch so a second call cannot double-subscribe. It also assigns the global Current
+    /// reference, because Awake does not run while the Editor drives a run without entering play mode, and the routing
     /// nodes ask that access point which wire an actor carries. Call it again after the level creates nodes at
     /// runtime.
     /// 重建场景节点清单的单一入口.
     /// 实现思路: 每种具体类型扫一次, 因为无法直接查找接口; 它从零重新订阅, 因此重复调用不会造成重复订阅.
-    /// 它同时声明本场景的访问点: 编辑器在未进入播放模式的情况下驱动一局时 Awake 不会执行,
+    /// 它同时更新全局 Current 引用: 编辑器在未进入播放模式的情况下驱动一局时 Awake 不会执行,
     /// 而绕线节点正是向该访问点询问"交互者携带哪根线". 关卡在运行期新建节点之后, 再次调用它.
     /// </summary>
     public void RefreshNodes()
@@ -546,12 +529,10 @@ public class EnvironmentFacade : MonoBehaviour
 
     /// <summary>
     /// Single entry point for reacting to one node's interaction.
-    /// Implementation approach: the node has already toggled its own flag, so this applies only the circuit
-    /// consequences, then rebuilds the drawn paths and re-evaluates. Everything the circuit owns happens here, in
-    /// one place, which is what lets the nodes stay dumb.
+    /// Implementation approach: routing nodes have updated engagement while sockets only announce requests; this applies the circuit
+    /// consequences, then rebuilds the drawn paths and re-evaluates.
     /// 响应某个节点交互的单一入口.
-    /// 实现思路: 节点已自行翻转旗标, 因此这里只施加回路的后果, 然后重建绘制路径并重新判定.
-    /// 回路拥有的一切都发生在此一处, 这正是节点得以保持"愚蠢"的原因.
+    /// 实现思路: 绕线节点已更新接入状态，插口仅通知请求；此处施加回路后果, 然后重建绘制路径并重新判定.
     /// </summary>
     private void HandleInteracted(IEnvironmentInteractable node)
     {
@@ -1062,7 +1043,7 @@ public class EnvironmentFacade : MonoBehaviour
 #region Debug
 
     [SerializeField, BoxGroup("Debug")]
-    [Tooltip("Node to drive by hand while the Player side is not wired to this subsystem yet.")]
+    [Tooltip("Node to drive manually without player input; debug actions modify the current scene state.")]
     private Transform debugTarget;
 
     /// <summary>

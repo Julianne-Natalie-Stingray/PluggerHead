@@ -1,17 +1,10 @@
 using UnityEngine;
 
 /// <summary>
-/// The form one pickup takes while it is held by an inventory.
-/// Subsystem: Environment.
-/// Who should implement this contract: the data type describing one inventory stack.
-/// What this contract grants: the stack ceiling and the current count, so an inventory can decide whether a new
-/// pickup merges into an existing stack or starts a new one.
-/// The inventory owns membership and placement; TryDrop restores the source object and consumes this instance.
-/// 某个可拾取物被背包持有时所取的形态.
-/// Subsystem 归属: Environment.
-/// 谁应该实现这个契约: 描述一个背包堆叠的数据类型.
-/// 契约赋予了什么特性: 堆叠上限与当前数量, 使背包能判断新的拾取是并入已有堆叠还是新建一个.
-/// 背包拥有成员关系及放置决策; TryDrop 恢复来源物体并消耗本实例.
+/// A carried scene object's inventory representation, including source, drop behavior and stack metadata.
+/// 携带物的背包表示，包含来源物体、放下行为及堆叠元数据。
+/// PlayerInventory removes membership after successful TryDrop; it currently does not merge stacks.
+/// PlayerInventory 在 TryDrop 成功后移除条目；当前不使用数量字段进行堆叠合并。
 /// </summary>
 public interface IPickupInstance
 {
