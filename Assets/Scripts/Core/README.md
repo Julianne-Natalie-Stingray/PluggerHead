@@ -7,7 +7,7 @@ Core 是本工程共享运行时基础设施的单一入口.
 - 拥有共享服务门面, 其他 Subsystem 由它取得依赖.
 - 拥有输入处理, 音频播放, 场景切换与对象池.
 - 不负责游戏规则, 玩法状态, 以及任何场景专属行为.
-- 不负责生成的输入绑定资产; 那些位于 `Assets/Infra/InputSystem/` 下.
+- 不负责生成的输入绑定资产; 那些位于 `Assets/Scripts/Infra/InputSystem/` 下.
 - 不负责"接下来该去哪个场景"; 那是调用方的决定, 以参数传入.
 
 ## 构成
@@ -15,7 +15,7 @@ Core 是本工程共享运行时基础设施的单一入口.
 | 路径 | 类型 | 职责 |
 | --- | --- | --- |
 | `CoreFacade.cs` | Core 预制体上的 MonoBehaviour | 单一入口; 暴露 `Input` / `Audio` / `SceneSwitch`; 提供跨场景访问点 `Instance`; 负责 `DontDestroyOnLoad` 与重复实例守卫 |
-| `Managers/InputManager.cs` | MonoBehaviour | 输入服务; 只发布设备层, 并提供整套生成输入集合的入口 |
+| `Input/InputManager.cs` | MonoBehaviour | 输入服务; 发布移动、指针状态及按键事件 |
 | `Managers/AudioManager.cs` | MonoBehaviour | 音频总线; 拥有 emitter 池, 注册表与两级实例上限 |
 | `SceneSwitch/SceneSwitchManager.cs` | MonoBehaviour | 场景切换总线; 唯一的切换入口, 拥有 `Loading` 状态 |
 | `SceneSwitch/SceneId.cs` | enum | 可切换场景的键; 编译期防打错 |

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-10-06 — 按功能合并 HeXie/Jill 目录
+
+- 移除按作者划分的目录访问限制，现行规则统一放在 `Assets/AGENTS.md`，旧 DSH 工作流改名归档为 `WorkflowHistory.md`。
+- 脚本归入 `Scripts/Core`、`Game`、`Player`、`Env`、`Infra`、`Debug`；开发文档归入 `Docs/Development`。
+- 三个测试场景归入 `Scenes/Tests`，保留原场景名、GUID 及构建顺序。
+- Core 预制体归入 `Prefabs/Core`；音频和场景切换配置分别归入 `SO/Audio`、`SO/SceneSwitch`。
+- 资源与原 `.meta` 一起移动；不新增玩法脚本，不改变输入绑定内容。旧记录中的目录名为历史路径。
+
 ## 2026-10-05 — 交付: SceneSwitch 子系统 (切换入口 + Loading 状态 + 跨场景访问点)
 
 ### 共识 (grill 结论)
