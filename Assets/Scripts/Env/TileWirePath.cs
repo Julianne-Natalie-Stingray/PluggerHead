@@ -12,18 +12,27 @@ public sealed class TileWirePath
     private readonly Dictionary<Anchor, int> pins = new();
 
     public IReadOnlyList<Vector3Int> Cells => cells;
+    // Copied edges still belong to the earlier wire visually, but remain part of this route's length/collision.
+    // 复制段仍由原线绘制；当前线保留完整路径用于长度、回退及碰撞查询。
+    public int InheritedEdgeCount { get; private set; }
 
     public void CopyFrom(TileWirePath source)
     {
+        if (ReferenceEquals(this, source))
+        {
+            return;
+        }
         cells.Clear();
         cells.AddRange(source.cells);
         pins.Clear();
+        InheritedEdgeCount = Mathf.Max(0, cells.Count - 1);
     }
 
     public void Reset(Vector3Int start)
     {
         cells.Clear();
         pins.Clear();
+        InheritedEdgeCount = 0;
         cells.Add(start);
     }
 
@@ -53,6 +62,7 @@ public sealed class TileWirePath
         if (last > pinned && cells[last - 1] == cell)
         {
             cells.RemoveAt(last);
+            InheritedEdgeCount = Mathf.Min(InheritedEdgeCount, cells.Count - 1);
         }
         else
         {

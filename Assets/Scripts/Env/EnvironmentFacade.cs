@@ -75,6 +75,8 @@ public class EnvironmentFacade : MonoBehaviour
     private Transform playerTransform;
     private Vector3 previousPlayerPosition;
     private bool hasPlayerSample;
+    private int nextWireRenderOrder;
+    private int wireSortingLayerId;
 
     private void Awake()
     {
@@ -579,8 +581,7 @@ public class EnvironmentFacade : MonoBehaviour
             }
 
             candidate.TilePath.CopyFrom(heldWire.TilePath);
-            heldWire = candidate;
-            heldWire.Hold();
+            HoldWire(candidate);
             swapCount++;
 
             GameLog.Info(this)
@@ -663,8 +664,7 @@ public class EnvironmentFacade : MonoBehaviour
             }
 
             candidate.TilePath.CopyFrom(heldWire.TilePath);
-            heldWire = candidate;
-            heldWire.Hold();
+            HoldWire(candidate);
 
             GameLog.Info(this)
                 .Subsystem("Environment")
@@ -687,6 +687,7 @@ public class EnvironmentFacade : MonoBehaviour
 
     private void BeginRun()
     {
+        nextWireRenderOrder = 0;
         hasPlayerSample = false;
         swapCount = 0;
         isCircuitClosed = false;
@@ -736,7 +737,7 @@ public class EnvironmentFacade : MonoBehaviour
         heldWire = socket.StartingWire;
         if (heldWire)
         {
-            heldWire.Hold();
+            HoldWire(heldWire);
 
             GameLog.Info(this)
                 .Subsystem("Environment")
@@ -751,6 +752,19 @@ public class EnvironmentFacade : MonoBehaviour
         }
         RenderWires();
         EvaluateCircuit();
+    }
+
+    private void HoldWire(Wire wire)
+    {
+        heldWire = wire;
+        if (nextWireRenderOrder == 0)
+        {
+            wireSortingLayerId = wire.GetComponent<LineRenderer>().sortingLayerID;
+        }
+        // All wires in a run share one layer; later handovers draw above earlier ones.
+        // 关卡内按实际出线顺序排序，不依赖预制体层级、实例 ID 或路径包围盒。
+        wire.SetRenderOrder(wireSortingLayerId, nextWireRenderOrder++);
+        wire.Hold();
     }
 
     private Wire FindWire(WirePolarity polarity)

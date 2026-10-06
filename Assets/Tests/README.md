@@ -1,5 +1,7 @@
 # 整合集成测试
 
+2026-10-06 线渲染修复：按实际出线顺序稳定排序，复制前缀由原线显示，新铺段使用当前线颜色。新增四项离屏像素回归覆盖 Live/Neutral 两种起始极性、双接口/原插座交接、反向对象创建顺序、相反预设排序值、路径包围盒变化、刷新节点、回退重铺及重开；同时确认完整长度和碰撞路径保留。完整回归暴露的故障测试暂停状态污染已修复：`IntegrationSceneState` 同步保存/恢复手动暂停、冻结持有者和加载后时间恢复标记，并保留加载在途时延迟恢复的约定；故障用例主动污染并验证这些字段。最终顺序通过 EditMode **34/34**（`95636ec60b9b48db8c0ea0d9ae53b089`）、PlayMode **75/75**（`8200782231ae4666969cdaabff7b75f5`），无失败或跳过，独立复审通过。渲染示例见 [WireRendering](../Docs/Development/WireRendering.png)：从左到右为原线、刚换线、新铺段重叠，使用实际 Wire 组件及项目材质在临时场景中绘制，不代表真实键盘操作录像。
+
 2026-10-06 Player 朝向：Visual 的 PlayerVisual 更新精灵翻转与深色标记，保留物理根及挂点。真实 InputSystem 键盘状态覆盖 A/D、松键、输入锁、暂停、禁用/启用；测试显式处理排队输入后等待物理帧，避免输入更新时序导致假失败。最终顺序通过 EditMode **22/22**（`ba62ffa6f0a84e42bfa50d48f93e6549`）、PlayMode **71/71**（`842381cf2e3848b5a26927f895ec54d1`）。运行时近景验证见 [朝左](../Docs/Development/PlayerFacingLeft.png)、[朝右](../Docs/Development/PlayerFacingRight.png)；截图直接设置朝向，键盘到朝向的链路由前述集成测试验证。
 
 2026-10-06 通关面板：NextLevelScreen 经同场景 Env 胜利事件显示，按钮按当前配置重新进入 GameplayIntegration。顺序通过 EditMode **22/22**（`d7fd9ed64ca645d7a229a416d766506e`）、PlayMode **71/71**（`660506935c984787bd51d2968d37e11c`）。检查默认隐藏、胜利显示、禁用退订/恢复、调试重开隐藏、请求失败重试、成功后防重复及真实关卡重载。实际画面中文无溢出，EventSystem 射线首个命中 NextLevelButton；画面见 [NextLevelScreen](../Docs/Development/NextLevelScreen.png)。

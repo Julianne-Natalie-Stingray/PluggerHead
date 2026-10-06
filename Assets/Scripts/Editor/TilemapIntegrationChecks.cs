@@ -140,6 +140,147 @@ public static class TilemapIntegrationChecks
             "Scripted acceptance must visit the Anchor tile before attempting to pin it.");
     }
 
+    public static void CheckWireRendering(bool neutralFirst, bool returnAtOutlet)
+    {
+        BeginChecks();
+        // Reverse creation order as well as polarity: neither may determine which wire draws on top.
+        Fixture fixture = new Fixture(true, true);
+        if (neutralFirst)
+        {
+            Set(fixture.Wire, "polarity", WirePolarity.Neutral);
+            Set(fixture.SecondWire, "polarity", WirePolarity.Live);
+        }
+        LineRenderer first = fixture.Wire.GetComponent<LineRenderer>();
+        LineRenderer second = fixture.SecondWire.GetComponent<LineRenderer>();
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/Env.prefab");
+        foreach (Wire authored in prefab.GetComponentsInChildren<Wire>(true))
+        {
+            LineRenderer source = authored.GetComponent<LineRenderer>();
+            LineRenderer target = authored.Polarity == fixture.Wire.Polarity ? first : second;
+            target.sharedMaterial = source.sharedMaterial;
+            target.colorGradient = source.colorGradient;
+            target.widthMultiplier = 0.2f;
+            target.gameObject.layer = 31;
+        }
+        Color firstColor = first.startColor;
+        Color secondColor = second.startColor;
+        Color materialColor = first.sharedMaterial.color;
+        first.sortingOrder = 100;
+        second.sortingOrder = -100;
+        fixture.Restart();
+        fixture.Move(3, 0);
+        fixture.Move(3, 2);
+        if (returnAtOutlet)
+        {
+            fixture.Move(0, 2);
+            fixture.Move(0, 0);
+            fixture.Outlet.Interact(new InteractionDetails(fixture.Player, fixture.Outlet.gameObject));
+        }
+        else
+        {
+            fixture.Dual.Interact(new InteractionDetails(fixture.Player, fixture.Dual.gameObject));
+        }
+        Require(fixture.Environment.HeldWire == fixture.SecondWire, "Interaction must hand over the next wire.");
+        Require(first.startColor == firstColor && second.startColor == secondColor &&
+            first.sharedMaterial.color == materialColor, "Switching must preserve both gradients and the shared material.");
+        Require(second.positionCount <= 1, "A copied route must not repaint the earlier wire in the new color.");
+        Require(second.sortingLayerID == first.sortingLayerID && second.sortingOrder > first.sortingOrder,
+            "Handover order must override authored sorting values and object creation order.");
+        Require(fixture.SecondWire.PathCollider.pointCount == fixture.SecondWire.TilePath.Cells.Count &&
+            Mathf.Approximately(fixture.SecondWire.TilePath.GetLength(fixture.Map),
+                fixture.Wire.TilePath.GetLength(fixture.Map)), "Inherited geometry must still contribute to collision and length.");
+
+        GameObject cameraObject = new GameObject("WireRenderingCheckCamera");
+        SceneManager.MoveGameObjectToScene(cameraObject, fixture.Scene);
+        Camera camera = cameraObject.AddComponent<Camera>();
+        camera.enabled = false;
+        camera.orthographic = true;
+        camera.orthographicSize = 5f;
+        camera.transform.position = new Vector3(2.5f, 0.5f, -10f);
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = Color.black;
+        camera.cullingMask = 1 << 31;
+        RenderTexture targetTexture = new RenderTexture(512, 512, 24);
+        Texture2D pixels = new Texture2D(512, 512, TextureFormat.RGB24, false);
+        RenderTexture previousTarget = RenderTexture.active;
+        camera.targetTexture = targetTexture;
+        try
+        {
+            Vector3 overlap = (fixture.Center(1, 0) + fixture.Center(2, 0)) * 0.5f;
+            AssertWirePixel(camera, pixels, overlap, firstColor, "Switching alone must leave the inherited path's color unchanged.");
+            if (returnAtOutlet)
+            {
+                // Retract part of the inherited loop, then lay a fresh segment on the old bottom edge.
+                fixture.Move(0, 2);
+                fixture.Move(1, 2);
+                fixture.Move(1, 0);
+                fixture.Move(3, 0);
+            }
+            else
+            {
+                fixture.Move(4, 2);
+                fixture.Move(4, 0);
+                fixture.Move(1, 0);
+            }
+            AssertWirePixel(camera, pixels, overlap, secondColor, "Newly laid segments must cover the older route.");
+            fixture.Environment.RefreshNodes();
+            AssertWirePixel(camera, pixels, overlap, secondColor, "Refreshing scene nodes must preserve draw order.");
+            if (!returnAtOutlet)
+            {
+                fixture.Move(1, -4);
+                fixture.Move(6, -4);
+                AssertWirePixel(camera, pixels, overlap, secondColor, "Moving the renderer bounds must not flip overlap colors.");
+                fixture.Move(1, -4);
+                fixture.Move(1, 0);
+                fixture.Move(4, 0);
+                fixture.Move(4, 2);
+                fixture.Move(3, 2);
+                AssertWirePixel(camera, pixels, overlap, firstColor, "Retracting the new tail must reveal the unchanged older line.");
+                fixture.Move(3, 0);
+                fixture.Move(3, 2);
+                AssertWirePixel(camera, pixels, (fixture.Center(3, 0) + fixture.Center(3, 1)) * 0.5f,
+                    secondColor, "Retracted inherited edges must become new-colored edges when laid again.");
+            }
+            fixture.Player.transform.position = fixture.Center(0, 0);
+            fixture.Restart();
+            fixture.Move(3, 0);
+            AssertWirePixel(camera, pixels, overlap, firstColor, "Restart must clear inherited segments and restore the first wire.");
+            Require(second.positionCount <= 1, "Restart must leave no visible segments from the previous run.");
+        }
+        finally
+        {
+            camera.targetTexture = null;
+            RenderTexture.active = previousTarget;
+            targetTexture.Release();
+            UnityEngine.Object.DestroyImmediate(targetTexture);
+            UnityEngine.Object.DestroyImmediate(pixels);
+            UnityEngine.Object.DestroyImmediate(cameraObject);
+        }
+    }
+
+    private static void AssertWirePixel(Camera camera, Texture2D pixels, Vector3 worldPosition, Color expected, string message)
+    {
+        RenderTexture previous = RenderTexture.active;
+        try
+        {
+            camera.Render();
+            RenderTexture.active = camera.targetTexture;
+            pixels.ReadPixels(new Rect(0, 0, pixels.width, pixels.height), 0, 0);
+            pixels.Apply();
+            Vector3 viewport = camera.WorldToViewportPoint(worldPosition);
+            Color actual = pixels.GetPixel(Mathf.FloorToInt(viewport.x * pixels.width),
+                Mathf.FloorToInt(viewport.y * pixels.height));
+            // Dominant channel is invariant under the project's linear/gamma output conversion.
+            bool red = expected.r > expected.b;
+            Require(red ? actual.r > actual.b + 0.2f : actual.b > actual.r + 0.2f,
+                message + " Actual pixel: " + actual);
+        }
+        finally
+        {
+            RenderTexture.active = previous;
+        }
+    }
+
     public static void CheckTransformedGeometryAndInteractionRange()
     {
         BeginChecks();
@@ -289,7 +430,7 @@ public static class TilemapIntegrationChecks
         public PowerSocket Outlet { get; }
         public PolaritySocket Dual { get; }
 
-        public Fixture(bool secondWire = false)
+        public Fixture(bool secondWire = false, bool reverseCreationOrder = false)
         {
             Scene = SceneManager.CreateScene("TilemapCheck_" + Guid.NewGuid().ToString("N"),
                 new CreateSceneParameters(LocalPhysicsMode.Physics2D));
@@ -313,16 +454,20 @@ public static class TilemapIntegrationChecks
             GameObject outlet = Create("Outlet", Center(0, 0));
             outlet.AddComponent<BoxCollider2D>().isTrigger = true;
             Outlet = outlet.AddComponent<PowerSocket>();
+            if (secondWire && reverseCreationOrder)
+            {
+                SecondWire = CreateWire("NeutralWire", WirePolarity.Neutral);
+            }
             GameObject wire = Create("LiveWire", outlet.transform.position);
             wire.transform.SetParent(outlet.transform, true);
             Wire = wire.AddComponent<Wire>();
             List<Wire> wires = new List<Wire> { Wire };
             if (secondWire)
             {
-                GameObject next = Create("NeutralWire", outlet.transform.position);
-                next.transform.SetParent(outlet.transform, true);
-                SecondWire = next.AddComponent<Wire>();
-                Set(SecondWire, "polarity", WirePolarity.Neutral);
+                if (!SecondWire)
+                {
+                    SecondWire = CreateWire("NeutralWire", WirePolarity.Neutral);
+                }
                 wires.Add(SecondWire);
                 GameObject dual = Create("DualSocket", Center(3, 2));
                 dual.AddComponent<BoxCollider2D>().isTrigger = true;
@@ -336,6 +481,15 @@ public static class TilemapIntegrationChecks
             environment.SetActive(true);
             Environment.enabled = false;
             Require(Environment.HeldWire == Wire, "The real outlet must initialize the fixture's held wire.");
+        }
+
+        private Wire CreateWire(string name, WirePolarity polarity)
+        {
+            GameObject instance = Create(name, Outlet.transform.position);
+            instance.transform.SetParent(Outlet.transform, true);
+            Wire wire = instance.AddComponent<Wire>();
+            Set(wire, "polarity", polarity);
+            return wire;
         }
 
         public Vector3 Center(int x, int y) => Map.GetCellCenterWorld(new Vector3Int(x, y, 0));

@@ -8,7 +8,7 @@
 - PowerSocket、PolaritySocket 和 Anchor 放在已绘制 tile 的中心；`RefreshNodes()` 对有效节点执行格心对齐。路由层不需要 Collider，实体地面使用独立 TilemapCollider2D。
 - PowerSocket 的 `wires` 配置本插座的电线，首个有效引用是开局持线。所属 Wire 的固定端取插座位置；未绑定插座时使用自身 Transform。
 - 玩家使用 Player Tag。路径根据 Player 根位置采样，渲染、Gizmo 和长度均以格心路径为准，不再依赖 WireAttach。采样忽略 Z 深度，使用 XY 网格第 0 层。
-- Wire 的 LineRenderer 和 Trigger EdgeCollider2D 共用格心折线。碰撞体仅供查询，零长度时关闭；Player 接地排除 Trigger，交互排除 Wire 碰撞体。
+- Wire 的 LineRenderer 绘制本线新增的格心折线，复制的历史前缀继续由原线绘制，避免换线时改变已有路径颜色。Trigger EdgeCollider2D 保留完整逻辑路径（含复制段）；碰撞体仅供查询，零长度时关闭；Player 接地排除 Trigger，交互排除 Wire 碰撞体。
 
 ## 路径、长度和 Anchor
 
@@ -19,9 +19,10 @@
 - Anchor 固定此前路径；玩家从 Anchor 朝此前格子走时追加新的尾段。J 收回最近的有效 Anchor，释放固定约束，但不会立即剪掉已记录的路径；继续原路回退才收线。
 - 手动固定 Anchor 也要求 Actor 与 Anchor 位于同一格；它同时最多固定一根线。不进入背包，不返回拾取实例。
 - 换线时新线复制当前线已经走过的格子，独立保存，**不复制 Anchor 归属**。已插入的旧线保留路径和自己的 Anchor。插入接口时补齐到接口格子的末段。
+- `InheritedEdgeCount` 记录复制前缀；回退收掉前缀后再次铺出的段使用当前线颜色。按本局实际出线顺序设置统一 Sorting Layer 和递增 Sorting Order，新线新增段稳定覆盖旧线，不依赖实例创建顺序或路径包围盒；刷新节点不改变顺序，重开归零。原线的 Gradient 与共享材质保持原配置。
 - 重开清除各线路径、Anchor 固定状态、插接、换线和通关状态，再从插座建立初始路径；保留手动 Anchor 对象，不复活或移动 Player。
 
-长度是相邻格子中心的世界距离之和，包含 Grid 缩放。`maxLength == 0` 表示不限长；严格超过正数上限时 `GetResistance` 返回 `Vector2.negativeInfinity`，由 PlayerMove 在物理帧死亡。渲染、碰撞和长度来自同一份路径，不再使用玩家挂点到 Anchor 的自由直线段。死亡不自动重开关卡。
+长度是相邻格子中心的世界距离之和，包含 Grid 缩放。`maxLength == 0` 表示不限长；严格超过正数上限时 `GetResistance` 返回 `Vector2.negativeInfinity`，由 PlayerMove 在物理帧死亡。碰撞和长度使用完整路径，渲染只取本线新增尾段，继承段由原线显示；不再使用玩家挂点到 Anchor 的自由直线段。死亡不自动重开关卡。
 
 ## 接口清理
 
@@ -42,6 +43,8 @@ GroundPolarity 可放在非 Trigger 地面 Collider2D 所在物体或父物体�
 普通拾取、背包及 UI 接口已移至 `feature/player-inventory`；master 的 Player 直接通过 EnvironmentFacade.ForScene 获取环境，以 IEnvironmentInteractable / InteractionDetails 交互。Anchor 放置和收回独立保留。
 
 ## 场景与验证
+
+2026-10-06 线颜色与覆盖顺序：新增四项真实材质离屏像素测试，覆盖两种起始极性、双接口和原插座交接、回退重铺、刷新及重开。最终 EditMode **34/34**、PlayMode **75/75** 顺序通过，独立复审通过；job 和测试隔离修复记录见 [Tests](../../Tests/README.md)。[渲染示例](../../Docs/Development/WireRendering.png)从左到右为原线、刚换线、新铺段重叠：继承段保持原色，新段按出线顺序覆盖旧段。
 
 `GameplayIntegration` 和 `CircuitDiagnostics` 均已绑定路由 Tilemap，插座与 Anchor 已对齐格心；前者使用真实 Player 和 Ground TilemapCollider2D，后者保留 MockPlayer。两场景的线长上限为 64 世界单位，便于验证较长的格子路线。资源位于 `Visual/Environment/`，运行画面见 [TilemapEnvironment](../../Docs/Development/TilemapEnvironment.png)。
 

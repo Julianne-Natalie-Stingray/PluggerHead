@@ -149,6 +149,10 @@ internal sealed class IntegrationSceneState
     private readonly EnvironmentFacade environment = EnvironmentFacade.Current;
     private readonly float freezeScale = Read<float>(typeof(GameStateManager), "timeScaleBeforeFreeze");
     private readonly GameState loadingState = Read<GameState>(typeof(GameStateManager), "stateBeforeLoading");
+    private readonly bool manualFreeze = Read<bool>(typeof(GameStateManager), "manualFreeze");
+    private readonly bool restoreTimeAfterLoading = Read<bool>(typeof(GameStateManager), "restoreTimeAfterLoading");
+    private readonly HashSet<object> freezeOwners = new HashSet<object>(
+        Read<HashSet<object>>(typeof(GameStateManager), "freezeOwners"));
 
     public void Restore(bool loadingStillPending = false)
     {
@@ -160,6 +164,11 @@ internal sealed class IntegrationSceneState
             Write(typeof(GameStateManager), "<Current>k__BackingField", state);
             Write(typeof(GameStateManager), "timeScaleBeforeFreeze", freezeScale);
             Write(typeof(GameStateManager), "stateBeforeLoading", loadingState);
+            Write(typeof(GameStateManager), "manualFreeze", manualFreeze);
+            Write(typeof(GameStateManager), "restoreTimeAfterLoading", restoreTimeAfterLoading);
+            HashSet<object> owners = Read<HashSet<object>>(typeof(GameStateManager), "freezeOwners");
+            owners.Clear();
+            owners.UnionWith(freezeOwners);
         }
     }
 

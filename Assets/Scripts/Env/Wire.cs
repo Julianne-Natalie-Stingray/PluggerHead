@@ -6,7 +6,7 @@ using UnityEngine;
 /// Electrical wire storing polarity, endpoints, plug state and its independent visited tile path.
 /// 电线保存极性、端点、插入状态及独立的格子路径。
 /// EnvironmentFacade samples player cells; rendering, collision and length share those cell centers.
-/// EnvironmentFacade 采样玩家格子；渲染、碰撞及长度共用这些格子的中心。
+/// EnvironmentFacade 采样玩家格子；渲染、碰撞及长度共用格心，继承段由原线绘制。
 /// The polyline uses a query-only trigger collider, with no rope simulation. Authored or runtime-created wires need Initialize.
 /// 折线使用查询用 Trigger 碰撞体，不模拟绳索；预设或运行时创建的线均需 Initialize。
 /// </summary>
@@ -78,6 +78,14 @@ public class Wire : MonoBehaviour
     public void SetSocket(PowerSocket owner)
         => socket = owner;
 
+    /// <summary>Use the run's handover order, independent of object creation and renderer bounds.</summary>
+    public void SetRenderOrder(int sortingLayerId, int order)
+    {
+        Initialize();
+        line.sortingLayerID = sortingLayerId;
+        line.sortingOrder = order;
+    }
+
     /// <summary>
     /// Single entry point for the state "a player carries this wire's free end".
     /// 状态"某玩家携带本线的自由端"的单一入口.
@@ -105,10 +113,11 @@ public class Wire : MonoBehaviour
 
     /// <summary>
     /// Single entry point for drawing the polyline the facade computed.
-    /// Implementation approach: reuses the buffer while point count stays unchanged; count changes allocate a new array. The
-    /// carried end can move each frame without changing the point count.
+    /// Reuses the buffer while point count stays unchanged; count changes allocate a new array.
+    /// Only the new suffix is drawn: inherited edges remain visible on the previous wire.
+    /// Collision still follows the entire logical path.
     /// 绘制门面算出的折线的单一入口.
-    /// 实现思路: 点数相同时复用缓冲区，点数变化时重新分配；自由端逐帧移动不必改变点数。
+    /// 实现思路: 复用缓冲区，只绘制本线新增尾段，复制段由原线保留原色；碰撞仍使用完整路径。
     /// </summary>
     public void RenderPath(IReadOnlyList<Vector3> positions)
     {
@@ -117,24 +126,26 @@ public class Wire : MonoBehaviour
             return;
         }
 
-        if (buffer.Length != positions.Count)
+        int firstPoint = Mathf.Min(TilePath.InheritedEdgeCount, positions.Count);
+        int visibleCount = positions.Count - firstPoint;
+        if (buffer.Length != visibleCount)
         {
-            buffer = new Vector3[positions.Count];
+            buffer = new Vector3[visibleCount];
         }
 
-        for (int i = 0; i < positions.Count; i++)
+        for (int i = 0; i < visibleCount; i++)
         {
-            buffer[i] = positions[i];
+            buffer[i] = positions[firstPoint + i];
         }
 
-        line.positionCount = positions.Count;
+        line.positionCount = visibleCount;
         line.useWorldSpace = true;
         line.SetPositions(buffer);
         UpdatePathCollider(positions);
     }
 
-    // The collider follows the same world-space polyline, converted to local coordinates.
-    // 碰撞体与渲染共用路径，仅在路径变化时更新物理形状；不产生实体碰撞。
+    // The collider includes inherited edges as well as the visible suffix, converted to local coordinates.
+    // 碰撞体保留完整逻辑路径（含继承段），仅在路径变化时更新物理形状；不产生实体碰撞。
     private void UpdatePathCollider(IReadOnlyList<Vector3> positions)
     {
         colliderPoints.Clear();
