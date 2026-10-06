@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Uses real 2D contacts in owned local physics scenes, without changing authored scenes or Core services.
+/// Uses real 2D contacts in owned local physics scenes without saving authored scenes; frame checks may create an owned Core.
 /// 在独立物理场景中生成真实接触，再推进 PlayerMove 的物理逻辑；不模拟输入或修改现有场景。
 /// </summary>
 public static class GroundPolarityIntegrationChecks
