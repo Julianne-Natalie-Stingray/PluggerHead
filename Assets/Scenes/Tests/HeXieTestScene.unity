@@ -960,7 +960,7 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   polarity: 2
   fixedEnd: {fileID: 0}
-  maxLength: 2
+  maxLength: 10
   pullStrength: 10
 --- !u!120 &292459202
 LineRenderer:
