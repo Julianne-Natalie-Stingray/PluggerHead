@@ -23,7 +23,7 @@
 
 暂停设置面板只有在 Playing 打开时取得暂停所有权，关闭时释放；返回菜单先解除本面板的暂停再切换。SceneSwitchManager 驱动 Loading，SettingsScreen 在 Loading 时拒绝 Open。Loading 期间 Freeze/Resume 为空操作，ExitLoading 恢复加载前状态，保留冻结前倍率。
 
-`GameplayIntegration` 的 `GlobalUI` 挂载 RestartLevelScreen 组件，引用本场景 Player、默认隐藏的死亡面板和 Restart 按钮。玩家死亡事件会显示提示；按钮请求以 Single 模式重新加载 `GameplayIntegration`，从关卡默认状态开始。
+`GameplayIntegration` 的 `GlobalUI` 挂载 RestartLevelScreen 组件，引用默认隐藏的死亡面板和 Restart 按钮；Player 未手动配置时自动查找同场景对象（包含停用对象），缺失时每 0.5 秒重试。公开 FindPlayer 方法也可通过组件菜单调用。禁用时退订并隐藏面板，重新启用时恢复已死亡玩家的提示。玩家死亡事件会显示提示；按钮请求以 Single 模式重新加载 `GameplayIntegration`，从关卡默认状态开始。
 
 `NextLevelScreen` 同样挂在保持启用的 GlobalUI 根对象上，控制默认隐藏的同名子面板。Start 查询同场景 Env 并订阅 LevelCleared；通关后显示“恭喜通关！你已接通电路。”和“下一关”，不改变暂停状态。按当前配置，下一关重新加载 `GameplayIntegration`；以后在组件的 `nextLevel` 中修改 SceneId。请求被拒时显示中文失败提示，保留重试；请求成功后禁用按钮，防止重复加载。组件禁用时退订并隐藏，重新启用会恢复已通关状态；Env 调试重开后面板在下一帧隐藏。运行画面见 [NextLevelScreen](../../Docs/Development/NextLevelScreen.png)。
 

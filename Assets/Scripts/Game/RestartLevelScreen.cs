@@ -10,6 +10,9 @@ public sealed class RestartLevelScreen : MonoBehaviour
     [SerializeField] private TMPro.TMP_Text deathMessage;
     [SerializeField] private SceneId level = SceneId.GameplayIntegration;
 
+    private PlayerMove subscribedPlayer;
+    private float nextPlayerSearchTime;
+
     private void Awake()
     {
         if (restartButton != null)
@@ -25,22 +28,71 @@ public sealed class RestartLevelScreen : MonoBehaviour
 
     private void OnEnable()
     {
-        if (player != null)
+        FindPlayer();
+    }
+
+    private void Update()
+    {
+        if (subscribedPlayer == null && Time.unscaledTime >= nextPlayerSearchTime)
         {
-            player.Died += Show;
-            if (player.IsDead)
+            FindPlayer();
+        }
+    }
+
+    /// <summary>Retains an assigned player, or finds one in this UI's scene, including inactive players.</summary>
+    [ContextMenu("Find Player")]
+    public void FindPlayer()
+    {
+        nextPlayerSearchTime = Time.unscaledTime + 0.5f;
+        if (player == null && gameObject.scene.IsValid())
+        {
+            foreach (GameObject root in gameObject.scene.GetRootGameObjects())
             {
-                Show();
+                player = root.GetComponentInChildren<PlayerMove>(true);
+                if (player != null)
+                {
+                    break;
+                }
             }
+        }
+
+        if (!Application.isPlaying || !isActiveAndEnabled)
+        {
+            return;
+        }
+
+        if (subscribedPlayer != player)
+        {
+            UnsubscribePlayer();
+            subscribedPlayer = player;
+            if (subscribedPlayer != null)
+            {
+                subscribedPlayer.Died += Show;
+            }
+        }
+
+        if (subscribedPlayer != null && subscribedPlayer.IsDead)
+        {
+            Show();
         }
     }
 
     private void OnDisable()
     {
-        if (player != null)
+        UnsubscribePlayer();
+        if (panel != null)
         {
-            player.Died -= Show;
+            panel.SetActive(false);
         }
+    }
+
+    private void UnsubscribePlayer()
+    {
+        if (subscribedPlayer != null)
+        {
+            subscribedPlayer.Died -= Show;
+        }
+        subscribedPlayer = null;
     }
 
     private void OnDestroy()

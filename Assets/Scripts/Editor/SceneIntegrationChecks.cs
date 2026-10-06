@@ -236,6 +236,14 @@ public static class SceneIntegrationChecks
         EnvironmentFacade environment = FindComponents<EnvironmentFacade>(ownedScene).Single();
         RestartLevelScreen restartScreen = FindComponents<RestartLevelScreen>(ownedScene).Single();
         Transform restartPanel = restartScreen.transform.Find("RestartLevelScreen");
+        restartScreen.enabled = false;
+        typeof(RestartLevelScreen).GetField("player", BindingFlags.Instance | BindingFlags.NonPublic)
+            .SetValue(restartScreen, null);
+        restartScreen.enabled = true;
+        restartScreen.FindPlayer();
+        Require((PlayerMove)typeof(RestartLevelScreen).GetField("player", BindingFlags.Instance | BindingFlags.NonPublic)
+            .GetValue(restartScreen) == movement,
+            "GlobalUI must automatically bind the Player in its own scene when no reference is assigned.");
         NextLevelScreen nextScreen = FindComponents<NextLevelScreen>(ownedScene).Single();
         Transform nextPanel = nextScreen.transform.Find("NextLevelScreen");
         Require(nextPanel != null && !nextPanel.gameObject.activeSelf,
@@ -407,6 +415,13 @@ public static class SceneIntegrationChecks
             Require(restartPanel.gameObject.activeInHierarchy &&
                 restartPanel.GetComponentInChildren<UnityEngine.UI.Button>().interactable,
                 "Player death must show an actionable restart prompt.");
+            restartScreen.enabled = false;
+            Require(!restartPanel.gameObject.activeSelf, "Disabling the restart screen must hide its prompt.");
+            typeof(RestartLevelScreen).GetField("player", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(restartScreen, null);
+            restartScreen.enabled = true;
+            Require(restartPanel.gameObject.activeInHierarchy,
+                "Re-enabling GlobalUI must find the inactive dead Player and restore its prompt.");
             yield return new WaitForFixedUpdate();
             Require(diedCount == 1, "Later physics frames must not repeat the death notification.");
             yield return null;
