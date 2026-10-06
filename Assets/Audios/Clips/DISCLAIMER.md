@@ -1,1 +1,7 @@
-These audioClips are licensed. Used only in projects for academic and developing purposes. They will not be used in any public versions of the game.
+# 开发音频用途说明
+
+这些音频按项目原有约定仅用于学习和开发，公开版本应替换或移除。
+
+旧说明使用了 “licensed” 一词，但本目录没有随附可核验的授权文件、许可条款或来源记录。本说明记录项目用途约定，不证明已经取得授权，也不授予任何使用权。
+
+当前三个 clip 仍被 AudioClipData 引用，并经默认音频配置连接到构建场景中的 Core；没有自动排除这些开发素材的规则。因此“不会用于公开版本”是发布前需落实的项目要求，不是当前资源配置已保证的行为。文件和引用清单见 [README](README.md)。
