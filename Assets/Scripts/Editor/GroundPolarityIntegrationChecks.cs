@@ -40,8 +40,9 @@ public static class GroundPolarityIntegrationChecks
         CheckSafe(WirePolarity.Live, WirePolarity.Ground);
 
         Fixture noWire = new Fixture(WirePolarity.Neutral, WirePolarity.Live);
-        noWire.Outlet.Interact(new InteractionDetails(noWire.Player.gameObject, noWire.Outlet.gameObject));
-        Require(noWire.Environment.HeldWire == null, "Returning the only wire must leave no carried wire.");
+        noWire.Wire.PlugInto(null, false);
+        Set(noWire.Environment, "heldWire", null);
+        Require(noWire.Environment.HeldWire == null, "Defensive contact test explicitly removes the held wire.");
         noWire.EstablishContact(Vector2.down);
         noWire.Tick();
         Require(!noWire.Player.IsDead, "A player without a carried wire must survive polarized ground.");
@@ -266,7 +267,7 @@ public static class GroundPolarityIntegrationChecks
             outletObject.AddComponent<BoxCollider2D>().isTrigger = true;
             Outlet = outletObject.AddComponent<PowerSocket>();
             Wire = Create("Wire", new Vector2(20f, 0f)).AddComponent<Wire>();
-            Set(Wire, "polarity", wirePolarity);
+            Set(Wire, "polarity", wirePolarity == WirePolarity.Neutral ? WirePolarity.Neutral : WirePolarity.Live);
             List<Wire> wires = new List<Wire> { Wire };
             if (secondWire)
             {
@@ -300,6 +301,8 @@ public static class GroundPolarityIntegrationChecks
             environmentObject.SetActive(true);
             Require(Environment.HeldWire == Wire && Wire.IsHeld,
                 "The owned environment must initialize with its real outlet wire held.");
+            // Defensive tests inject unsupported carried polarities only after valid level initialization.
+            Set(Wire, "polarity", wirePolarity);
         }
 
         public void EstablishContact(Vector2 towardSurface)

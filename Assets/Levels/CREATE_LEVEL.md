@@ -12,12 +12,12 @@
    | --- | --- |
    | [`Prefabs/Core/Core.prefab`](../Prefabs/Core/Core.prefab) | Input、Audio、SceneSwitch、TimerRunner、关卡进度记录；跨场景保活。 |
    | [`Prefabs/Player.prefab`](../Prefabs/Player.prefab) | 带 `Player` Tag 的真实玩家、Dynamic Rigidbody2D、非 Trigger 碰撞体、移动/交互脚本及视觉。 |
-   | [`Prefabs/Env/Env.prefab`](../Prefabs/Env/Env.prefab) | EnvironmentFacade、PowerSocket、DualSocket、两根线与初始 Anchor。 |
-   | [`Prefabs/Env/Environment Grid.prefab`](<../Prefabs/Env/Environment Grid.prefab>) | Rectangle Grid、Routing Tiles、带 TilemapCollider2D 的 Ground Tiles。 |
-   | [`Prefabs/Env/GlobalUI.prefab`](../Prefabs/Env/GlobalUI.prefab) | 设置、线长 HUD、死亡重开及通关面板。 |
-   | [`Prefabs/Env/EventSystem.prefab`](../Prefabs/Env/EventSystem.prefab) | UI 的 Input System 事件模块。 |
+   | [`Prefabs/Env/ScenePrefab/Env.prefab`](../Prefabs/Env/ScenePrefab/Env.prefab) | EnvironmentFacade、PowerSocket、DualSocket、两根线与初始 Anchor。 |
+   | [`Prefabs/Env/ScenePrefab/Environment Grid.prefab`](<../Prefabs/Env/ScenePrefab/Environment Grid.prefab>) | Rectangle Grid、Routing Tiles、带 TilemapCollider2D 的 Ground Tiles。 |
+   | [`Prefabs/Env/ScenePrefab/GlobalUI.prefab`](../Prefabs/Env/ScenePrefab/GlobalUI.prefab) | 设置、线长 HUD、死亡重开及通关面板。 |
+   | [`Prefabs/Env/ScenePrefab/EventSystem.prefab`](../Prefabs/Env/ScenePrefab/EventSystem.prefab) | UI 的 Input System 事件模块。 |
 
-   Core 必须是根对象。场景切换时新场景里的 Core 副本会被去重；直接在 Editor 打开本关播放时，该实例提供所需服务。不要再放一套 MockPlayer 或第二个 EventSystem。
+   Core 必须是根对象。场景切换时新场景里的 Core 副本会被去重；直接在 Editor 打开本关播放时，该实例提供所需服务。不要再放第二个 Player 或第二个 EventSystem。
 
 ## 2. 接好场景实例之间的引用
 
@@ -33,8 +33,8 @@
 1. 在 Routing Tiles 上绘制玩家与电路节点要使用的格子。它用于格心定位、绕线路径和 K 放置 Anchor，通常不需要碰撞体；现有预制体的网格原点为 `(0, -0.5, 0)`、cell size 为 `1`。若调整 Grid 位置或大小，重新核对节点是否在已绘制格子的中心。
 2. 在 Ground Tiles 上绘制实体地面，并确认使用的 Tile **本身有 Collider Type**，TilemapCollider2D 已启用且不是 Trigger。可见图块不一定有碰撞；玩家接地和跳跃依赖实际向上的碰撞接触。墙壁、边界和屋顶也按关卡意图分别检查碰撞，Routing Tiles 不会自动阻挡玩家。
 3. 把 Player 放在有效地面上方、安全的出生点。Player 根物体保留 `Player` Tag；其物理、动画、J/K 输入及 Anchor prefab 已在预制体中。PlayerMove 在 Start 从**同场景** Env 获取移动规则；缺少 Env 时，正常水平移动和跳跃不会正确工作。
-4. 在已绘制的 Routing tile 上布置 PowerSocket、DualSocket 与初始 Anchor，并安排一条玩家能够到达的路线。EnvironmentFacade 启动时会对有效节点做格心对齐。现有 Env prefab 的 PowerSocket 带 Live/Neutral 两根线，首条为 Neutral，两个 Wire 的 `maxLength` 均为 `64`，`requireGround=false`、`maxSwaps=1`；每关可以在实例上调整。`maxLength=0` 表示不限长；严格超过正数上限会使玩家死亡。
-5. 确认插口接受的极性、初始持线、允许换线次数及地线要求与谜题设计一致。要完成当前判定，首条 Live 与 Neutral 线都必须终止；若开启 `requireGround`，还需要配置能终止的 Ground 线。若需危险地面，可在非 Trigger 的地面碰撞体或其父对象添加 GroundPolarity；GameplayIntegration 默认未启用该机制。
+4. 在已绘制的 Routing tile 上布置 PowerSocket、DualSocket 与初始 Anchor，并安排一条玩家能够到达的路线。EnvironmentFacade 启动时会对有效节点做格心对齐。现有 Env prefab 的 PowerSocket 带 Live/Neutral 两根线，首条为 Neutral，两个 Wire 的 `maxLength` 均为 `64`；每关可以在实例上调整。`maxLength=0` 表示不限长；严格超过正数上限会使玩家死亡。
+5. 带电接口必须同时接受 Live 与 Neutral，单极配置会初始化报错并禁用。通关路线必须从原插座出发，经实际交互插接覆盖全部带电接口，形成火线与零线首尾相连并回到原插座的闭环。首次接入时可换到另一根未使用的异极线；没有备用线时继续持线铺设。接入点固定此前线路，回走不能收掉接入；单纯经过接口不算接入。暂不考虑地线、降压器及换线次数上限。若需危险地面，可在非 Trigger 的地面碰撞体或其父对象添加 GroundPolarity；GameplayIntegration 默认未启用该机制。
 
 路径记录玩家经过的四连通格子，原路逐格回退会收线。K 只在**已绘制 Routing tile** 上放置 Anchor，J 在交互范围内操作插口或收回 Anchor。普通移动仍可能走出 Routing tile 范围，所以要用实际地形与碰撞体控制关卡边界。玩家输入绑定为 A/D 移动、Space 跳跃、J 交互、K 放 Anchor。
 

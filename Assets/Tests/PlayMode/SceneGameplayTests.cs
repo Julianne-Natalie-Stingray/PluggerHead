@@ -21,6 +21,12 @@ namespace PluggerHead.Tests
             yield return (IEnumerator)IntegrationCheckBridge.Invoke("SceneIntegrationChecks", "CheckGameplay");
         }
 
+        [UnityTest]
+        public IEnumerator DiagnosticScene_RealPlayerLandsPlacesAnchorAndSwapsWire()
+        {
+            yield return (IEnumerator)IntegrationCheckBridge.Invoke("SceneIntegrationChecks", "CheckDiagnosticsPlayer");
+        }
+
         [UnityTearDown]
         public IEnumerator Cleanup()
         {

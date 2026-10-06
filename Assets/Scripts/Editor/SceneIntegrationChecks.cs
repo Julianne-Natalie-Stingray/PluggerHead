@@ -14,6 +14,7 @@ using UnityEngine.InputSystem.LowLevel;
 public static class SceneIntegrationChecks
 {
     private const string GameplayScenePath = "Assets/Scenes/Tests/GameplayIntegration.unity";
+    private static string ownedScenePath = GameplayScenePath;
     private const float TimeoutSeconds = 15f;
     private static Scene ownedScene;
     private static Scene previousScene;
@@ -104,10 +105,10 @@ public static class SceneIntegrationChecks
             if (path.EndsWith("/CircuitDiagnostics.unity", StringComparison.Ordinal))
             {
                 Require(FindComponents<EnvironmentFacade>(scene).Count == 1 &&
-                    FindComponents<PlayerInteraction>(scene).Count == 0 &&
+                    FindComponents<PlayerInteraction>(scene).Count == 1 &&
                     FindComponents<Transform>(scene).Count(item => item.CompareTag("Player")) == 1 &&
                     FindComponents<PowerSocket>(scene).Any(socket => socket.StartingWire != null && socket.Wires.Count >= 2),
-                    "Circuit diagnostics must retain its mock player and configured circuit, independent of real Player controls.");
+                    "Circuit diagnostics must contain one real Player and its configured circuit.");
             }
 
             if (path.EndsWith("/FinalScene.unity", StringComparison.Ordinal))
@@ -136,7 +137,7 @@ public static class SceneIntegrationChecks
                 Require(!finalConfigs.IsGameplayLevel(SceneId.FinalScene), "Credits must not replace saved gameplay progress.");
             }
 
-            if (path == GameplayScenePath)
+            if (path == GameplayScenePath || path.EndsWith("/CircuitDiagnostics.unity", StringComparison.Ordinal))
             {
                 Require(FindComponents<CoreFacade>(scene).Count == 1, "Gameplay scene must contain one configured Core.");
                 Require(FindComponents<EnvironmentFacade>(scene).Count == 1, "Gameplay scene must contain one environment.");
@@ -185,6 +186,52 @@ public static class SceneIntegrationChecks
         return IntegrationSceneWait.Finally(CheckGameplayBody(), () => { });
     }
 
+    public static IEnumerator CheckDiagnosticsPlayer()
+    {
+        Require(Application.isPlaying && !gameplayStarted && CoreFacade.Instance == null,
+            "Diagnostic checks require a clean PlayMode runner.");
+        const string path = "Assets/Scenes/Tests/CircuitDiagnostics.unity";
+        Require(!SceneManager.GetSceneByPath(path).isLoaded, "Refusing to modify an unowned diagnostic scene.");
+        ownedScenePath = path;
+        previousState = new IntegrationSceneState();
+        previousScene = SceneManager.GetActiveScene();
+        previousEnvironment = EnvironmentFacade.Current;
+        gameplayStarted = true;
+        pendingLoad = SceneManager.LoadSceneAsync(path, LoadSceneMode.Additive);
+        yield return WaitForOperation(pendingLoad, "loading diagnostic Player scene");
+        ownedScene = SceneManager.GetSceneByPath(path);
+        ownedCore = CoreFacade.Instance;
+        SceneManager.SetActiveScene(ownedScene);
+        yield return null;
+        yield return null;
+        PlayerInteraction player = FindComponents<PlayerInteraction>(ownedScene).Single();
+        PlayerMove movement = player.GetComponent<PlayerMove>();
+        Rigidbody2D body = player.GetComponent<Rigidbody2D>();
+        EnvironmentFacade environment = FindComponents<EnvironmentFacade>(ownedScene).Single();
+        Require(ownedCore && ownedCore.Input && player.enabled && movement.enabled && body.simulated,
+            "Real diagnostic Player must initialize input, interaction and physics.");
+        for (int i = 0; i < 30; i++)
+        {
+            yield return new WaitForFixedUpdate();
+        }
+        var contacts = new List<ContactPoint2D>();
+        body.GetContacts(contacts);
+        Require(!movement.IsDead && body.position.y > -0.2f && body.position.y < 0.3f && contacts.Count > 0,
+            "Diagnostic Player must land on the authored ground instead of falling through the scene.");
+        Require(player.TryPlaceAnchor(), "Diagnostic Player must retain K anchor placement after the folder move.");
+        Require(FindComponents<Anchor>(ownedScene).Any(anchor => anchor.IsEngaged && anchor.EngagedBy == environment.HeldWire),
+            "The placed diagnostic Anchor must engage the carried wire.");
+        Require(player.TryPerformOperation(), "Diagnostic Player must reclaim the nearest placed Anchor with J.");
+        yield return WaitForUnlocked(movement);
+        Wire previous = environment.HeldWire;
+        PolaritySocket dual = FindComponents<PolaritySocket>(ownedScene).Single(socket => socket.IsDual);
+        body.position = dual.transform.position + Vector3.right;
+        player.transform.position = body.position;
+        Physics2D.SyncTransforms();
+        Require(player.TryPerformOperation() && environment.HeldWire != previous && environment.HeldWire.IsHeld,
+            "Diagnostic Player J interaction must hand over the opposite powered wire.");
+    }
+
     private static IEnumerator CheckGameplayBody()
     {
         Require(Application.isPlaying, "Gameplay checks require Play Mode.");
@@ -195,6 +242,7 @@ public static class SceneIntegrationChecks
         Require(Time.timeScale > 0f && GameStateManager.Current == GameState.Playing,
             "Run gameplay checks in an unpaused Playing state.");
 
+        ownedScenePath = GameplayScenePath;
         previousState = new IntegrationSceneState();
         previousScene = SceneManager.GetActiveScene();
         previousEnvironment = EnvironmentFacade.Current;
@@ -347,7 +395,7 @@ public static class SceneIntegrationChecks
                 lengthText.text != "剩余线长：--",
                 "Swapping to a finite wire must refresh the carried wire display.");
             outlet.Interact(new InteractionDetails(interaction.gameObject, outlet.gameObject));
-            Require(environment.IsCircuitClosed && environment.HeldWire == null && clearedCount == 1,
+            Require(environment.IsCircuitClosed && environment.HeldWire && environment.HeldWire.IsHeld && clearedCount == 1,
                 "Returning the second wire to its outlet must clear the scene once.");
             Require(nextPanel.gameObject.activeInHierarchy &&
                 nextPanel.GetComponentInChildren<UnityEngine.UI.Button>().interactable &&
@@ -355,7 +403,8 @@ public static class SceneIntegrationChecks
                 "The environment victory event must immediately show the Chinese completion prompt.");
             yield return null;
             yield return null;
-            Require(lengthText.text == "剩余线长：--", "A completed circuit with no held wire must clear the length.");
+            Require(lengthText.text.StartsWith("剩余线长：") && lengthText.text != "剩余线长：--",
+                "Completion keeps a powered wire and its length display.");
             environment.EvaluateCircuit();
             Require(clearedCount == 1, "Repeated evaluation must not emit another clear event.");
             typeof(EnvironmentFacade).GetMethod("DebugRestartRun", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -527,7 +576,7 @@ public static class SceneIntegrationChecks
         }
         if (!ownedScene.IsValid())
         {
-            ownedScene = SceneManager.GetSceneByPath(GameplayScenePath);
+            ownedScene = SceneManager.GetSceneByPath(ownedScenePath);
         }
         if (previousScene.IsValid() && previousScene.isLoaded)
         {
@@ -576,6 +625,7 @@ public static class SceneIntegrationChecks
                     ownedScene = default;
                     previousState = null;
                     gameplayStarted = false;
+                    ownedScenePath = GameplayScenePath;
                     MainMenuIntegrationChecks.FinishDeferredProgressRelease();
                 }
             });

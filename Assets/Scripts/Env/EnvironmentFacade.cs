@@ -21,6 +21,15 @@ public class EnvironmentFacade : MonoBehaviour
     public static EnvironmentFacade Current { get; private set; }
 
     public Wire HeldWire => heldWire;
+    public Wire HeldGroundWire => heldGroundWire;
+    public float InitialVoltage => initialVoltage;
+    public float TargetVoltage => targetVoltage;
+    public double CurrentVoltage { get; private set; }
+
+    [SerializeField, Min(0f)]
+    private float initialVoltage = 220f;
+    [SerializeField, Min(0f)]
+    private float targetVoltage = 220f;
     public bool IsCircuitClosed => isCircuitClosed;
     public int SwapCount => swapCount;
     public Tilemap RoutingTilemap => routingTilemap;
@@ -35,13 +44,14 @@ public class EnvironmentFacade : MonoBehaviour
     public Vector2 GetResistance(Vector2 playerPosition)
     {
         SamplePlayerPath(playerPosition);
-        if (!heldWire || !heldWire.IsHeld || heldWire.MaxLength <= 0f)
-        {
-            return Vector2.zero;
-        }
-
-        return routingTilemap && heldWire.TilePath.GetLength(routingTilemap) > heldWire.MaxLength
+        return ExceedsLength(heldWire) || ExceedsLength(heldGroundWire)
             ? Vector2.negativeInfinity : Vector2.zero;
+    }
+
+    private bool ExceedsLength(Wire wire)
+    {
+        return routingTilemap && wire && wire.IsHeld && wire.MaxLength > 0f &&
+            wire.TilePath.GetLength(routingTilemap) > wire.MaxLength;
     }
 
     /// <summary>
@@ -54,26 +64,21 @@ public class EnvironmentFacade : MonoBehaviour
     [Tooltip("Tag of the player whose tile movement builds the held wire path.")]
     private string playerTag = "Player";
 
-    [SerializeField, BoxGroup("Win condition")]
-    [Tooltip("Whether this level also contains a broken ground line that must be connected.")]
-    private bool requireGround;
-
-    [SerializeField, BoxGroup("Win condition")]
-    [Tooltip("How many times the player may switch which wire they carry. One swap is the normal run.")]
-    private int maxSwaps = 1;
-
     private readonly List<IEnvironmentInteractable> nodes = new();
     private readonly List<Wire> wires = new();
     private readonly List<Anchor> anchors = new();
-    private readonly Dictionary<PolaritySocket, WirePolarity> occupied = new();
+    private readonly Dictionary<Component, WirePolarity> occupied = new();
     private readonly List<Vector3> renderBuffer = new();
 
     private PowerSocket socket;
     private Wire heldWire;
+    private Wire heldGroundWire;
+    private readonly List<Wire> generatedWires = new();
     private int swapCount;
     private bool isCircuitClosed;
     private Transform playerTransform;
     private Vector3 previousPlayerPosition;
+    private Vector3 previousGroundPosition;
     private bool hasPlayerSample;
     private int nextWireRenderOrder;
     private int wireSortingLayerId;
@@ -183,6 +188,11 @@ public class EnvironmentFacade : MonoBehaviour
         }
         Vector3 from = hasPlayerSample ? previousPlayerPosition : heldWire.FixedEndPosition;
         TraceCells(heldWire.TilePath, from, worldPosition);
+        if (heldGroundWire && heldGroundWire.IsHeld)
+        {
+            TraceCells(heldGroundWire.TilePath, previousGroundPosition, worldPosition);
+            previousGroundPosition = worldPosition;
+        }
         previousPlayerPosition = worldPosition;
         hasPlayerSample = true;
     }
@@ -283,15 +293,18 @@ public class EnvironmentFacade : MonoBehaviour
         PolaritySocket[] interfaces = FindSceneComponents<PolaritySocket>();
         for (int i = 0; i < interfaces.Length; i++)
         {
+            interfaces[i].Initialize();
             nodes.Add(interfaces[i]);
         }
+
+        nodes.AddRange(FindSceneComponents<VoltageReducer>());
 
         PowerSocket[] sockets = FindSceneComponents<PowerSocket>();
         for (int i = 0; i < sockets.Length; i++)
         {
             nodes.Add(sockets[i]);
 
-            if (socket == null && sockets[i].StartingWire != null)
+            if (socket == null && !sockets[i].IsGroundTerminal && sockets[i].StartingWire != null)
             {
                 socket = sockets[i];
             }
@@ -319,16 +332,7 @@ public class EnvironmentFacade : MonoBehaviour
             }
         }
 
-        for (int i = 0; i < wires.Count; i++)
-        {
-            Transform target = wires[i].PlugTarget;
-            PolaritySocket polaritySocket = target ? target.GetComponent<PolaritySocket>() : null;
-            if (polaritySocket)
-            {
-                occupied.TryGetValue(polaritySocket, out WirePolarity taken);
-                occupied[polaritySocket] = taken | wires[i].Polarity;
-            }
-        }
+        RebuildOccupancy();
 
         RenderWires();
     }
@@ -430,40 +434,62 @@ public class EnvironmentFacade : MonoBehaviour
     /// </summary>
     public bool EvaluateCircuit()
     {
-        Wire live = FindWire(WirePolarity.Live);
-        Wire neutral = FindWire(WirePolarity.Neutral);
-        Wire ground = FindWire(WirePolarity.Ground);
-
-        bool polarityOk = true;
-        for (int i = 0; i < wires.Count; i++)
+        bool wasClosed = isCircuitClosed;
+        isCircuitClosed = false;
+        RebuildOccupancy();
+        bool valid = IsVoltageValid(initialVoltage) && IsVoltageValid(targetVoltage);
+        int socketCount = 0;
+        foreach (IEnvironmentInteractable node in nodes)
         {
-            Wire wire = wires[i];
-            if (wire.PlugTarget == null)
+            Component component = node as Component;
+            if (!component)
+            {
+                valid = false;
+                continue;
+            }
+            WirePolarity required;
+            if (node is PolaritySocket target)
+            {
+                valid &= target.IsConfigurationValid;
+                required = target.Accepted;
+            }
+            else if (node is PowerSocket outlet)
+            {
+                required = outlet.IsGroundTerminal ? WirePolarity.Ground :
+                    WirePolarity.Live | WirePolarity.Neutral;
+            }
+            else
             {
                 continue;
             }
-
-            PolaritySocket target = wire.PlugTarget.GetComponent<PolaritySocket>();
-            if (target && !target.Accepts(wire.Polarity))
+            socketCount++;
+            valid &= occupied.TryGetValue(component, out WirePolarity taken) &&
+                (taken & required) == required;
+        }
+        CurrentVoltage = initialVoltage;
+        var connectedReducers = new HashSet<VoltageReducer>();
+        foreach (Wire wire in wires)
+        {
+            if (!wire)
             {
-                polarityOk = false;
+                continue;
+            }
+            foreach (VoltageReducer reducer in wire.ConnectedReducers)
+            {
+                if (reducer && nodes.Contains(reducer) && connectedReducers.Add(reducer))
+                {
+                    valid &= reducer.IsConfigurationValid;
+                    CurrentVoltage -= reducer.VoltageDrop;
+                }
             }
         }
-
-        bool withinSwapBudget = swapCount <= maxSwaps;
-        bool terminated = IsTerminated(live) && IsTerminated(neutral);
-        bool groundOk = !requireGround || IsTerminated(ground);
-
-        bool wasClosed = isCircuitClosed;
-        isCircuitClosed = polarityOk && withinSwapBudget && terminated && groundOk;
+        isCircuitClosed = valid && socketCount > 0 && CurrentVoltage <= targetVoltage;
 
         GameLog.Info(this)
             .Subsystem("Environment")
             .Name(LogName.Class)
             .Issue(LogIssue.Specify(
-                $"###ASSERT circuit closed={isCircuitClosed} polarity={polarityOk} terminated={terminated} " +
-                $"ground={(requireGround ? groundOk.ToString() : "not-required")} swaps={swapCount}/{maxSwaps} " +
-                $"live={Describe(live)} neutral={Describe(neutral)}. "))
+                $"###ASSERT circuit closed={isCircuitClosed} swaps={swapCount}. "))
             .Write();
 
         if (isCircuitClosed && !wasClosed)
@@ -472,6 +498,55 @@ public class EnvironmentFacade : MonoBehaviour
         }
 
         return isCircuitClosed;
+    }
+
+    private static bool IsVoltageValid(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value) && value >= 0f;
+    }
+
+    private void RebuildOccupancy()
+    {
+        occupied.Clear();
+        foreach (Wire wire in wires)
+        {
+            if (!wire)
+            {
+                continue;
+            }
+            MarkEndpoint(wire.CircuitStart, wire.Polarity);
+            MarkEndpoint(wire.PlugTarget, wire.Polarity);
+            foreach (PolaritySocket target in wire.ConnectedInterfaces)
+            {
+                if (target && nodes.Contains(target))
+                {
+                    MarkOccupied(target, wire.Polarity);
+                }
+            }
+        }
+    }
+
+    private void MarkEndpoint(Transform endpoint, WirePolarity polarity)
+    {
+        if (!endpoint)
+        {
+            return;
+        }
+        Component target = endpoint.GetComponent<PolaritySocket>();
+        if (!target)
+        {
+            target = endpoint.GetComponent<PowerSocket>();
+        }
+        if (target && nodes.Contains((IEnvironmentInteractable)target))
+        {
+            MarkOccupied(target, polarity);
+        }
+    }
+
+    private void MarkOccupied(Component target, WirePolarity polarity)
+    {
+        occupied.TryGetValue(target, out WirePolarity taken);
+        occupied[target] = taken | polarity;
     }
 
     /// <summary>
@@ -494,7 +569,14 @@ public class EnvironmentFacade : MonoBehaviour
                 ApplyPlug(liveInterface);
                 break;
             case PowerSocket outlet:
-                ApplyClose(outlet);
+                ApplyOutlet(outlet);
+                break;
+            case VoltageReducer reducer:
+                if (heldWire && heldWire.IsHeld && routingTilemap && reducer.CanInteract)
+                {
+                    TraceToNode(heldWire, reducer.transform);
+                    heldWire.ConnectReducer(reducer);
+                }
                 break;
         }
 
@@ -504,179 +586,107 @@ public class EnvironmentFacade : MonoBehaviour
 
     private void ApplyPlug(PolaritySocket target)
     {
-        if (!routingTilemap || heldWire == null || !heldWire.IsHeld)
+        if (!routingTilemap || !heldWire || !heldWire.IsHeld || !target.CanInteract)
         {
-            GameLog.Info(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.Specify("Plug refused: no wire is currently carried. "))
-                .Action(LogAction.Return)
-                .Write();
-
             return;
         }
-
-        if (!target.Accepts(heldWire.Polarity))
+        if (target.Accepted == WirePolarity.Ground)
         {
-            GameLog.Warning(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.Invalid($"{nameof(PolaritySocket)} accepts {target.Accepted}, wire is {heldWire.Polarity}"))
-                .Action(LogAction.Return)
-                .Write();
-
+            ApplyGround(target.transform);
             return;
         }
+        TraceToNode(heldWire, target.transform);
+        heldWire.ConnectInterface(target);
+        Wire previous = heldWire;
+        previous.PlugInto(target.transform, false);
+        Wire next = NextPoweredWire(previous);
+        next.TilePath.CopyFrom(previous.TilePath);
+        HoldWire(next, previous);
+        next.ConnectInterface(target);
+        swapCount++;
+    }
 
-        if (occupied.TryGetValue(target, out WirePolarity taken) && (taken & heldWire.Polarity) != 0)
+    private void TraceToNode(Wire wire, Transform target)
+    {
+        Vector3 from = wire == heldGroundWire ? previousGroundPosition :
+            hasPlayerSample ? previousPlayerPosition : wire.FixedEndPosition;
+        TraceCells(wire.TilePath, from, target.position);
+        wire.TilePath.CommitConnection();
+        if (wire == heldGroundWire)
         {
-            GameLog.Warning(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.Specify($"Plug refused: {target.name} already carries {heldWire.Polarity}. "))
-                .Action(LogAction.Return)
-                .Write();
-
-            return;
-        }
-
-        occupied[target] = taken | heldWire.Polarity;
-        TraceCells(heldWire.TilePath, hasPlayerSample ? previousPlayerPosition : heldWire.FixedEndPosition,
-            target.transform.position);
-        previousPlayerPosition = target.transform.position;
-        heldWire.PlugInto(target.transform, false);
-
-        GameLog.Info(this)
-            .Subsystem("Environment")
-            .Name(LogName.Class)
-            .Issue(LogIssue.Specify($"Plugged {heldWire.Polarity} into {target.name}. "))
-            .Write();
-
-        if (target.IsDual)
-        {
-            SwapToOtherWire();
+            previousGroundPosition = target.position;
         }
         else
         {
-            heldWire = null;
+            previousPlayerPosition = target.position;
+            hasPlayerSample = true;
         }
     }
 
-    private void SwapToOtherWire()
+    private Wire NextPoweredWire(Wire previous)
     {
-        PowerSocket owner = heldWire ? heldWire.Socket : null;
-        if (owner == null)
+        WirePolarity opposite = previous.Polarity == WirePolarity.Live ? WirePolarity.Neutral : WirePolarity.Live;
+        foreach (Wire candidate in wires)
         {
-            heldWire = null;
-            return;
-        }
-
-        IReadOnlyList<Wire> candidates = owner.Wires;
-        for (int i = 0; i < candidates.Count; i++)
-        {
-            Wire candidate = candidates[i];
-            if (!candidate || candidate == heldWire || candidate.IsClosed || candidate.PlugTarget != null)
+            if (candidate && candidate != previous && candidate.Polarity == opposite &&
+                !candidate.IsHeld && !candidate.CircuitStart && !candidate.PlugTarget)
             {
-                continue;
+                return candidate;
             }
-
-            candidate.TilePath.CopyFrom(heldWire.TilePath);
-            HoldWire(candidate);
-            swapCount++;
-
-            GameLog.Info(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.Specify(
-                    $"Swapped wire: now carrying {heldWire.Polarity} (swap {swapCount} of {maxSwaps}). "))
-                .Write();
-
-            if (swapCount > maxSwaps)
-            {
-                GameLog.Warning(this)
-                    .Subsystem("Environment")
-                    .Name(LogName.Class)
-                    .Issue(LogIssue.Specify(
-                        $"Swap budget of {maxSwaps} exceeded; the level can no longer be cleared in this run. "))
-                    .Action(LogAction.Ignore)
-                    .Write();
-            }
-
-            return;
         }
-
-        heldWire = null;
-        GameLog.Warning(this)
-            .Subsystem("Environment")
-            .Name(LogName.Class)
-            .Issue(LogIssue.Specify("Swap requested but this outlet has no other open wire. "))
-            .Action(LogAction.Ignore)
-            .Write();
+        return CreateWire(opposite, previous, previous.PlugTarget);
     }
 
-    private void ApplyClose(PowerSocket outlet)
+    private Wire CreateWire(WirePolarity polarity, Wire template, Transform origin)
     {
-        if (!routingTilemap || heldWire == null || !heldWire.IsHeld)
-        {
-            GameLog.Info(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.Specify("Plug refused: no wire is currently carried. "))
-                .Action(LogAction.Return)
-                .Write();
+        var root = new GameObject($"{polarity} Wire");
+        root.transform.SetParent(transform, false);
+        root.transform.position = origin.position;
+        Wire wire = root.AddComponent<Wire>();
+        wire.ConfigureContinuation(template, polarity);
+        wire.SetSocket(socket);
+        generatedWires.Add(wire);
+        wires.Add(wire);
+        return wire;
+    }
 
+    private void ApplyGround(Transform target)
+    {
+        if (heldGroundWire)
+        {
+            TraceToNode(heldGroundWire, target);
+            heldGroundWire.PlugInto(target, false);
+            heldGroundWire = null;
+        }
+        else
+        {
+            heldGroundWire = CreateWire(WirePolarity.Ground, heldWire, target);
+            heldGroundWire.BeginConnection(target, null);
+            heldGroundWire.TilePath.Reset(PathCell(target.position));
+            heldGroundWire.SetRenderOrder(wireSortingLayerId, nextWireRenderOrder++);
+            heldGroundWire.Hold();
+            previousGroundPosition = target.position;
+        }
+    }
+
+    private void ApplyOutlet(PowerSocket outlet)
+    {
+        if (!routingTilemap || !heldWire || !heldWire.IsHeld || !outlet.CanInteract)
+        {
             return;
         }
-
-        if (heldWire.Socket != outlet)
+        if (outlet.IsGroundTerminal)
         {
-            GameLog.Warning(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.Specify($"Plug refused: {heldWire.name} does not belong to {outlet.name}. "))
-                .Action(LogAction.Return)
-                .Write();
-
+            ApplyGround(outlet.transform);
             return;
         }
-
-        if (routingTilemap)
-        {
-            TraceCells(heldWire.TilePath, hasPlayerSample ? previousPlayerPosition : heldWire.FixedEndPosition,
-                outlet.transform.position);
-            previousPlayerPosition = outlet.transform.position;
-        }
-        heldWire.PlugInto(outlet.transform, true);
-
-        GameLog.Info(this)
-            .Subsystem("Environment")
-            .Name(LogName.Class)
-            .Issue(LogIssue.Specify($"Closed {heldWire.Polarity} back into {outlet.name}. "))
-            .Write();
-
-        IReadOnlyList<Wire> candidates = outlet.Wires;
-        for (int i = 0; i < candidates.Count; i++)
-        {
-            Wire candidate = candidates[i];
-            if (!candidate || candidate == heldWire || candidate.IsClosed || candidate.PlugTarget != null)
-            {
-                continue;
-            }
-
-            candidate.TilePath.CopyFrom(heldWire.TilePath);
-            HoldWire(candidate);
-
-            GameLog.Info(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.Specify(
-                    $"Handed over at the outlet: now carrying {heldWire.Polarity} (not counted as a swap). "))
-                .Write();
-
-            return;
-        }
-
-        heldWire = null;
+        Wire previous = heldWire;
+        TraceToNode(previous, outlet.transform);
+        previous.PlugInto(outlet.transform, true);
+        Wire next = NextPoweredWire(previous);
+        next.TilePath.CopyFrom(previous.TilePath);
+        HoldWire(next, previous);
+        next.TilePath.CommitConnection();
     }
 
     private void ResolvePlayer()
@@ -692,6 +702,25 @@ public class EnvironmentFacade : MonoBehaviour
         swapCount = 0;
         isCircuitClosed = false;
         heldWire = null;
+        heldGroundWire = null;
+        foreach (Wire generated in generatedWires)
+        {
+            if (!generated)
+            {
+                continue;
+            }
+            wires.Remove(generated);
+            generated.gameObject.SetActive(false);
+            if (Application.isPlaying)
+            {
+                Destroy(generated.gameObject);
+            }
+            else
+            {
+                DestroyImmediate(generated.gameObject);
+            }
+        }
+        generatedWires.Clear();
         occupied.Clear();
 
         for (int i = 0; i < wires.Count; i++)
@@ -699,6 +728,7 @@ public class EnvironmentFacade : MonoBehaviour
             if (wires[i])
             {
                 wires[i].PlugInto(null, false);
+                wires[i].BeginConnection(null, null);
                 if (routingTilemap)
                 {
                     wires[i].TilePath.Reset(PathCell(wires[i].FixedEndPosition));
@@ -754,9 +784,10 @@ public class EnvironmentFacade : MonoBehaviour
         EvaluateCircuit();
     }
 
-    private void HoldWire(Wire wire)
+    private void HoldWire(Wire wire, Wire previous = null)
     {
         heldWire = wire;
+        wire.BeginConnection(previous ? previous.PlugTarget : wire.Socket.transform, previous);
         if (nextWireRenderOrder == 0)
         {
             wireSortingLayerId = wire.GetComponent<LineRenderer>().sortingLayerID;
@@ -765,40 +796,6 @@ public class EnvironmentFacade : MonoBehaviour
         // 关卡内按实际出线顺序排序，不依赖预制体层级、实例 ID 或路径包围盒。
         wire.SetRenderOrder(wireSortingLayerId, nextWireRenderOrder++);
         wire.Hold();
-    }
-
-    private Wire FindWire(WirePolarity polarity)
-    {
-        for (int i = 0; i < wires.Count; i++)
-        {
-            if (wires[i] && wires[i].Polarity == polarity)
-            {
-                return wires[i];
-            }
-        }
-
-        return null;
-    }
-
-    private bool IsTerminated(Wire wire)
-    {
-        if (wire == null)
-        {
-            return false;
-        }
-
-        if (wire.IsClosed)
-        {
-            return true;
-        }
-
-        if (wire.PlugTarget == null)
-        {
-            return false;
-        }
-
-        PolaritySocket target = wire.PlugTarget.GetComponent<PolaritySocket>();
-        return target && target.IsDual;
     }
 
     private string Describe(Wire wire)
@@ -998,6 +995,12 @@ public class EnvironmentFacade : MonoBehaviour
             return powerSocket;
         }
 
+        VoltageReducer reducer = debugTarget.GetComponentInParent<VoltageReducer>();
+        if (reducer)
+        {
+            return reducer;
+        }
+
         Anchor anchor = debugTarget.GetComponentInParent<Anchor>();
         if (anchor)
         {
@@ -1107,36 +1110,31 @@ public class EnvironmentFacade : MonoBehaviour
                 $"was={polarityBefore} now={(heldWire ? heldWire.Polarity.ToString() : "none")} swaps={swapCount}");
         }
 
-        PolaritySocket mismatched = FindMismatchingInterface();
-        if (mismatched == null)
-        {
-            SkipStep("5 refusing a mismatched polarity", "no interface rejects the carried polarity");
-        }
-        else
-        {
-            Transform plugTargetBefore = heldWire ? heldWire.PlugTarget : null;
-            DebugInteractAt(mismatched);
-            bool unchanged = heldWire != null && heldWire.PlugTarget == plugTargetBefore;
-            ReportStep("5 refusing a mismatched polarity", unchanged, $"state unchanged={unchanged}");
-        }
-
-        bool cleared = false;
+        bool cleared = isCircuitClosed;
         Action onCleared = () => cleared = true;
         LevelCleared += onCleared;
-
-        if (socket == null)
+        try
         {
-            SkipStep("6 closing the carried wire clears the level", "no outlet found");
-        }
-        else
-        {
-            DebugInteractAt(socket);
-            ReportStep("6 closing the carried wire clears the level",
+            // Complete every authored socket, including ground sockets, through the normal interaction path.
+            // 通过正常交互补齐全部插座与降压器，而不是假定回原插座必定获胜。
+            foreach (IEnvironmentInteractable node in new List<IEnvironmentInteractable>(nodes))
+            {
+                if ((node is PolaritySocket || node is PowerSocket || node is VoltageReducer) && node.CanInteract)
+                {
+                    DebugInteractAt((MonoBehaviour)node);
+                }
+            }
+            ReportStep("5 every interaction preserves a powered wire",
+                heldWire && heldWire.IsHeld && (heldWire.Polarity == WirePolarity.Live || heldWire.Polarity == WirePolarity.Neutral),
+                $"held={Describe(heldWire)} voltage={CurrentVoltage}");
+            ReportStep("6 configured sample meets the success conditions",
                 IsCircuitClosed && cleared,
-                $"closed={IsCircuitClosed} LevelCleared fired={cleared}");
+                $"complete={IsCircuitClosed} voltage={CurrentVoltage} target={targetVoltage}; check socket configuration and available voltage drops if this fails");
         }
-
-        LevelCleared -= onCleared;
+        finally
+        {
+            LevelCleared -= onCleared;
+        }
 
         GameLog.Info(this)
             .Subsystem("Environment")
@@ -1224,19 +1222,6 @@ public class EnvironmentFacade : MonoBehaviour
         return null;
     }
 
-    private PolaritySocket FindMismatchingInterface()
-    {
-        for (int i = 0; i < nodes.Count; i++)
-        {
-            if (nodes[i] is PolaritySocket candidate && candidate.CanInteract && heldWire != null &&
-                !candidate.Accepts(heldWire.Polarity))
-            {
-                return candidate;
-            }
-        }
-
-        return null;
-    }
 
 #endregion
 }

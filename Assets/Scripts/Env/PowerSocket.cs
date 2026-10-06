@@ -8,23 +8,23 @@ using UnityEngine;
 /// 场景插座，维护配置的电线列表，并向 EnvironmentFacade 通知插入请求。
 /// LinkWires assigns ownership; owned wires use this socket tile as their fixed end.
 /// LinkWires 设置归属；所属电线以本插座格子为固定端，不创建玩家。
-/// Interact checks canInteract only; Actor, Target and component enable state are not validated here.
-/// Interact 仅检查 canInteract，不校验 Actor、Target 或组件启用状态。
-/// IsGroundTerminal is retained configuration with no current gameplay consumer.
-/// IsGroundTerminal 是保留配置，当前玩法没有读取或执行该开关。
+/// Interact checks canInteract and active/enabled state; Player owns range and actor validation.
+/// Interact 检查 canInteract 和组件启用状态；Player 负责距离和交互者校验。
+/// IsGroundTerminal selects the ground-only socket type.
+/// IsGroundTerminal 选择纯地线插座；否则为火线与零线双极插座。
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider2D))]
 public class PowerSocket : MonoBehaviour, IEnvironmentInteractable
 {
-    public bool CanInteract => canInteract;
+    public bool CanInteract => canInteract && isActiveAndEnabled;
     public bool IsGroundTerminal => isGroundTerminal;
     public IReadOnlyList<Wire> Wires => wires;
     public Vector3 PlugPosition => transform.position;
 
     /// <summary>
-    /// The wire the level starts the run with: the first valid reference in the configured list. Null when none exists.
-    /// 关卡开局时玩家手中那根线: 配置列表中的首个有效引用. 没有有效引用时为 null.
+    /// The wire the level starts the run with: the first Live or Neutral wire in the configured list. Null when none exists.
+    /// 关卡开局时玩家手中那根线: 配置列表中的首个火线或零线引用；不存在时为 null.
     /// </summary>
     public Wire StartingWire
     {
@@ -32,7 +32,7 @@ public class PowerSocket : MonoBehaviour, IEnvironmentInteractable
         {
             for (int i = 0; i < wires.Count; i++)
             {
-                if (wires[i])
+                if (wires[i] && (wires[i].Polarity == WirePolarity.Live || wires[i].Polarity == WirePolarity.Neutral))
                 {
                     return wires[i];
                 }
@@ -49,7 +49,7 @@ public class PowerSocket : MonoBehaviour, IEnvironmentInteractable
     private bool canInteract = true;
 
     [SerializeField, BoxGroup("Socket")]
-    [Tooltip("Reserved ground-terminal flag; currently not consumed by circuit logic.")]
+    [Tooltip("Ground-only socket when enabled; otherwise a Live/Neutral dual socket.")]
     private bool isGroundTerminal = false;
 
     [SerializeField, BoxGroup("Socket")]

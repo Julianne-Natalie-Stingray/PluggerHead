@@ -82,7 +82,7 @@ public static class TilemapIntegrationChecks
             Mathf.Approximately(fixture.Wire.TilePath.GetLength(fixture.Map), 2f),
             "Sub-cell movement must neither duplicate cells nor change tile-based length.");
         PlayerInteraction interaction = fixture.Player.AddComponent<PlayerInteraction>();
-        Set(interaction, "anchorPrefab", AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Prefabs/Env/Anchor.prefab"));
+        Set(interaction, "anchorPrefab", AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Prefabs/Env/ScenePrefab/Anchor.prefab"));
         fixture.Map.SetTile(new Vector3Int(2, 0, 0), null);
         Require(!interaction.TryPlaceAnchor(), "Anchor placement must reject a cell without a tile.");
         interaction.enabled = false;
@@ -123,11 +123,13 @@ public static class TilemapIntegrationChecks
         Vector3Int[] firstPath = new List<Vector3Int>(fixture.Wire.TilePath.Cells).ToArray();
         fixture.Move(3, 0);
         fixture.Move(0, 0);
-        AssertCells(fixture.SecondWire, Vector3Int.zero);
+        Require(fixture.SecondWire.TilePath.Cells.Count > firstPath.Length &&
+            fixture.SecondWire.TilePath.Cells[fixture.SecondWire.TilePath.Cells.Count - 1] == Vector3Int.zero,
+            "Returning from a connected interface must lay a return path without retracting the connection.");
         AssertCells(fixture.Wire, firstPath);
         Require(anchor.EngagedBy == fixture.Wire, "A swap must keep the first wire's Anchor ownership.");
         fixture.Outlet.Interact(new InteractionDetails(fixture.Player, fixture.Outlet.gameObject));
-        Require(fixture.SecondWire.IsClosed && fixture.Environment.HeldWire == null,
+        Require(fixture.SecondWire.IsClosed && fixture.Environment.HeldWire && fixture.Environment.HeldWire.IsHeld,
             "Closing the return wire must preserve the first wire's independent path.");
         fixture.Restart();
         Require(!anchor.IsEngaged && fixture.Environment.HeldWire == fixture.Wire && !fixture.SecondWire.IsClosed,
@@ -152,7 +154,7 @@ public static class TilemapIntegrationChecks
         }
         LineRenderer first = fixture.Wire.GetComponent<LineRenderer>();
         LineRenderer second = fixture.SecondWire.GetComponent<LineRenderer>();
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/Env.prefab");
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/ScenePrefab/Env.prefab");
         foreach (Wire authored in prefab.GetComponentsInChildren<Wire>(true))
         {
             LineRenderer source = authored.GetComponent<LineRenderer>();
@@ -210,7 +212,7 @@ public static class TilemapIntegrationChecks
             AssertWirePixel(camera, pixels, overlap, firstColor, "Switching alone must leave the inherited path's color unchanged.");
             if (returnAtOutlet)
             {
-                // Retract part of the inherited loop, then lay a fresh segment on the old bottom edge.
+                // Preserve the pinned loop while laying a fresh segment on the old bottom edge.
                 fixture.Move(0, 2);
                 fixture.Move(1, 2);
                 fixture.Move(1, 0);
@@ -237,9 +239,11 @@ public static class TilemapIntegrationChecks
                 fixture.Move(3, 2);
                 AssertWirePixel(camera, pixels, overlap, firstColor, "Retracting the new tail must reveal the unchanged older line.");
                 fixture.Move(3, 0);
+                AssertWirePixel(camera, pixels, (fixture.Center(3, 0) + fixture.Center(3, 1)) * 0.5f,
+                    secondColor, "A new return segment must cover the inherited edge in the carried wire color.");
                 fixture.Move(3, 2);
                 AssertWirePixel(camera, pixels, (fixture.Center(3, 0) + fixture.Center(3, 1)) * 0.5f,
-                    secondColor, "Retracted inherited edges must become new-colored edges when laid again.");
+                    firstColor, "Retracting to the connected interface must reveal the preserved inherited edge.");
             }
             fixture.Player.transform.position = fixture.Center(0, 0);
             fixture.Restart();

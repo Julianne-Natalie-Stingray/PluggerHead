@@ -24,6 +24,12 @@ public class Wire : MonoBehaviour
     public Vector3 FixedEndPosition => socket ? socket.PlugPosition : transform.position;
     public float MaxLength => maxLength;
     public EdgeCollider2D PathCollider => pathCollider;
+    public Transform CircuitStart { get; private set; }
+    public Wire PreviousWire { get; private set; }
+    public IReadOnlyList<PolaritySocket> ConnectedInterfaces => connectedInterfaces;
+    private readonly List<PolaritySocket> connectedInterfaces = new();
+    public IReadOnlyList<VoltageReducer> ConnectedReducers => connectedReducers;
+    private readonly List<VoltageReducer> connectedReducers = new();
 
     [SerializeField, BoxGroup("Wire")]
     [Tooltip("Electrical property of this wire. It must match the polarity of every interface it is plugged into.")]
@@ -78,6 +84,53 @@ public class Wire : MonoBehaviour
     public void SetSocket(PowerSocket owner)
         => socket = owner;
 
+    /// <summary>Electrical origin differs from the copied visual/path prefix after a handover.
+    /// 换线后的电气起点是交接接口；复制的历史路径不代表另一条电气连接。</summary>
+    internal void BeginConnection(Transform start, Wire previous)
+    {
+        CircuitStart = start;
+        PreviousWire = previous;
+        connectedInterfaces.Clear();
+        connectedReducers.Clear();
+    }
+
+    internal void ConfigureContinuation(Wire source, WirePolarity value)
+    {
+        polarity = value;
+        maxLength = source ? source.MaxLength : 0f;
+        Initialize();
+        if (source)
+        {
+            LineRenderer original = source.GetComponent<LineRenderer>();
+            line.sharedMaterial = original.sharedMaterial;
+            line.widthCurve = original.widthCurve;
+            line.widthMultiplier = original.widthMultiplier;
+            line.numCornerVertices = original.numCornerVertices;
+            line.numCapVertices = original.numCapVertices;
+        }
+        Color color = value == WirePolarity.Live ? Color.red :
+            value == WirePolarity.Neutral ? Color.blue : Color.green;
+        line.startColor = line.endColor = color;
+    }
+
+    internal void ConnectReducer(VoltageReducer target)
+    {
+        if (!connectedReducers.Contains(target))
+        {
+            connectedReducers.Add(target);
+        }
+        TilePath.CommitConnection();
+    }
+
+    internal void ConnectInterface(PolaritySocket target)
+    {
+        if (!connectedInterfaces.Contains(target))
+        {
+            connectedInterfaces.Add(target);
+        }
+        TilePath.CommitConnection();
+    }
+
     /// <summary>Use the run's handover order, independent of object creation and renderer bounds.</summary>
     public void SetRenderOrder(int sortingLayerId, int order)
     {
@@ -99,10 +152,9 @@ public class Wire : MonoBehaviour
 
     /// <summary>
     /// Single entry point for the state "this wire's free end is plugged into something".
-    /// Implementation approach: records where, and whether that place completes the wire; a wire plugged into a
-    /// dual interface counts as terminated in the facade; this method itself only records the supplied values.
+    /// Records the endpoint and legacy return flag; Environment checks socket occupancy and voltage.
     /// 状态"本线自由端已插入某处"的单一入口.
-    /// 实现思路: 仅记录传入的插入点与闭合标志；门面把双电性接口视为终止，不是任意接口都算终止。
+    /// 仅记录插入点与回插标志；环境检查插座锚点接线与电压。
     /// </summary>
     public void PlugInto(Transform target, bool closesCircuit)
     {
