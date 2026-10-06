@@ -6,7 +6,7 @@ using System;
 /// 一条线的电性, 也是带电接口所能接受的电性.
 /// Subsystem 归属: Environment.
 /// </summary>
-[Flags]
+
 public enum WirePolarity
 {
     None = 0,
