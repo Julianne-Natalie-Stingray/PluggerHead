@@ -2,9 +2,11 @@
 
 Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 
-清理缺陷修复最终验证（2026-10-06）：编译后 Console 无错误，独立审查通过；按顺序运行 EditMode 17/17（job `3eb8b79ef39f415abbed40cead84b714`）和 PlayMode 57/57（job `e648646396f14d7ab119a800823a87c8`），均终态通过。新增 20 项故障注入检查覆盖失败恢复、在途句柄保留、异常聚合和临时进度存储延期释放。
+本轮验证进度（2026-10-06）：编译后 Console 错误为 0；EditMode job `21b6cbceec95472ca70ce3a965876b63` 已结束并通过 21/21。随后启动的 PlayMode job `1ba9928905c54f868d855c4d7d283532` 正在运行，本轮 71 个 PlayMode 用例尚无终态结果，不据此声明通过。
 
-2026-10-06 逐文件核查：当前 EditMode 17 个、PlayMode 57 个用例。文件级职责及边界分别见 [EditMode](EditMode/README.md)、[PlayMode](PlayMode/README.md)、[Shared 反射桥](Shared/README.md)；实际断言、隔离和超时实现见 [Scripts/Editor](../Scripts/Editor/README.md)。
+清理缺陷修复历史验证（2026-10-06，新增 Timer/MenuTool 及后续 Physics 用例之前）：编译后 Console 无错误，独立审查通过；按顺序运行 EditMode 17/17（job `3eb8b79ef39f415abbed40cead84b714`）和 PlayMode 57/57（job `e648646396f14d7ab119a800823a87c8`），均终态通过。新增 20 项故障注入检查覆盖失败恢复、在途句柄保留、异常聚合和临时进度存储延期释放。
+
+2026-10-06 逐文件核查：当前源码静态计数为 EditMode 21 个、PlayMode 71 个用例；本轮 MenuTool 4 项已包含在 21/21 EditMode 通过结果中；Timer 12 及新增 Physics 2 项仍待本轮 PlayMode 终态，不能复用历史 job 作为当前版本验证。文件级职责及边界分别见 [EditMode](EditMode/README.md)、[PlayMode](PlayMode/README.md)、[Shared 反射桥](Shared/README.md)；实际断言、隔离和超时实现见 [Scripts/Editor](../Scripts/Editor/README.md)。
 
 以下为清理修复前的审计验证记录：EditMode 17/17（job `3fa8c86afa1348cb8f60ce2d1e6faa98`），PlayMode 37/37（job `ed6e536d01d7477d941943af149956d1`）。该快照包含 `7c91a3a` 的碰撞体 offset 修复；本轮只改说明和一处检查脚本注释。独立审查已通过，后续行为改动需重新验证。
 
@@ -29,6 +31,8 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 
 | 模式 | 程序集 | 用例 | 覆盖 |
 | --- | --- | --- | --- |
+| EditMode | `PluggerHead.EditModeTests` | 4 个 MenuTool 安全用例 | 临时文件写删归属、路径约束、命名校验及现有项目常量兼容；不执行 AssetDatabase 导入/删除或脚本重载 |
+| PlayMode | `PluggerHead.PlayModeTests` | 12 个 Timer 用例 | 时间点/条件/完成回调重入、零时长、异常状态、旧代隔离、Infinity＋条件完成及 Runner 替换后停止原宿主协程；每次等待上限 3 秒 |
 | EditMode | `PluggerHead.EditModeTests` | 1 个 Player/Env 集成用例 | Anchor 不作为道具、无限放置/收回、无线放置、最近目标、绕线、阻力、输入锁、暂停、跨场景隔离、换线、闭环、重开、线长边界及单次死亡通知 |
 | EditMode | `PluggerHead.EditModeTests` | 4 个场景参数用例＋1 个注册表用例 | 场景枚举/白名单/构建列表一致性、主菜单构建入口、场景加载、丢失脚本/预制体、电线材质、实际 Player 与电路配置 |
 | EditMode | `PluggerHead.EditModeTests` | 1 个关卡存档用例 | 只序列化关卡、重新读盘、缺失/损坏/未知关卡、写入失败保留旧存档 |
@@ -46,7 +50,7 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个实际玩法场景用例 | `GameplayIntegration` 启动、帧推进、K 放置/J 收回 Anchor、绕线渲染、真实左上角自动挂线与反向退绕、换线、通关一次、重开、超限死亡及单次死亡通知 |
 | PlayMode | `PluggerHead.PlayModeTests` | 4 个地面极性用例 | 真实 2D 支撑接触、双向异极死亡、同极/无线安全、侧墙与天花板排除、Trigger/层过滤、禁用组件、站立换线与输入锁、自动物理帧死亡 |
 | PlayMode | `PluggerHead.PlayModeTests` | 7 个 Corner 用例 | 活动线段进入、方向退绕、高速多角顺序、静止/向外移动、微小位移累积、双线独立 Anchor、重开/禁用清理、真实碰撞体坐标、远程交互排除、自动 LateUpdate 与 Anchor 销毁 |
-| PlayMode | `PluggerHead.PlayModeTests` | 20 个清理故障用例 | 空操作、异常、超时、Dispose、场景已卸载但句柄未确认时保留归属、嵌套错误聚合、状态恢复、进度隔离和重试清理；未专门注入“句柄完成但场景仍加载”分支 |
+| PlayMode | `PluggerHead.PlayModeTests` | 22 个清理故障用例 | 空操作、异常、超时、Dispose、场景已卸载但句柄未确认、句柄完成但场景仍加载两种归属保护、嵌套错误聚合、状态恢复、进度隔离和重试清理 |
 
 表中的断言数是用例内部的检查点数量，不是 NUnit 用例数量；实际用例数与结果以 Test Runner 报告为准。PlayMode 用例由 Runner 自动进入/退出播放；音频用例会创建缺失的 TimerRunner 和 AudioListener，玩法用例会加载并卸载自有场景和 Core，无需预先打开或手工配置运行场景。
 
@@ -93,4 +97,5 @@ EditMode 完成后，再运行 PlayMode 并同样轮询自己的 job：
 - 玩法用例在自有场景加载回调中临时取消线长限制，完成交互流程后设置有限线长，验证真实物理帧的超限死亡。这样兼容开局即超限的诊断配置，不修改或保存原场景资源。
 - 地面极性用例创建独立的 2D 物理场景，并先验证实际接触与法向，再检查死亡结果；`UnityTearDown` 卸载自有场景、恢复环境静态引用并清理自有 Core，不保存或修改关卡资源。
 - Corner 用例使用独立 2D 物理场景及真实 Wire/Corner/Anchor，校验 LineRenderer 与 EdgeCollider2D 的顶点一致；包含旋转、非均匀缩放、非零 offset，以及只改变 offset 后重绘相同路径的实际碰撞查询。帧推进用例验证实际 LateUpdate 与延迟销毁。测试后卸载自有场景并恢复 Environment 静态引用，不修改场景资源。
+- Physics 清理故障用例保留本轮所有者；正常路径验证真实重试，独立 `UnityTearDown` 在自身断言失败后也有界排空剩余真实卸载。终态句柄与场景卸载必须同时确认，失败仍保留归属，不重放故障注入。
 - 原有 `EnvironmentIntegrationChecks.Run()` 和 `AudioIntegrationChecks.Run()` 手动入口仍可使用。Env 自动测试仍调用 `Run()`；原音频自动测试调用 `RunForTests()`，不依赖手工轮询音频 `LastResult`。
