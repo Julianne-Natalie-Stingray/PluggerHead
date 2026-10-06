@@ -1,0 +1,9 @@
+{
+    "name": "PluggerHead.PlayModeTests",
+    "references": ["PluggerHead.TestSupport"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "autoReferenced": false,
+    "optionalUnityReferences": ["TestAssemblies"]
+}

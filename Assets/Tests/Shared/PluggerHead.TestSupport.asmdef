@@ -1,0 +1,9 @@
+{
+    "name": "PluggerHead.TestSupport",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "autoReferenced": false,
+    "optionalUnityReferences": ["TestAssemblies"]
+}

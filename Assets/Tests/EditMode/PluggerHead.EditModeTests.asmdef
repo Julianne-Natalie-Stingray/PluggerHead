@@ -1,0 +1,9 @@
+{
+    "name": "PluggerHead.EditModeTests",
+    "references": ["PluggerHead.TestSupport"],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "autoReferenced": false,
+    "optionalUnityReferences": ["TestAssemblies"]
+}

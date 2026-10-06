@@ -9,7 +9,7 @@
 - `PlayerInventory` 保存返回的实例。`IPickupInstance.SourceObject` 指向原场景物体，`TryDrop(position)` 恢复它；`PlayerInventory.DropItem` 仅在放置成功后移除背包条目。当前 `AnchorInstance` 不可堆叠、不支持存读档；源物体销毁后背包会清理失效条目。重复放置、无效坐标、暂停或玩家操作锁定不会丢失物品。
 - Player 按 **J** 处理范围内最近的一个有效目标；**K** 切换同时可拾取、可交互目标的拾取/交互模式，默认拾取。仅有一种能力的目标直接使用该能力。K 本身不会向 Env 发出请求。放置由背包的 `DropItem(instance, worldPosition)` 入口处理。
 
-`PlayerInventory.environment` 可显式绑定本关环境，未绑定时使用 `EnvironmentFacade.Current`。`PlayerMove` 通过该环境绑定 `GetResistance`。场景需有配置完整的 Core；环境扫描与 Tag 查找限定在自身场景。
+`PlayerInventory.environment` 可显式绑定本关环境，未绑定或引用其他场景时按自身场景查找并缓存。`PlayerMove` 通过该环境绑定 `GetResistance`。场景需有配置完整的 Core；环境扫描与 Tag 查找限定在自身场景。
 
 ## 回路与 Inspector 配置
 
@@ -22,6 +22,8 @@
 `Wire.maxLength` 是整条绕线路径的长度上限，**0 表示不限长**；`pullStrength` 是超长部分每单位对应的拉力。`EnvironmentFacade.GetResistance` 沿最后一个折点方向拉回自由端，无持线或不限长时返回零。此接入没有新增致死阈值；Player 原有负无穷阻力死亡约定仍保留，但 Env 不会产生该值。
 
 ## 场景与验证
+
+在 Unity Test Runner 运行 `PluggerHead.EditModeTests` 和 `PluggerHead.PlayModeTests` 可自动复用下方检查及实际场景流程；MCP 调用、用例范围和隔离规则见 `Assets/Tests/README.md`。
 
 - `Scenes/Tests/HeXieTestScene.unity`：真实 Player、输入、背包与回路集成场景，用于实际移动及 J/K 操作冒烟测试。
 - `Scenes/Tests/JillTestWireScene.unity`：保留独立回路诊断场景及模拟玩家，不是完整 Player 操作场景；可用 EnvironmentFacade 的调试按钮驱动交互和验收。

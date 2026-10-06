@@ -206,4 +206,6 @@ Core 是本工程共享运行时基础设施的单一入口.
 
 ## 音频回归检查
 
-进入带有 TimerRunner 的测试场景 Play Mode 后, 调用 `AudioIntegrationChecks.Run()` 并读取 `LastResult`. 检查使用临时对象和生成的静音 clip, 覆盖默认参数、Builder 覆盖、释放与复用、自然结束、旧 Timer 取消以及循环声部淡出. 它不修改磁盘资源或保存场景; Mixer 资产配置仍需在实际 Core 场景验证.
+在 Unity Test Runner 的 PlayMode 中运行程序集 `PluggerHead.PlayModeTests` 下的 `PluggerHead.Tests.AudioIntegrationTests`, 或按 `Assets/Tests/README.md` 的 MCP calls 运行对应程序集. 用例复用原 19 项检查, 自动补齐 TimerRunner, 将失败和超时直接报告给 Runner, 并在结束时清理临时对象、静音 clip 及运行状态. 不需要预先打开 Core 场景; Mixer 资产配置仍需在实际 Core 场景验证.
+
+手动诊断仍可在带 TimerRunner 的 Play Mode 场景调用 `AudioIntegrationChecks.Run()` 并读取 `LastResult`.

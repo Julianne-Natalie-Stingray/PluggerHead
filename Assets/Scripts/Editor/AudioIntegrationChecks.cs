@@ -39,28 +39,79 @@ public static class AudioIntegrationChecks
             return "Requires an unpaused Playing state.";
         }
 
-        isRunning = true;
-        checks = 0;
-        LastResult = "RUNNING: audio integration checks.";
-        TimerRunner.Instance.StartCoroutine(Execute());
+        TimerRunner.Instance.StartCoroutine(Execute(false));
         return LastResult;
     }
 
-    private static IEnumerator Execute()
+    /// <summary>
+    /// Runs the real playback checks for Unity Test Runner and propagates failures to its result.
+    /// A temporary TimerRunner is supplied when the test scene has none; every owned object and
+    /// changed global is restored on success, failure, timeout, or coroutine disposal.
+    /// 为 Test Runner 提供独立的播放检查, 自动补齐 TimerRunner 并清理测试状态, 失败直接抛出.
+    /// </summary>
+    public static IEnumerator RunForTests()
     {
-        IEnumerator routine = CheckPlayback();
+        return Execute(true);
+    }
+
+    private static IEnumerator Execute(bool propagateFailure)
+    {
+        if (!Application.isPlaying)
+        {
+            throw new InvalidOperationException("Audio integration checks require Play Mode.");
+        }
+
+        if (isRunning)
+        {
+            throw new InvalidOperationException("Audio integration checks are already running.");
+        }
+
+        if (GameStateManager.Current != GameState.Playing)
+        {
+            throw new InvalidOperationException("Audio integration checks require GameState.Playing.");
+        }
+
+        isRunning = true;
+        checks = 0;
+        LastResult = "RUNNING: audio integration checks.";
+        float previousTimeScale = Time.timeScale;
+        bool previousListenerPause = AudioListener.pause;
+        bool previousRunInBackground = Application.runInBackground;
+        GameObject temporaryRunner = null;
+        IEnumerator routine = null;
         try
         {
+            Time.timeScale = 1f;
+            AudioListener.pause = false;
+            Application.runInBackground = true;
+            if (!TimerRunner.Instance)
+            {
+                temporaryRunner = new GameObject("AudioIntegrationChecks TimerRunner (temporary)");
+                temporaryRunner.AddComponent<TimerRunner>();
+            }
+
+            routine = CheckPlayback();
+            float deadline = Time.realtimeSinceStartup + 10f;
             while (true)
             {
                 bool hasNext;
                 try
                 {
+                    if (Time.realtimeSinceStartup >= deadline)
+                    {
+                        throw new TimeoutException("Audio integration checks exceeded 10 seconds.");
+                    }
+
                     hasNext = routine.MoveNext();
                 }
                 catch (Exception exception)
                 {
                     LastResult = $"FAIL after {checks} audio checks: {exception}";
+                    if (propagateFailure)
+                    {
+                        throw;
+                    }
+
                     yield break;
                 }
 
@@ -75,16 +126,37 @@ public static class AudioIntegrationChecks
         }
         finally
         {
-            if (fixture)
+            try
             {
-                Object.DestroyImmediate(fixture);
-            }
+                (routine as IDisposable)?.Dispose();
+                if (fixture)
+                {
+                    // Destroy emitters before the runner so OnDestroy can cancel their timers.
+                    // 先销毁声部, 保留 Runner 供 OnDestroy 停止尚未结束的 Timer.
+                    Object.DestroyImmediate(fixture);
+                }
 
-            Object.DestroyImmediate(configs);
-            Object.DestroyImmediate(data);
-            Object.DestroyImmediate(clip);
-            manager = null;
-            isRunning = false;
+                Object.DestroyImmediate(configs);
+                Object.DestroyImmediate(data);
+                Object.DestroyImmediate(clip);
+            }
+            finally
+            {
+                if (temporaryRunner)
+                {
+                    Object.DestroyImmediate(temporaryRunner);
+                }
+
+                fixture = null;
+                configs = null;
+                data = null;
+                clip = null;
+                manager = null;
+                Time.timeScale = previousTimeScale;
+                AudioListener.pause = previousListenerPause;
+                Application.runInBackground = previousRunInBackground;
+                isRunning = false;
+            }
         }
     }
 
@@ -137,6 +209,11 @@ public static class AudioIntegrationChecks
     private static void CreateFixture()
     {
         fixture = new GameObject("AudioIntegrationChecks (temporary)");
+        if (!Array.Exists(Object.FindObjectsOfType<AudioListener>(), listener => listener.isActiveAndEnabled))
+        {
+            fixture.AddComponent<AudioListener>();
+        }
+
         GameObject template = new GameObject("Emitter template");
         template.transform.SetParent(fixture.transform);
         template.SetActive(false);

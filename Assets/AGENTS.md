@@ -52,12 +52,12 @@ Preserve existing XML documentation and bilingual comments when updating behavio
 
 ## Testing Guidelines
 
-Unity Test Framework 1.1.33 is installed. No dedicated project test suite or coverage threshold was found; bundled package examples are not gameplay regression coverage. For new automated tests, use EditMode or PlayMode test assemblies and descriptive names such as `Freeze_WhenAlreadyFrozen_PreservesTimeScale`.
+Unity Test Framework 1.1.33 is installed. Project integration tests live in `Tests/EditMode/` and `Tests/PlayMode/`; see `Tests/README.md` for Test Runner and MCP calls. No coverage threshold is defined; bundled package examples are not gameplay regression coverage. For new automated tests, use EditMode or PlayMode test assemblies and descriptive names such as `Freeze_WhenAlreadyFrozen_PreservesTimeScale`.
 
 Smoke-test affected scenes, check Console errors, and report reproduction steps and results.
 
-- `Tools > PluggerHead > Verify Player and Environment` runs isolated Edit Mode integration checks without saving the current scene.
-- In unpaused Play Mode with Core/TimerRunner present, call `AudioIntegrationChecks.Run()` and read `AudioIntegrationChecks.LastResult` after completion. See the subsystem READMEs for current contracts.
+- Run `PluggerHead.EditModeTests` and `PluggerHead.PlayModeTests` in Unity Test Runner, or through MCP `run_tests` / `get_test_job`; run the two modes sequentially. These Editor integration suites wrap the original Player/Env, audio and scene checks.
+- The manual menu `Tools > PluggerHead > Verify Player and Environment` and `AudioIntegrationChecks.Run()` / `LastResult` remain available. Test Runner automatically provisions the audio TimerRunner and the authored gameplay scene. See `Tests/README.md` for isolation, cleanup and timeouts.
 
 ## Commit & Pull Request Guidelines
 
