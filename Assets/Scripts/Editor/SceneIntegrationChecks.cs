@@ -410,7 +410,7 @@ public static class SceneIntegrationChecks
             movement.transform.position = body.position;
             Physics2D.SyncTransforms();
             yield return new WaitForFixedUpdate();
-            Require(movement.IsDead && !movement.gameObject.activeSelf && !body.simulated && diedCount == 1,
+            Require(movement.IsDead && movement.IsInputLocked && movement.gameObject.activeSelf && !body.simulated && diedCount == 1,
                 "Exceeding the real wire limit must kill the player and notify death in a physics frame.");
             Require(restartPanel.gameObject.activeInHierarchy &&
                 restartPanel.GetComponentInChildren<UnityEngine.UI.Button>().interactable,
@@ -421,7 +421,7 @@ public static class SceneIntegrationChecks
                 .SetValue(restartScreen, null);
             restartScreen.enabled = true;
             Require(restartPanel.gameObject.activeInHierarchy,
-                "Re-enabling GlobalUI must find the inactive dead Player and restore its prompt.");
+                "Re-enabling GlobalUI must find the dead Player and restore its prompt.");
             yield return new WaitForFixedUpdate();
             Require(diedCount == 1, "Later physics frames must not repeat the death notification.");
             yield return null;

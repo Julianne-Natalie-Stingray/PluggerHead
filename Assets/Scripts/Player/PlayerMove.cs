@@ -35,6 +35,7 @@ public class PlayerMove : MonoBehaviour
     private PlayerVisual visual;
     private static readonly int MovingParameter = Animator.StringToHash("tryMoving");
     private static readonly int InteractParameter = Animator.StringToHash("Interact");
+    private static readonly int DieParameter = Animator.StringToHash("Die");
     private bool isInteractionInputLocked;
     private bool isManuallyInputLocked;
 
@@ -49,7 +50,7 @@ public class PlayerMove : MonoBehaviour
 
     public bool IsDead { get; private set; }
 
-    /// <summary>玩家死亡并停用后通知，仅触发一次。</summary>
+    /// <summary>玩家死亡并停止输入和物理模拟后通知，仅触发一次。</summary>
     public event Action Died;
 
     public void Die()
@@ -64,7 +65,18 @@ public class PlayerMove : MonoBehaviour
         body.velocity = Vector2.zero;
         body.angularVelocity = 0f;
         body.simulated = false;
-        gameObject.SetActive(false);
+        if (CanUseAnimator())
+        {
+            animator.SetBool(MovingParameter, false);
+            animator.ResetTrigger(InteractParameter);
+            animator.updateMode = AnimatorUpdateMode.UnscaledTime;
+            animator.SetTrigger(DieParameter);
+            // 保持对象激活，让 Animator 播放死亡动画。
+        }
+        else
+        {
+            gameObject.SetActive(false);
+        }
         Died?.Invoke();
     }
 
