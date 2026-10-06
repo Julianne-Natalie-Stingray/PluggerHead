@@ -223,6 +223,10 @@ public static class SceneIntegrationChecks
         PlayerInventory inventory = interaction.GetComponent<PlayerInventory>();
         PlayerMove movement = interaction.GetComponent<PlayerMove>();
         EnvironmentFacade environment = FindComponents<EnvironmentFacade>(ownedScene).Single();
+        RestartLevelScreen restartScreen = FindComponents<RestartLevelScreen>(ownedScene).Single();
+        Transform restartPanel = restartScreen.transform.Find("RestartLevelScreen");
+        Require(restartPanel != null && !restartPanel.gameObject.activeSelf,
+            "The restart prompt must remain hidden while the player is alive.");
         Require(ownedCore != null && ownedCore.Input != null && ownedCore.Audio != null,
             "Authored Core services must initialize.");
         Require(interaction.isActiveAndEnabled && movement != null && movement.isActiveAndEnabled &&
@@ -347,6 +351,9 @@ public static class SceneIntegrationChecks
             yield return new WaitForFixedUpdate();
             Require(movement.IsDead && !movement.gameObject.activeSelf && !body.simulated && diedCount == 1,
                 "Exceeding the real wire limit must kill the player and notify death in a physics frame.");
+            Require(restartPanel.gameObject.activeInHierarchy &&
+                restartPanel.GetComponentInChildren<UnityEngine.UI.Button>().interactable,
+                "Player death must show an actionable restart prompt.");
             yield return new WaitForFixedUpdate();
             Require(diedCount == 1, "Later physics frames must not repeat the death notification.");
         }

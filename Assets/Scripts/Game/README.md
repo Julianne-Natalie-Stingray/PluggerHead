@@ -10,14 +10,17 @@
 | [GameState](GameState/README.md) | GameStateManager | Playing/Freezed/Loading 标签、暂停倍率、监听器及 Changed 通知。 |
 | [Setting](Setting/README.md) | SettingBootstrap / SettingsScreen | BeforeSceneLoad 读音量设置、显式及退出保存、暂停面板与返回菜单。 |
 | [Progress](Progress/README.md) | GameProgress / LevelProgressTracker | 缓存/保存最近进入的玩法关卡标识，成功加载后记录。 |
+| `RestartLevelScreen.cs` | RestartLevelScreen | 监听 PlayerMove.Died，显示死亡提示，并通过 SceneSwitch 重载当前关卡场景。 |
 
-根目录没有运行时脚本，直接资源是本 README/meta 与四个子目录的 folder meta；实现与各自的逐文件检查结果位于上表链接中。
+根目录直接包含 `RestartLevelScreen.cs` 和本 README/meta；其余实现与逐文件检查结果位于上表链接中。
 
 ## 运行流程与装配
 
 构建首场景为 `Assets/Scenes/MainMenuScene.unity`。主菜单与当前玩法场景装配 Core prefab；Core 保活且移除重复实例。New Game 默认请求 GameplayIntegration，Continue 请求进度中有效且可加载的玩法关卡。两者都按 Single 方式加载场景默认状态；进度不保存位置、背包、电路、绕线或通关状态。
 
 暂停设置面板只有在 Playing 打开时取得暂停所有权，关闭时释放；返回菜单先解除本面板的暂停再切换。SceneSwitchManager 驱动 Loading，SettingsScreen 在 Loading 时拒绝 Open。Loading 期间 Freeze/Resume 为空操作，ExitLoading 恢复加载前状态，保留冻结前倍率。
+
+`GameplayIntegration` 的 `GlobalUI` 挂载 RestartLevelScreen 组件，引用本场景 Player、默认隐藏的死亡面板和 Restart 按钮。玩家死亡事件会显示提示；按钮请求以 Single 模式重新加载 `GameplayIntegration`，从关卡默认状态开始。
 
 两个持久化文件都位于 Application.persistentDataPath，但契约不同：
 
