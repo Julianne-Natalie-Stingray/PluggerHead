@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -40,6 +41,33 @@ public class PlayerMove : MonoBehaviour
 
     /// <summary>手动锁或动画锁任一生效时，停止处理移动和跳跃输入。</summary>
     public bool IsInputLocked => isManuallyInputLocked || isDashInputLocked || isInteractionInputLocked;
+
+    /// <summary>
+    /// 由 Env 初始化及替换；传入玩家当前世界坐标，返回通过 AddForce 施加的环境阻力。
+    /// 返回 Vector2.negativeInfinity 时死亡；普通阻力不影响动画输入。
+    /// </summary>
+    public Func<Vector2, Vector2> GetResistance { protected get; set; }
+
+    public bool IsDead { get; private set; }
+
+    /// <summary>玩家死亡并停用后通知，仅触发一次。</summary>
+    public event Action Died;
+
+    public void Die()
+    {
+        if (IsDead)
+        {
+            return;
+        }
+
+        IsDead = true;
+        LockInput();
+        body.velocity = Vector2.zero;
+        body.angularVelocity = 0f;
+        body.simulated = false;
+        gameObject.SetActive(false);
+        Died?.Invoke();
+    }
 
     /// <summary>设置手动输入锁；不会修改冲刺或物理系统施加的速度。</summary>
     public void LockInput(bool locked = true)
@@ -138,6 +166,20 @@ public class PlayerMove : MonoBehaviour
 
     private void Start()
     {
+        // 复用交互系统的 Env 关联，由环境提供具体移动规则。
+        if (GetResistance == null)
+        {
+            PlayerInventory inventory = GetComponent<PlayerInventory>();
+            if (inventory != null && inventory.Environment != null)
+            {
+                inventory.Environment.InitializePlayerMovement(this);
+            }
+            else
+            {
+                Debug.LogError("PlayerMove 需要由 Env 初始化 GetResistance，或配置背包的 Environment 引用。", this);
+            }
+        }
+
         // 等所有 Awake 完成后，再访问其他组件的初始化结果。
         CoreFacade core = CoreFacade.Instance;
         if (core == null || core.Input == null)
@@ -196,10 +238,24 @@ public class PlayerMove : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (IsDead)
+        {
+            return;
+        }
+
+        Vector2 resistance = GetResistance != null ? GetResistance(body.position) : Vector2.zero;
+        // 不使用 Vector2 的近似相等运算比较无穷值。
+        if (float.IsNegativeInfinity(resistance.x) && float.IsNegativeInfinity(resistance.y))
+        {
+            Die();
+            return;
+        }
+
         if (IsInputLocked)
         {
             UpdateMovementAnimation(false);
             jumpRequested = false;
+            body.AddForce(resistance);
             return;
         }
 
@@ -215,7 +271,9 @@ public class PlayerMove : MonoBehaviour
         }
 
         jumpRequested = false;
-        body.velocity = new Vector2(horizontal * Mathf.Max(0f, moveSpeed), vertical);
+        Vector2 movement = new Vector2(horizontal * Mathf.Max(0f, moveSpeed), vertical);
+        body.velocity = GetResistance != null ? movement : new Vector2(0f, body.velocity.y);
+        body.AddForce(resistance);
         UpdateMovementAnimation(Mathf.Abs(horizontal) > MovementAnimationThreshold);
     }
 

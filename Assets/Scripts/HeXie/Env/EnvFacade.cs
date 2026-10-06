@@ -8,6 +8,28 @@ using UnityEngine;
 /// </summary>
 public class EnvFacade : MonoBehaviour
 {
+    /// <summary>
+    /// 在玩家开始处理移动前初始化阻力查询；运行中可通过 player.GetResistance 直接替换规则。
+    /// 默认无阻力，具体环境可重写 GetPlayerResistance，根据玩家世界坐标返回阻力或死亡标记。
+    /// </summary>
+    public void InitializePlayerMovement(PlayerMove player)
+    {
+        if (player == null)
+        {
+            throw new ArgumentNullException(nameof(player));
+        }
+
+        player.GetResistance = position => this != null
+            ? GetPlayerResistance(player, position)
+            : Vector2.zero;
+    }
+
+    /// <summary>position 为玩家当前世界坐标；返回 Vector2.negativeInfinity 表示死亡。</summary>
+    protected virtual Vector2 GetPlayerResistance(PlayerMove player, Vector2 position)
+    {
+        return Vector2.zero;
+    }
+
     /// <summary>道具引用成功加入背包后发出；场景表现由订阅方实现。</summary>
     public event Action<PickUpItemData> PickUpItemRequested;
 
