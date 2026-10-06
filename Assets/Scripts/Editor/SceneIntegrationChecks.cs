@@ -7,6 +7,8 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 
 /// <summary>Reusable checks for the authored integration scenes; never saves a scene.</summary>
 public static class SceneIntegrationChecks
@@ -251,6 +253,7 @@ public static class SceneIntegrationChecks
             !movement.IsDead && EnvironmentFacade.ForScene(movement.gameObject.scene) == environment,
             "Player startup must bind to its real environment and keep both controllers enabled.");
         Wire initialWire = environment.HeldWire;
+        yield return CheckVisualFacing(movement);
         Require(initialWire != null && initialWire.IsHeld && !environment.IsCircuitClosed,
             "The environment must start with an open circuit and a held wire.");
 
@@ -413,6 +416,76 @@ public static class SceneIntegrationChecks
         finally
         {
             movement.Died -= onDied;
+        }
+    }
+
+    private static IEnumerator CheckVisualFacing(PlayerMove movement)
+    {
+        PlayerVisual visual = movement.GetComponentInChildren<PlayerVisual>();
+        Require(visual != null && visual.name == "Visual", "The Player prefab must configure PlayerVisual on Visual.");
+        SpriteRenderer sprite = visual.GetComponent<SpriteRenderer>();
+        Transform facingMarker = visual.transform.Find("FacingMarker");
+        Require(facingMarker != null, "The symmetric placeholder sprite needs a visible facing marker.");
+        Vector3 rootScale = movement.transform.localScale;
+        Transform attachment = movement.transform.Find("PlayerAnchor");
+        Vector3 attachmentPosition = attachment.localPosition;
+        Quaternion attachmentRotation = attachment.localRotation;
+        PlayerControls controls = (PlayerControls)typeof(InputManager)
+            .GetField("controls", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(CoreFacade.Instance.Input);
+        var previousDevices = controls.asset.devices;
+        Keyboard keyboard = InputSystem.AddDevice<Keyboard>();
+        float previousTimeScale = Time.timeScale;
+        try
+        {
+            controls.asset.devices = new InputDevice[] { keyboard };
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.A));
+            InputSystem.Update();
+            yield return null;
+            yield return new WaitForFixedUpdate();
+            Require(sprite.flipX && facingMarker.localPosition.x < 0f,
+                "Left movement input must face the sprite and marker left.");
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            InputSystem.Update();
+            yield return null;
+            yield return new WaitForFixedUpdate();
+            Require(sprite.flipX, "Releasing input must preserve the last facing direction.");
+
+            movement.LockInput();
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.D));
+            InputSystem.Update();
+            yield return null;
+            yield return new WaitForFixedUpdate();
+            Require(sprite.flipX, "Locked movement must not change sprite facing.");
+            movement.UnlockInput();
+            Time.timeScale = 0f;
+            yield return null;
+            yield return null;
+            Require(sprite.flipX, "Paused movement must preserve sprite facing.");
+            Time.timeScale = previousTimeScale;
+            yield return new WaitForFixedUpdate();
+            Require(!sprite.flipX && facingMarker.localPosition.x > 0f,
+                "Right movement input must face the sprite and marker right after unlocking and resuming.");
+
+            movement.enabled = false;
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.A));
+            InputSystem.Update();
+            yield return null;
+            yield return new WaitForFixedUpdate();
+            Require(!sprite.flipX, "A disabled movement component must not drive sprite facing.");
+            movement.enabled = true;
+            yield return new WaitForFixedUpdate();
+            Require(sprite.flipX, "Re-enabled movement must respond to held input.");
+            Require(movement.transform.localScale == rootScale && attachment.localPosition == attachmentPosition &&
+                attachment.localRotation == attachmentRotation,
+                "Facing changes must preserve the physics root and attachment transforms.");
+        }
+        finally
+        {
+            Time.timeScale = previousTimeScale;
+            movement.UnlockInput();
+            movement.enabled = true;
+            controls.asset.devices = previousDevices;
+            InputSystem.RemoveDevice(keyboard);
         }
     }
 

@@ -1,5 +1,7 @@
 # 整合集成测试
 
+2026-10-06 Player 朝向：Visual 的 PlayerVisual 更新精灵翻转与深色标记，保留物理根及挂点。真实 InputSystem 键盘状态覆盖 A/D、松键、输入锁、暂停、禁用/启用；测试显式处理排队输入后等待物理帧，避免输入更新时序导致假失败。最终顺序通过 EditMode **22/22**（`ba62ffa6f0a84e42bfa50d48f93e6549`）、PlayMode **71/71**（`842381cf2e3848b5a26927f895ec54d1`）。运行时近景验证见 [朝左](../Docs/Development/PlayerFacingLeft.png)、[朝右](../Docs/Development/PlayerFacingRight.png)；截图直接设置朝向，键盘到朝向的链路由前述集成测试验证。
+
 2026-10-06 通关面板：NextLevelScreen 经同场景 Env 胜利事件显示，按钮按当前配置重新进入 GameplayIntegration。顺序通过 EditMode **22/22**（`d7fd9ed64ca645d7a229a416d766506e`）、PlayMode **71/71**（`660506935c984787bd51d2968d37e11c`）。检查默认隐藏、胜利显示、禁用退订/恢复、调试重开隐藏、请求失败重试、成功后防重复及真实关卡重载。实际画面中文无溢出，EventSystem 射线首个命中 NextLevelButton；画面见 [NextLevelScreen](../Docs/Development/NextLevelScreen.png)。
 
 2026-10-06 中文 UI：AGENTS 已规定玩家界面默认简体中文；MainMenuScene、FinalScene、GlobalUI 和运行时状态/错误提示已同步，ScoreText 保持空白。新增静态字体覆盖检查，顺序通过 EditMode **22/22**（`ebaeb33f53774b65b155fcf82a0c78e6`）、PlayMode **71/71**（`612aac8b531c4d368ea318ee8c6afd2a`），无失败或跳过。实际检查主菜单、设置、线长、死亡及结尾画面；运行时注入五种状态/错误文案验证字形与布局，均无溢出，未以此声称触发了全部业务失败分支。检查时 Console 无错误或警告。画面：[主菜单](../Docs/Development/ChineseUI-MainMenu.png)、[设置](../Docs/Development/ChineseUI-Settings.png)。

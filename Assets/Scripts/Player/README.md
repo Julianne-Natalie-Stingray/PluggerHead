@@ -1,12 +1,13 @@
 # Player 运行时组件
 
-Player 使用 [Core 输入](../Core/Input/README.md) 和 [Env 真实交互契约](../Env/README.md)，通过关卡环境取得持线阻力和地面极性上下文。当前真实玩家直接配置在 `Assets/Scenes/Tests/GameplayIntegration.unity`，不是独立 Player prefab。
+Player 使用 [Core 输入](../Core/Input/README.md) 和 [Env 真实交互契约](../Env/README.md)，通过关卡环境取得持线阻力和地面极性上下文。真实玩家保存为 `Assets/Prefabs/Player.prefab`，由 `Assets/Scenes/Tests/GameplayIntegration.unity` 引用。
 
 ## 逐文件职责
 
 | 文件 | 行为 |
 | --- | --- |
 | PlayerMove.cs | Rigidbody2D 水平移动、落地跳跃、阻力/地面危险、死亡与输入锁，设置 Animator 参数。 |
+| PlayerVisual.cs | 挂在 Visual 上，根据 PlayerMove 接受的水平输入更新 SpriteRenderer.flipX 和可选朝向标记。 |
 | PlayerAnimationCallbacks.cs | 按 Animator 状态标签聚合动作，通知 PlayerMove 进入/退出动画锁；不负责位移。 |
 | PlayerInteraction.cs | 订阅 J/K 输入，查找最近目标、发起交互或放置 Anchor。 |
 | 各脚本 .meta | GUID 与 GameplayIntegration 的组件引用一致，无默认引用；PlayerAnimationCallbacks 的 -100 执行顺序来自源码属性，meta 未覆盖。 |
@@ -22,6 +23,8 @@ GameplayIntegration 中移动速度为 5、跳跃速度为 8、重力倍率为 1
 ## 移动、跳跃与死亡
 
 当前输入绑定为 A/D 水平移动、Space 跳跃、J 操作、K 放 Anchor。PlayerMove 在 FixedUpdate 将输入 X 钳到 -1..1，乘非负 moveSpeed 写入水平速度，保留竖直速度；不再乘 fixedDeltaTime。随后通过 AddForce 施加 GetResistance 返回值。移动动画 tryMoving 依据输入幅度，不是实际位移。
+
+Visual 上的 PlayerVisual 同样由物理帧已接受的输入驱动：A 朝左、D 朝右，输入幅度不超过 0.01 时保持最后朝向；暂停、输入锁定、死亡及 PlayerMove 禁用时不更新朝向。只翻转 SpriteRenderer，不改变 Player 根缩放、碰撞体或 PlayerAnchor。当前占位精灵左右对称，因此 Visual 内附带深色 FacingMarker 标记并随翻转移动；替换为有明确朝向的美术后可移除标记并清空引用。spriteFacesRight 表示原始未翻转精灵的朝向，默认右；标记位置应与未翻转原图匹配。已有 Animator 仍负责 tryMoving/Interact。
 
 跳跃仅缓存按下时已落地的请求，执行物理帧再次检查落地；没有空中按下后自动落地起跳的缓冲。接地需要 groundLayers 内非 Trigger 接触、法线 Y≥0.65，且当前竖直速度≤0.1。有效跳跃将竖直速度设为非负 jumpSpeed。没有有效阻力查询时，正常分支将水平置零并保留原竖直速度，计算出的跳跃也不会应用。
 

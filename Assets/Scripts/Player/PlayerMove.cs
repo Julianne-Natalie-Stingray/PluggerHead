@@ -32,6 +32,7 @@ public class PlayerMove : MonoBehaviour
     private Rigidbody2D body;
     private InputManager input;
     private Animator animator;
+    private PlayerVisual visual;
     private static readonly int MovingParameter = Animator.StringToHash("tryMoving");
     private static readonly int InteractParameter = Animator.StringToHash("Interact");
     private bool isInteractionInputLocked;
@@ -132,6 +133,7 @@ public class PlayerMove : MonoBehaviour
     {
         body = GetComponent<Rigidbody2D>();
         animator = GetComponentInChildren<Animator>(true);
+        visual = GetComponentInChildren<PlayerVisual>(true);
         PlayerAnimationCallbacks callbacks = GetComponent<PlayerAnimationCallbacks>();
         if (callbacks == null)
         {
@@ -294,6 +296,10 @@ public class PlayerMove : MonoBehaviour
         body.velocity = GetResistance != null ? movement : new Vector2(0f, body.velocity.y);
         body.AddForce(resistance);
         UpdateMovementAnimation(Mathf.Abs(horizontal) > MovementAnimationThreshold);
+        if (visual != null)
+        {
+            visual.ApplyMovementInput(horizontal);
+        }
     }
 
     private void OnDisable()
