@@ -10,6 +10,7 @@ public sealed class TileWirePath
 {
     private readonly List<Vector3Int> cells = new();
     private readonly Dictionary<Anchor, int> pins = new();
+    private int connectedThrough;
 
     public IReadOnlyList<Vector3Int> Cells => cells;
     // Copied edges still belong to the earlier wire visually, but remain part of this route's length/collision.
@@ -25,6 +26,7 @@ public sealed class TileWirePath
         cells.Clear();
         cells.AddRange(source.cells);
         pins.Clear();
+        connectedThrough = 0;
         InheritedEdgeCount = Mathf.Max(0, cells.Count - 1);
     }
 
@@ -32,6 +34,7 @@ public sealed class TileWirePath
     {
         cells.Clear();
         pins.Clear();
+        connectedThrough = 0;
         InheritedEdgeCount = 0;
         cells.Add(start);
     }
@@ -50,7 +53,7 @@ public sealed class TileWirePath
             return;
         }
 
-        int pinned = 0;
+        int pinned = connectedThrough;
         foreach (KeyValuePair<Anchor, int> pin in pins)
         {
             if (pin.Key && pin.Key.IsEngaged)
@@ -76,6 +79,13 @@ public sealed class TileWirePath
         {
             pins[anchor] = cells.Count - 1;
         }
+    }
+
+    /// <summary>Plugged interfaces retain the route even when the player walks back.
+    /// 已插接接口固定此前线路；回走时从接口继续铺线，不拔掉连接。</summary>
+    public void CommitConnection()
+    {
+        connectedThrough = Mathf.Max(0, cells.Count - 1);
     }
 
     public void Unpin(Anchor anchor)

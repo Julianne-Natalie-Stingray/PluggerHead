@@ -25,8 +25,11 @@ using UnityEngine;
 [RequireComponent(typeof(Collider2D))]
 public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
 {
-    public bool CanInteract => canInteract;
+    public bool CanInteract => canInteract && isActiveAndEnabled && IsConfigurationValid;
     public WirePolarity Accepted => accepted;
+    public bool IsConfigurationValid => accepted != WirePolarity.None &&
+        (accepted & (WirePolarity.Live | WirePolarity.Neutral)) != WirePolarity.Live &&
+        (accepted & (WirePolarity.Live | WirePolarity.Neutral)) != WirePolarity.Neutral;
 
     /// <summary>
     /// Whether this interface carries both live and neutral, which is what makes it a swap point.
@@ -44,13 +47,37 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
     [SerializeField, BoxGroup("Polarity")]
     [Tooltip("Whether any wire may be plugged in here at all.")]
     private bool canInteract = true;
+    private bool initializationErrorReported;
+
+    private void Awake()
+    {
+        Initialize();
+    }
+
+    /// <summary>Reject a single live/neutral pole before subscribing or accepting interaction.
+    /// 初始化拒绝仅含火或零的单极接口；保留无火零的地线配置供后续玩法使用。</summary>
+    public bool Initialize()
+    {
+        if (IsConfigurationValid)
+        {
+            initializationErrorReported = false;
+            return true;
+        }
+        enabled = false;
+        if (!initializationErrorReported)
+        {
+            initializationErrorReported = true;
+            Debug.LogError($"PolaritySocket '{name}' cannot initialize: powered interfaces must include both Live and Neutral; None is invalid.", this);
+        }
+        return false;
+    }
 
     /// <summary>
     /// Single entry point for asking whether this interface can take a wire of the given polarity.
     /// 询问该接口能否接受给定电性的线的单一入口.
     /// </summary>
     public bool Accepts(WirePolarity polarity)
-        => polarity != WirePolarity.None && (accepted & polarity) != 0;
+        => IsConfigurationValid && polarity != WirePolarity.None && (accepted & polarity) != 0;
 
     /// <summary>
     /// Single entry point for a plug request at this interface.
@@ -80,7 +107,7 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        if (accepted != WirePolarity.None)
+        if (IsConfigurationValid)
         {
             return;
         }
@@ -89,7 +116,7 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
             .Subsystem("Environment")
             .Name(LogName.Class)
             .Issue(LogIssue.Invalid(nameof(accepted)))
-            .Action(LogAction.Specify("An interface that accepts nothing can never be used. "))
+            .Action(LogAction.Specify("Powered interfaces must include both Live and Neutral; None is invalid. Initialization will be refused. "))
             .Write();
     }
 #endif

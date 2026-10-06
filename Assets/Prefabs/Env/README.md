@@ -6,7 +6,7 @@
 | --- | --- |
 | `Anchor.prefab` | Anchor、SpriteRenderer、Trigger CircleCollider2D；canInteract=true，局部半径0.3、缩放0.5。用于在当前 tile 手动放置并固定路径，不是背包物品。 |
 | `MockPlayer.prefab` | SpriteRenderer 与 WireAttach 子挂点；根 Tag=Player、缩放0.2，子 Tag=WireAttach、缩放5。没有 Player 脚本、刚体或碰撞体；图片引用 NaughtyAttributes 示例中的 icon-github.png。 |
-| `SceneRoot.prefab` | EnvironmentFacade，Player Tag，不要求地线、maxSwaps=1；不包含 Core、玩家或完整关卡。 |
+| `SceneRoot.prefab` | EnvironmentFacade、Player Tag；要求火零同一闭环覆盖全部带电接口，暂不检查地线、降压器或换线次数上限；不包含 Core、玩家或完整关卡。 |
 | `Sockets/PowerSocket.prefab` | PowerSocket、SpriteRenderer、非 Trigger PolygonCollider2D，缩放(0.5,7,1)，canInteract=true、isGroundTerminal=false，**wires 为空**，需场景实例配置。 |
 | `Sockets/DualSocket.prefab` | PolaritySocket、SpriteRenderer、非 Trigger CircleCollider2D，accepted=3（Live/Neutral）、canInteract=true；半径0.5、缩放3，独立实例世界半径1.5。 |
 | `Wires/Wire.prefab` | Live 电性的基础线，功能配置与 LiveWire 基本相同；当前未发现场景引用。 |

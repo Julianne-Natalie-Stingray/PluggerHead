@@ -123,7 +123,9 @@ public static class TilemapIntegrationChecks
         Vector3Int[] firstPath = new List<Vector3Int>(fixture.Wire.TilePath.Cells).ToArray();
         fixture.Move(3, 0);
         fixture.Move(0, 0);
-        AssertCells(fixture.SecondWire, Vector3Int.zero);
+        Require(fixture.SecondWire.TilePath.Cells.Count > firstPath.Length &&
+            fixture.SecondWire.TilePath.Cells[fixture.SecondWire.TilePath.Cells.Count - 1] == Vector3Int.zero,
+            "Returning from a connected interface must lay a return path without retracting the connection.");
         AssertCells(fixture.Wire, firstPath);
         Require(anchor.EngagedBy == fixture.Wire, "A swap must keep the first wire's Anchor ownership.");
         fixture.Outlet.Interact(new InteractionDetails(fixture.Player, fixture.Outlet.gameObject));
@@ -237,9 +239,11 @@ public static class TilemapIntegrationChecks
                 fixture.Move(3, 2);
                 AssertWirePixel(camera, pixels, overlap, firstColor, "Retracting the new tail must reveal the unchanged older line.");
                 fixture.Move(3, 0);
+                AssertWirePixel(camera, pixels, (fixture.Center(3, 0) + fixture.Center(3, 1)) * 0.5f,
+                    secondColor, "A new return segment must cover the inherited edge in the carried wire color.");
                 fixture.Move(3, 2);
                 AssertWirePixel(camera, pixels, (fixture.Center(3, 0) + fixture.Center(3, 1)) * 0.5f,
-                    secondColor, "Retracted inherited edges must become new-colored edges when laid again.");
+                    firstColor, "Retracting to the connected interface must reveal the preserved inherited edge.");
             }
             fixture.Player.transform.position = fixture.Center(0, 0);
             fixture.Restart();

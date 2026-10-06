@@ -8,6 +8,7 @@
 
 | 文件 | 入口与实际检查 |
 | --- | --- |
+| `CircuitClosureIntegrationChecks.cs` | `CheckCircuit/CheckMultipleWires/CheckInvalidInitialization`：预览场景实际交互验证同源异极闭环、全部接口覆盖、继续铺线、初始化拒绝、回走固定线路、刷新与重开；覆盖三根线同极回插拒绝及四根线异极闭环。 |
 | `TimerIntegrationChecks.cs` | `Run(scenario)`：12 项真实协程检查，覆盖时间点/条件/完成回调中的 Stop、Restart、异常与旧代隔离，零时长、Infinity＋条件完成，以及全局 Runner 替换后停止原宿主协程。 |
 | `MenuToolSafetyIntegrationChecks.cs` | `CheckOwnership/CheckPaths/CheckIdentifiers/CheckProjectCompatibility`：四个同步入口，检查生成输出归属、写删保护、路径约束、命名冲突及现有项目常量兼容性。 |
 | `EnvironmentIntegrationChecks.cs` | `Run()`、菜单 `Tools > PluggerHead > Verify Player and Environment`、`RunBatch()`；独立预览场景验证 Anchor 放置/收回、目标选择、场景隔离、锁/暂停、路由长度、插接换线、闭合重开及死亡幂等。不是实际键盘输入或完整背包道具测试。 |
