@@ -33,7 +33,22 @@ using System.Collections.Generic;
 /// </summary>
 public sealed class AudioRegistry
 {
-    public int Count => emitters.Count;
+    public int Count
+    {
+        get
+        {
+            int count = 0;
+            foreach (AudioEmitter emitter in emitters)
+            {
+                if (emitter)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+    }
 
     private readonly List<AudioEmitter> emitters = new();
     private readonly List<long> sequences = new();
@@ -50,7 +65,9 @@ public sealed class AudioRegistry
     public void Register(AudioEmitter emitter)
     {
         if (!emitter)
+        {
             return;
+        }
 
         Compact();
 
@@ -68,11 +85,15 @@ public sealed class AudioRegistry
     public void Unregister(AudioEmitter emitter)
     {
         if (!emitter)
+        {
             return;
+        }
 
         int index = emitters.IndexOf(emitter);
         if (index < 0)
+        {
             return;
+        }
 
         emitters[index] = null;
         sequences[index] = 0;
@@ -85,7 +106,9 @@ public sealed class AudioRegistry
         for (int i = 0; i < emitters.Count; i++)
         {
             if (emitters[i] && emitters[i].AudioId == audioId)
+            {
                 count++;
+            }
         }
 
         return count;
@@ -94,13 +117,17 @@ public sealed class AudioRegistry
     /// <summary>
     /// Single entry point for asking which playback started first.
     /// Implementation approach: scans for the smallest sequence number, optionally restricted to one
-    /// AudioId. The scan is linear, but it runs only when a limit has already been reached, so it is not
-    /// on the ordinary playback path.
+    /// AudioId, and optionally skipping looping sounds. The scan is linear, but it runs only when a limit
+    /// has already been reached, so it is not on the ordinary playback path.
+    /// includeLooping is a constraint supplied by the caller, not a policy of this type: AudioManager owns
+    /// the rule that a loop is never preempted, and passes false when it needs a preemptable victim.
     /// 询问哪一次播放开始得最早的单一入口.
-    /// 实现思路: 找出最小序号, 可选地限定在某个 AudioId 上.
+    /// 实现思路: 找出最小序号, 可选地限定在某个 AudioId 上, 并可跳过循环音.
     /// 该扫描是线性的, 但只在已经触顶时执行, 因此不在常规播放路径上.
+    /// includeLooping 是由调用方给出的约束, 不是本类型的策略: "循环音永不被抢占"这条规则归 AudioManager,
+    /// 它需要可抢占的受害者时传 false.
     /// </summary>
-    public bool TryGetOldest(AudioId audioId, out AudioEmitter emitter)
+    public bool TryGetOldest(AudioId audioId, bool includeLooping, out AudioEmitter emitter)
     {
         emitter = null;
         long oldest = long.MaxValue;
@@ -110,10 +137,19 @@ public sealed class AudioRegistry
             AudioEmitter candidate = emitters[i];
 
             if (!candidate || candidate.AudioId != audioId)
+            {
                 continue;
+            }
+
+            if (!includeLooping && candidate.IsLooping)
+            {
+                continue;
+            }
 
             if (sequences[i] >= oldest)
+            {
                 continue;
+            }
 
             oldest = sequences[i];
             emitter = candidate;
@@ -122,7 +158,7 @@ public sealed class AudioRegistry
         return emitter;
     }
 
-    public bool TryGetOldest(out AudioEmitter emitter)
+    public bool TryGetOldest(bool includeLooping, out AudioEmitter emitter)
     {
         emitter = null;
         long oldest = long.MaxValue;
@@ -132,10 +168,19 @@ public sealed class AudioRegistry
             AudioEmitter candidate = emitters[i];
 
             if (!candidate)
+            {
                 continue;
+            }
+
+            if (!includeLooping && candidate.IsLooping)
+            {
+                continue;
+            }
 
             if (sequences[i] >= oldest)
+            {
                 continue;
+            }
 
             oldest = sequences[i];
             emitter = candidate;
@@ -158,7 +203,9 @@ public sealed class AudioRegistry
         for (int read = 0; read < emitters.Count; read++)
         {
             if (!emitters[read])
+            {
                 continue;
+            }
 
             emitters[write] = emitters[read];
             sequences[write] = sequences[read];
@@ -166,7 +213,9 @@ public sealed class AudioRegistry
         }
 
         if (write >= emitters.Count)
+        {
             return;
+        }
 
         emitters.RemoveRange(write, emitters.Count - write);
         sequences.RemoveRange(write, sequences.Count - write);

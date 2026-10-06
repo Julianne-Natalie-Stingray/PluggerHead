@@ -43,7 +43,10 @@ public interface ISoundHandle
 
     /// <summary>
     /// Stop this playback early. Idempotent: stopping an already ended handle does nothing and returns false.
+    /// When the clip declared a fade-out, the sound ramps down before it ends, and this handle is invalidated
+    /// immediately either way: IsPlaying reports false as soon as this call returns.
     /// 提前停止本次播放. 幂等: 对已结束的句柄再次调用不产生副作用并返回 false.
+    /// 若该 clip 声明了淡出, 声音会先降音再结束; 两种情况都立即让本句柄失效 —— 本调用返回后 IsPlaying 即为 false.
     /// </summary>
     bool Stop();
 

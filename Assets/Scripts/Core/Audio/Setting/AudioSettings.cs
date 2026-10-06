@@ -18,7 +18,7 @@ public class AudioSettings
                 masterVolume = value;
                 return;
             }
-            
+
             GameLog.Warning()
                 .Subsystem("Core")
                 .Name(LogName.Class)
@@ -39,7 +39,7 @@ public class AudioSettings
                 ostVolume = value;
                 return;
             }
-            
+
             GameLog.Warning()
                 .Subsystem("Core")
                 .Name(LogName.Class)
@@ -60,7 +60,7 @@ public class AudioSettings
                 sfxVolume = value;
                 return;
             }
-            
+
             GameLog.Warning()
                 .Subsystem("Core")
                 .Name(LogName.Class)
@@ -72,7 +72,7 @@ public class AudioSettings
     }
 
 #endregion
-    
+
     [SerializeField] private float masterVolume;
     [SerializeField] private float ostVolume;
     [SerializeField] private float sfxVolume;

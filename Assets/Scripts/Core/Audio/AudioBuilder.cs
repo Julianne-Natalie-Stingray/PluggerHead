@@ -32,25 +32,29 @@ using UnityEngine;
 public struct AudioBuilder
 {
     private AudioManager manager;
-    private float volume;
-    private float pitch;
+    private float? volume;
+    private float? pitch;
     private Transform followTarget;
     private Vector3? position;
     private bool? surviveFreeze;
     private bool? allowWhileFrozen;
+    private float? fadeIn;
+    private float? fadeOut;
     private bool isUsed;
 
     internal AudioBuilder(AudioManager manager)
     {
         this.manager = manager;
 
-        volume = 1f;
-        pitch = 1f;
+        volume = null;
+        pitch = null;
         followTarget = null;
         position = null;
         surviveFreeze = null;
         allowWhileFrozen = null;
+        fadeIn = null;
         isUsed = false;
+        fadeOut = null;
     }
 
     /// <summary>
@@ -61,7 +65,9 @@ public struct AudioBuilder
     public AudioBuilder WithVolume(float volume)
     {
         if (isUsed)
+        {
             return this;
+        }
 
         this.volume = volume;
         return this;
@@ -74,7 +80,9 @@ public struct AudioBuilder
     public AudioBuilder WithPitch(float pitch)
     {
         if (isUsed)
+        {
             return this;
+        }
 
         this.pitch = pitch;
         return this;
@@ -88,9 +96,11 @@ public struct AudioBuilder
     public AudioBuilder WithRandomPitch(float min = -0.05f, float max = 0.05f)
     {
         if (isUsed)
+        {
             return this;
+        }
 
-        pitch += Random.Range(min, max);
+        pitch = (pitch ?? 1f) + Random.Range(min, max);
         return this;
     }
 
@@ -106,7 +116,9 @@ public struct AudioBuilder
     public AudioBuilder WithPosition(Vector3 position)
     {
         if (isUsed)
+        {
             return this;
+        }
 
         this.position = position;
         return this;
@@ -123,7 +135,9 @@ public struct AudioBuilder
     public AudioBuilder WithFollowTarget(Transform target)
     {
         if (isUsed)
+        {
             return this;
+        }
 
         followTarget = target;
         return this;
@@ -141,7 +155,9 @@ public struct AudioBuilder
     public AudioBuilder WithSurviveFreeze(bool survive)
     {
         if (isUsed)
+        {
             return this;
+        }
 
         surviveFreeze = survive;
         return this;
@@ -163,9 +179,32 @@ public struct AudioBuilder
     public AudioBuilder WithAllowWhileFrozen(bool allow)
     {
         if (isUsed)
+        {
             return this;
+        }
 
         allowWhileFrozen = allow;
+        return this;
+    }
+
+    /// <summary>
+    /// Override, for this request only, the ramp this playback uses.
+    /// Implementation approach: records two nullable overrides; an absent value falls back to the clip's
+    /// static AudioClipData.FadeIn / FadeOut. A duration of 0 is a hard start or a hard cut, which is the
+    /// original behaviour, so a caller that wants no ramp can say so explicitly.
+    /// 仅对本次请求覆盖这次播放所用的渐变.
+    /// 实现思路: 记录两个可空覆盖; 未设置时回落到 clip 的静态 `AudioClipData.FadeIn` / `FadeOut`.
+    /// 时长为 0 即硬起或硬切, 也就是原先的行为, 因此"不要渐变"的调用方可以显式表达.
+    /// </summary>
+    public AudioBuilder WithFade(float fadeIn, float fadeOut)
+    {
+        if (isUsed)
+        {
+            return this;
+        }
+
+        this.fadeIn = fadeIn;
+        this.fadeOut = fadeOut;
         return this;
     }
 
@@ -181,10 +220,13 @@ public struct AudioBuilder
     public ISoundHandle Play(AudioId audioId)
     {
         if (isUsed || !manager)
+        {
             return null;
+        }
 
         isUsed = true;
 
-        return manager.Play(audioId, volume, pitch, position, followTarget, surviveFreeze, allowWhileFrozen);
+        return manager.Play(
+            audioId, volume, pitch, position, followTarget, surviveFreeze, allowWhileFrozen, fadeIn, fadeOut);
     }
 }

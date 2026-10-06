@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 2D 横向移动示例：通过 Core 输入服务读取 A/D，在物理帧设置水平速度。
+/// 2D 横向移动：通过 Core 输入服务读取 A/D，在物理帧设置水平速度。
 /// 挂在带有 Dynamic Rigidbody2D 的玩家上；场景中需要 Core 预制体。
 /// Core 的 Up 按下事件触发落地跳跃（当前绑定为空格），重力负责下落。
 /// </summary>
@@ -43,7 +43,7 @@ public class PlayerMove : MonoBehaviour
     public bool IsInputLocked => isManuallyInputLocked || isDashInputLocked || isInteractionInputLocked;
 
     /// <summary>
-    /// 由 Env 初始化及替换；传入玩家当前世界坐标，返回通过 AddForce 施加的环境阻力。
+    /// 启动时绑定关卡 Env 的实际阻力查询，也允许调用方覆盖；传入玩家世界坐标，返回由 AddForce 施加的力。
     /// 返回 Vector2.negativeInfinity 时死亡；普通阻力不影响动画输入。
     /// </summary>
     public Func<Vector2, Vector2> GetResistance { protected get; set; }
@@ -172,11 +172,11 @@ public class PlayerMove : MonoBehaviour
             PlayerInventory inventory = GetComponent<PlayerInventory>();
             if (inventory != null && inventory.Environment != null)
             {
-                inventory.Environment.InitializePlayerMovement(this);
+                GetResistance = inventory.Environment.GetResistance;
             }
             else
             {
-                Debug.LogError("PlayerMove 需要由 Env 初始化 GetResistance，或配置背包的 Environment 引用。", this);
+                Debug.LogError("PlayerMove 需要关卡的 EnvironmentFacade 阻力查询，或显式指定 GetResistance。", this);
             }
         }
 

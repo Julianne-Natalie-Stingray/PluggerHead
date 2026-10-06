@@ -1,9 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
-/// 接收 Core 输入并向 Env 发出请求。
-/// 查询最近目标和按类型分派是示例实现，可由后续玩法规则替换。
+/// 接收 Core 输入，寻找最近的环境组件并调用真实拾取或交互契约。
+/// 双属性目标由 K 切换拾取或交互模式，J 每次只处理一个目标。
 /// </summary>
 [RequireComponent(typeof(PlayerInventory))]
 [DisallowMultipleComponent]
@@ -37,7 +38,7 @@ public class PlayerInteraction : MonoBehaviour
         CoreFacade core = CoreFacade.Instance;
         if (core == null || core.Input == null || inventory.Environment == null)
         {
-            Debug.LogError("PlayerInteraction 需要 Core 输入服务和背包的 Environment 引用。", this);
+            Debug.LogError("PlayerInteraction 需要 Core 输入服务和所在关卡的 EnvironmentFacade。", this);
             enabled = false;
             return;
         }
@@ -78,7 +79,7 @@ public class PlayerInteraction : MonoBehaviour
     /// <summary>K 只切换双属性目标的 J 操作，不直接发出 Env 请求。</summary>
     public void ToggleOperationMode()
     {
-        if (!isActiveAndEnabled || Time.timeScale <= 0f)
+        if (!CanOperate())
         {
             return;
         }
@@ -88,32 +89,38 @@ public class PlayerInteraction : MonoBehaviour
             : OperationMode.PickUp;
     }
 
-    private OperationMode GetOperation(EnvInteractionTarget target)
+    private OperationMode GetOperation(MonoBehaviour target)
     {
-        if (target.CanPickUp && target.CanSelect)
+        bool canPickup = target is IEnvironmentPickup pickup && pickup.CanPickup;
+        bool canInteract = target is IEnvironmentInteractable interactable && interactable.CanInteract;
+        if (canPickup && canInteract)
         {
             return dualTargetMode;
         }
 
-        return target.CanPickUp ? OperationMode.PickUp : OperationMode.Select;
+        return canPickup ? OperationMode.PickUp : OperationMode.Select;
     }
 
     private void HandleOperation()
     {
-        if (Time.timeScale > 0f)
-        {
-            TryPerformOperation();
-        }
+        TryPerformOperation();
     }
 
-    /// <summary>每次只处理最近的一个目标；无目标时不发出请求。</summary>
-    public bool TryPerformOperation()
+    private bool CanOperate()
     {
         if (playerMove == null)
         {
             playerMove = GetComponent<PlayerMove>();
         }
-        if (!isActiveAndEnabled || (playerMove != null && playerMove.IsInputLocked))
+
+        return isActiveAndEnabled && Time.timeScale > 0f &&
+            (playerMove == null || (!playerMove.IsDead && !playerMove.IsInputLocked));
+    }
+
+    /// <summary>每次只处理最近的一个目标；无目标时不发出请求。</summary>
+    public bool TryPerformOperation()
+    {
+        if (!CanOperate())
         {
             return false;
         }
@@ -122,19 +129,18 @@ public class PlayerInteraction : MonoBehaviour
         {
             inventory = GetComponent<PlayerInventory>();
         }
-        EnvFacade environment = inventory.Environment;
-        if (environment == null)
+        if (inventory.Environment == null)
         {
             return false;
         }
 
-        EnvInteractionTarget target = FindNearestTarget();
+        MonoBehaviour target = FindNearestTarget();
         if (target == null)
         {
             return false;
         }
 
-        bool performed = PerformOperation(environment, target);
+        bool performed = PerformOperation(target);
         if (performed && playerMove != null)
         {
             playerMove.TryStartInteractionAnimation();
@@ -143,63 +149,78 @@ public class PlayerInteraction : MonoBehaviour
         return performed;
     }
 
-    private bool PerformOperation(EnvFacade environment, EnvInteractionTarget target)
+    private bool PerformOperation(MonoBehaviour target)
     {
-        switch (GetOperation(target))
+        if (GetOperation(target) == OperationMode.PickUp)
         {
-            case OperationMode.PickUp:
-                return environment.PickUpItem(new PickUpItemData
-                {
-                    Actor = gameObject,
-                    Item = target.gameObject
-                });
-            case OperationMode.Select:
-                environment.Interact(new InteractionData
-                {
-                    Actor = gameObject,
-                    Target = target.gameObject
-                });
-                return true;
-            default:
-                return false;
+            return inventory.PickUpItem(target as IEnvironmentPickup);
         }
+
+        IEnvironmentInteractable interactable = target as IEnvironmentInteractable;
+        if (interactable == null || !interactable.CanInteract)
+        {
+            return false;
+        }
+
+        InteractionDetails details = target is WirePoint
+            ? new WirePointDetails(gameObject, target.gameObject)
+            : new InteractionDetails(gameObject, target.gameObject);
+        bool performed = false;
+        System.Action<IEnvironmentInteractable> onInteracted = node => performed = true;
+        interactable.OnInteracted += onInteracted;
+        try
+        {
+            interactable.Interact(details);
+        }
+        finally
+        {
+            interactable.OnInteracted -= onInteracted;
+        }
+        return performed;
     }
 
-    private EnvInteractionTarget FindNearestTarget()
+    private MonoBehaviour FindNearestTarget()
     {
         ContactFilter2D filter = new ContactFilter2D();
         filter.SetLayerMask(interactionLayers);
         filter.useTriggers = true;
         Vector2 origin = transform.position;
-        Physics2D.OverlapCircle(origin, Mathf.Max(0f, interactionRadius), filter, hits);
+        gameObject.scene.GetPhysicsScene2D().OverlapCircle(origin, Mathf.Max(0f, interactionRadius), filter, hits);
 
-        EnvInteractionTarget nearest = null;
+        MonoBehaviour nearest = null;
         float nearestDistance = float.PositiveInfinity;
         foreach (Collider2D hit in hits)
         {
-            if (hit == null || hit.transform.IsChildOf(transform))
+            if (hit == null || hit.gameObject.scene != gameObject.scene || hit.transform.IsChildOf(transform))
             {
                 continue;
             }
 
-            EnvInteractionTarget candidate = hit.GetComponentInParent<EnvInteractionTarget>();
-            if (candidate == null || !candidate.isActiveAndEnabled ||
-                candidate.transform.IsChildOf(transform) ||
-                (!candidate.CanPickUp && !candidate.CanSelect) ||
-                (GetOperation(candidate) == OperationMode.PickUp &&
-                 inventory.Contains(candidate.gameObject)))
+            foreach (MonoBehaviour candidate in hit.GetComponentsInParent<MonoBehaviour>())
             {
-                continue;
-            }
+                if (candidate == null || !candidate.isActiveAndEnabled ||
+                    candidate.transform.IsChildOf(transform))
+                {
+                    continue;
+                }
 
-            // 示例以碰撞体表面到玩家的距离衡量远近；相同距离按实例 ID 稳定选择。
-            float distance = (hit.ClosestPoint(origin) - origin).sqrMagnitude;
-            if (distance < nearestDistance ||
-                (distance == nearestDistance && nearest != null &&
-                 candidate.GetInstanceID() < nearest.GetInstanceID()))
-            {
-                nearest = candidate;
-                nearestDistance = distance;
+                bool canPickup = candidate is IEnvironmentPickup pickup && pickup.CanPickup;
+                bool canInteract = candidate is IEnvironmentInteractable interactable && interactable.CanInteract;
+                if ((!canPickup && !canInteract) ||
+                    (GetOperation(candidate) == OperationMode.PickUp && inventory.Contains(candidate.gameObject)))
+                {
+                    continue;
+                }
+
+                // 以碰撞体表面到玩家的距离衡量远近；相同距离按实例 ID 稳定选择。
+                float distance = (hit.ClosestPoint(origin) - origin).sqrMagnitude;
+                if (distance < nearestDistance ||
+                    (distance == nearestDistance && nearest != null &&
+                     candidate.GetInstanceID() < nearest.GetInstanceID()))
+                {
+                    nearest = candidate;
+                    nearestDistance = distance;
+                }
             }
         }
 

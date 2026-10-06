@@ -11,11 +11,13 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c5d21939b7fdaa34f8035de714b0516c, type: 3}
   m_Name: DefaultSceneSwitchConfigs
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   scenes:
   - id: 0
     sceneName: JillTestScene
   - id: 1
     sceneName: JillTestSceneSwitch
-  - id: 2
+  - id: 3
     sceneName: HeXieTestScene
+  - id: 2
+    sceneName: JillTestWireScene

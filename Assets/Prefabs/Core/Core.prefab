@@ -41,7 +41,6 @@ GameObject:
   m_Component:
   - component: {fileID: 7367410766121929444}
   - component: {fileID: 4364780734530355712}
-  - component: {fileID: 4676130281724874853}
   - component: {fileID: 2974309280536940425}
   - component: {fileID: 3026865862681003294}
   - component: {fileID: 6450699771540393980}
@@ -78,20 +77,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 77d303b8a7ed8b74baed3d7b86f3f1ec, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &4676130281724874853
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1477920640279468536}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e2ec9abf1c57e654ab453769247d2f95, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
 --- !u!114 &2974309280536940425
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -102,8 +89,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5d68cb8aa325b564995aecbc7b54da82, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
 --- !u!114 &3026865862681003294
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -114,8 +101,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 25924f3b64c99ee4a85a172f0628ac9b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   emitterPrefab: {fileID: 4997866268490935426, guid: 15ef48760938fac4fb970a60116c77df, type: 3}
   emitterRoot: {fileID: 4146299610822127981}
   configs: {fileID: 11400000, guid: 5d4cda4bd0712d2419d98c16618da387, type: 2}
@@ -133,6 +120,6 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b29442f659e394e47a59bd1921abb597, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   configs: {fileID: 11400000, guid: 1be403b495ab953498b47f6c0c438375, type: 2}

@@ -1,5 +1,6 @@
 using NaughtyAttributes;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 /// <summary>
 /// Audio bus of the Core subsystem. It owns the emitter pool, the active registry, and the two concurrency
@@ -19,7 +20,8 @@ using UnityEngine;
 /// AudioClipData.MaxInstances. Neither is the pool size: maxPoolSize bounds only how many emitters are kept
 /// for reuse, so it must be at least as large as the global cap, otherwise surplus emitters are destroyed
 /// instead of recycled. A looping sound is never preempted, because it is usually music or ambience and
-/// should not be cut off by ordinary sound effects.
+/// should not be cut off by ordinary sound effects. When a limit is reached and every candidate is looping,
+/// the request is refused rather than allowed to exceed the limit.
 /// Paradigms: none. It is a plain MonoBehaviour service, reached through CoreFacade rather than a Singleton.
 /// Core 子系统的音频总线. 它拥有 emitter 池, 活跃注册表与两级并发上限, 并且是启动声音的唯一入口.
 /// Subsystem 归属: Core (Audio).
@@ -34,7 +36,7 @@ using UnityEngine;
 /// 每 clip 上限表达设计意图, 来自 AudioClipData.MaxInstances. 两者都不是池大小:
 /// maxPoolSize 只界定保留多少 emitter 用于复用, 因此它必须不小于全局上限,
 /// 否则多余的 emitter 会被销毁而不是回收. 循环音永不被抢占, 因为它通常是音乐或环境音,
-/// 不应被普通音效打断.
+/// 不应被普通音效打断; 当某条上限触顶且候选全是循环音时, 请求被**拒绝**, 而不是被允许突破上限.
 /// 使用范式: 无. 它是普通 MonoBehaviour 服务, 通过 CoreFacade 而非单例访问.
 /// </summary>
 [DisallowMultipleComponent]
@@ -53,6 +55,9 @@ public class AudioManager : MonoBehaviour
     private const float MaxVolume = 1f;
     private const float MinPitch = 0.1f;
     private const float MaxPitch = 3f;
+    private const float MinDecibels = -80f;
+    private const float MinLinearVolume = 0.0001f;
+    private const float DecibelsPerDecade = 20f;
 
     private void Awake()
     {
@@ -71,6 +76,7 @@ public class AudioManager : MonoBehaviour
     private void Start()
     {
         emitterPool.Prewarm(configs.PrewarmAmount);
+        ApplyAudioSettings();
     }
 
     /// <summary>
@@ -137,56 +143,125 @@ public class AudioManager : MonoBehaviour
     /// </summary>
     public ISoundHandle Play(
         AudioId requested,
-        float volume,
-        float pitch,
+        float? volume,
+        float? pitch,
         Vector3? position,
         Transform followTarget,
         bool? surviveFreeze,
-        bool? allowWhileFrozen)
+        bool? allowWhileFrozen,
+        float? fadeIn = null,
+        float? fadeOut = null)
     {
         if (!enabled || !configs || emitterPool == null)
+        {
             return null;
+        }
 
         AudioClipData data = ResolveClip(requested);
 
-        if (!data)
+        if (!data || !data.Clip)
+        {
             return null;
+        }
 
         bool willSurviveFreeze = surviveFreeze ?? data.DefaultSurviveFreeze;
 
         if (!IsFrozenEntryAllowed(requested, allowWhileFrozen, willSurviveFreeze))
+        {
             return null;
+        }
 
-        ApplyInstanceLimits(requested, data.MaxInstances);
+        if (!TryApplyInstanceLimits(requested, data.MaxInstances))
+        {
+            return null;
+        }
 
         AudioEmitter emitter = ReserveEmitter();
         if (!emitter)
+        {
             return null;
-
-        emitter.Volume = Mathf.Clamp(volume, MinVolume, MaxVolume);
-        emitter.Pitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
+        }
 
         registry.Register(emitter);
         emitter.gameObject.SetActive(true);
         emitter.onAudioFinished -= ReleaseEmitter;
         emitter.onAudioFinished -= OnEmitterRelease;
-        emitter.onAudioFinished += ReleaseEmitter;
-        emitter.onAudioFinished += OnEmitterRelease;
         emitter.Configure(data);
+        emitter.Volume = Mathf.Clamp(volume ?? data.Volume, MinVolume, MaxVolume);
+        emitter.Pitch = Mathf.Clamp(pitch ?? data.Pitch, MinPitch, MaxPitch);
+
+        // A request may override the clip's ramp; absent means the clip's static values, which Configure has
+        // already written. 请求可以覆盖 clip 的渐变; 不设置即使用 Configure 已写入的 clip 静态值.
+        if (fadeIn.HasValue)
+        {
+            emitter.FadeIn = fadeIn.Value;
+        }
+
+        if (fadeOut.HasValue)
+        {
+            emitter.FadeOut = fadeOut.Value;
+        }
 
         emitter.SurviveFreeze = willSurviveFreeze;
 
         if (position.HasValue)
+        {
             emitter.SetPosition(position.Value);
+        }
 
         if (followTarget)
+        {
             emitter.SetFollowTarget(followTarget);
+        }
 
+        emitter.onAudioFinished += ReleaseEmitter;
         SoundHandle handle = new SoundHandle(emitter, requested);
 
         emitter.Play();
 
         return handle;
+    }
+
+    /// <summary>
+    /// Single entry point for pushing the persisted player volumes onto the mixer's buses.
+    /// Implementation approach: reads the Setting subsystem's live data -- which is loaded before any scene
+    /// object awakes -- and writes one decibel value per exposed parameter from Start, after mixer initialization.
+    /// The dependency direction is one way: audio reads Setting, and Setting knows nothing about audio. This is
+    /// called once during initialization, and is public so that whoever changes a volume can make it audible
+    /// immediately; nothing else calls it, because a change notification does not exist yet.
+    /// 把玩家持久化的音量推送到 mixer 各总线上的单一入口.
+    /// 实现思路: 读取 Setting 子系统的当前数据 —— 它在任何场景对象 Awake 之前就已加载 ——
+    /// 在 Start 中等待 mixer 初始化后, 为每个暴露参数写入一个分贝值. 依赖方向是单向的: 音频读取 Setting, 而 Setting 对音频一无所知.
+    /// 它在初始化时调用一次, 并且是公开的, 使"改了音量想立刻听见"的调用方可以主动调用;
+    /// 除此之外没有别处调用, 因为目前尚不存在变更通知.
+    /// </summary>
+    public void ApplyAudioSettings()
+    {
+        if (!configs || !configs.Mixer)
+        {
+            GameLog.Error(this)
+                .Subsystem("Core")
+                .Name(LogName.Class)
+                .Issue(LogIssue.NotAssigned("mixer"))
+                .Action(LogAction.Ignore)
+                .Write();
+
+            return;
+        }
+
+        AudioSettings settings = SettingBootstrap.Settings.Audio;
+
+        ApplyBusVolume(configs.MasterVolumeParameter, settings.MasterVolume);
+        ApplyBusVolume(configs.OstVolumeParameter, settings.OstVolume);
+        ApplyBusVolume(configs.SfxVolumeParameter, settings.SfxVolume);
+
+        GameLog.Info(this)
+            .Subsystem("Core")
+            .Name(LogName.Class)
+            .Issue(LogIssue.Specify(
+                $"Bus volumes applied: master {settings.MasterVolume}, ost {settings.OstVolume}, " +
+                $"sfx {settings.SfxVolume}. "))
+            .Write();
     }
 
     /// <summary>
@@ -199,7 +274,9 @@ public class AudioManager : MonoBehaviour
     private AudioClipData ResolveClip(AudioId requested)
     {
         if (configs.TryGetClip(requested, out AudioClipData data))
+        {
             return data;
+        }
 
         GameLog.Error(this)
             .Subsystem("Core")
@@ -225,10 +302,14 @@ public class AudioManager : MonoBehaviour
     private bool IsFrozenEntryAllowed(AudioId requested, bool? allowWhileFrozen, bool willSurviveFreeze)
     {
         if (GameStateManager.Current != GameState.Freezed)
+        {
             return true;
+        }
 
         if ((allowWhileFrozen ?? false) && willSurviveFreeze)
+        {
             return true;
+        }
 
         GameLog.Info(this)
             .Subsystem("Core")
@@ -243,40 +324,90 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Single entry point for preempting whatever the instance limits require.
+    /// Single entry point for satisfying the instance limits before an emitter is reserved.
     /// Implementation approach: applies the per-clip limit first and the global limit second, and lets the
     /// ordinary completion path do the rest of the work, so pool release, registry removal and handle
-    /// invalidation all happen in one place. A looping sound is never chosen.
-    /// 按实例上限执行抢占的单一入口.
+    /// invalidation all happen in one place. A looping sound is never chosen, and a limit that cannot be
+    /// satisfied by preemption refuses the request instead of being exceeded: the caps are hard, and the old
+    /// behaviour of selecting a looping victim and then giving up silently let the per-clip cap be exceeded
+    /// without bound.
+    /// 在预定 emitter 之前满足实例上限的单一入口.
     /// 实现思路: 先应用每 clip 上限, 再应用全局上限, 其余工作交给常规结束路径,
-    /// 因此池归还, 注册表注销与句柄失效都只发生在一处. 循环音永不被选中.
+    /// 因此池归还, 注册表注销与句柄失效都只发生在一处. 循环音永不被选中;
+    /// 若某条上限无法靠抢占满足, 则**拒绝**该请求而不是突破上限 —— 上限是硬的,
+    /// 而旧实现"选中循环受害者后就此作罢"会让每 clip 上限被无限突破.
     /// </summary>
-    private void ApplyInstanceLimits(AudioId requested, int maxInstances)
+    private bool TryApplyInstanceLimits(AudioId requested, int maxInstances)
     {
-        if (registry.CountOf(requested) >= maxInstances
-            && registry.TryGetOldest(requested, out AudioEmitter sameClipVictim))
+        if (registry.CountOf(requested) >= maxInstances)
         {
-            Preempt(sameClipVictim, requested);
+            if (registry.TryGetOldest(requested, false, out AudioEmitter sameClipVictim))
+            {
+                Preempt(sameClipVictim, requested);
+            }
+            else
+            {
+                return RefuseOverLimit(
+                    $"Per-clip limit of {maxInstances} is reached for {requested} and every instance is " +
+                    "looping, so none of them may be preempted. ");
+            }
         }
 
-        if (registry.Count >= configs.MaxSoundInstance
-            && registry.TryGetOldest(out AudioEmitter globalVictim))
+        if (registry.Count >= configs.MaxSoundInstance)
         {
-            Preempt(globalVictim, requested);
+            if (registry.TryGetOldest(false, out AudioEmitter globalVictim))
+            {
+                Preempt(globalVictim, requested);
+            }
+            else
+            {
+                return RefuseOverLimit(
+                    $"Global limit of {configs.MaxSoundInstance} is reached and every active sound is " +
+                    "looping, so none of them may be preempted. ");
+            }
         }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Single entry point for refusing a request that a hard limit cannot accommodate.
+    /// Implementation approach: one warning naming the limit and the reason, then false, so the caller can
+    /// return null without having to decide why.
+    /// 拒绝一个无法被硬上限容纳的请求的单一入口.
+    /// 实现思路: 记一条指出上限与原因的 warning, 然后返回 false, 使调用方可以直接返回 null 而无需判断原因.
+    /// </summary>
+    private bool RefuseOverLimit(string issue)
+    {
+        GameLog.Warning(this)
+            .Subsystem("Core")
+            .Name(LogName.Class)
+            .Issue(LogIssue.Specify(issue))
+            .Action(LogAction.Ignore)
+            .Write();
+
+        return false;
     }
 
     /// <summary>
     /// Single entry point for stopping one sound so its slot can serve a new request.
-    /// Implementation approach: a looping victim is refused rather than preempted, so a looping clip that
-    /// happens to be the oldest is passed over instead of being cut off.
+    /// Implementation approach: the victim is chosen by the caller from the non-looping candidates only, so a
+    /// loop is passed over rather than cut off, and the guard below is the belt to that suspenders. The stop is
+    /// deliberately a hard cut rather than a ramp: this must free its pool slot in the same frame, and a fade
+    /// cannot.
     /// 停止一个声音以便其槽位服务新请求的单一入口.
-    /// 实现思路: 拒绝抢占循环音的受害者, 因此恰好最旧的循环 clip 会被跳过, 而不是被切断.
+    /// 实现思路: 受害者由调用方**只从非循环候选**中挑出, 因此循环音是被跳过而不是被切断; 下面的守卫是第二道保险.
+    /// 这里刻意是硬切而非渐变: 它必须在同一帧释放池槽位, 而淡出做不到这一点.
+    /// TODO: 抢占时的淡出. 未实现原因: 它需要一种"正在淡出的 emitter 不再占用池槽位"的记账模型,
+    /// 而那属于 `Core/GameObjectPool`(另一个交付单元). 用户已于 2026-10-05 裁决**保持硬切**(选项甲),
+    /// 因此本项**已决定不做**; 若将来要改, 必须先动 GameObjectPool 的记账.
     /// </summary>
     private void Preempt(AudioEmitter victim, AudioId requested)
     {
         if (!victim || victim.IsLooping)
+        {
             return;
+        }
 
         GameLog.Info(this)
             .Subsystem("Core")
@@ -386,7 +517,9 @@ public class AudioManager : MonoBehaviour
         bool shouldPause = state == GameState.Freezed;
 
         if (AudioListener.pause == shouldPause)
+        {
             return;
+        }
 
         AudioListener.pause = shouldPause;
 
@@ -397,6 +530,46 @@ public class AudioManager : MonoBehaviour
                 ? "Audio paused with the game. "
                 : "Audio resumed with the game. "))
             .Write();
+    }
+
+    /// <summary>
+    /// Single entry point for writing one linear volume onto one exposed mixer parameter.
+    /// Implementation approach: a mixer volume parameter is expressed in decibels, so a linear 0..1 setting is
+    /// converted through 20*log10. Zero has no logarithm, so anything at or below the floor becomes the
+    /// mixer's own silence threshold; an empty parameter name is reported rather than handed to Unity, because
+    /// SetFloat on a name that is not exposed fails silently.
+    /// 把一条线性音量写入一个 mixer 暴露参数的单一入口.
+    /// 实现思路: mixer 的音量参数以分贝表示, 因此线性 0..1 的设置经 20*log10 换算.
+    /// 零没有对数, 因此低到门槛以下的值一律取 mixer 自身的静音阈值;
+    /// 参数名为空时记录一条警告而不是交给 Unity, 因为对未暴露的名字调用 SetFloat 会静默失败.
+    /// </summary>
+    private void ApplyBusVolume(string parameter, float linearVolume)
+    {
+        if (string.IsNullOrWhiteSpace(parameter))
+        {
+            GameLog.Warning(this)
+                .Subsystem("Core")
+                .Name(LogName.Class)
+                .Issue(LogIssue.Invalid("mixer parameter name"))
+                .Action(LogAction.Ignore)
+                .Write();
+
+            return;
+        }
+
+        float decibels = linearVolume <= MinLinearVolume
+            ? MinDecibels
+            : Mathf.Log10(linearVolume) * DecibelsPerDecade;
+
+        if (!configs.Mixer.SetFloat(parameter, decibels))
+        {
+            GameLog.Warning(this)
+                .Subsystem("Core")
+                .Name(LogName.Class)
+                .Issue(LogIssue.Specify($"Mixer parameter {parameter} is not exposed. "))
+                .Action(LogAction.Ignore)
+                .Write();
+        }
     }
 
     private void InitializeInternal()
@@ -412,6 +585,7 @@ public class AudioManager : MonoBehaviour
                 .Action(LogAction.DisableGameObject)
                 .Write();
             gameObject.SetActive(false);
+            return;
         }
 
         if (!emitterRoot)
@@ -463,8 +637,34 @@ public class AudioManager : MonoBehaviour
 
     [SerializeField] private AudioId debugAudioRequest;
     [SerializeField] private int requestTime = 1;
-    [SerializeField] private bool DebugSurviveFreeze;
-    [SerializeField] private bool DebugAllowWhileFrozen;
+    [FormerlySerializedAs("DebugSurviveFreeze")]
+    [SerializeField] private bool debugSurviveFreeze;
+    [FormerlySerializedAs("DebugAllowWhileFrozen")]
+    [SerializeField] private bool debugAllowWhileFrozen;
+
+    /// <summary>
+    /// Debug entry point for re-applying the persisted volumes without leaving play mode.
+    /// Implementation approach: guarded by isPlaying, because the settings store is created on play-mode entry,
+    /// so reading it while editing would find nothing.
+    /// 在播放模式内重新应用持久化音量的调试入口.
+    /// 实现思路: 以 isPlaying 守卫, 因为设置存储是在进入播放模式时建立的, 在编辑模式下读取只会读到空.
+    /// </summary>
+    [Button("Apply Audio Settings")]
+    private void DebugApplyAudioSettings()
+    {
+        if (!Application.isPlaying)
+        {
+            GameLog.Info(this)
+                .Subsystem("Core")
+                .Name(LogName.Class)
+                .Issue(LogIssue.Specify("Please run in play mode."))
+                .Action(LogAction.Return)
+                .Write();
+            return;
+        }
+
+        ApplyAudioSettings();
+    }
 
     [Button("Test Audio Request")]
     private void TestAudioRequest()
@@ -481,17 +681,19 @@ public class AudioManager : MonoBehaviour
         }
 
         for (int i = 0; i < requestTime; i++)
-            CreateBuilder().WithSurviveFreeze(DebugSurviveFreeze)
-                .WithAllowWhileFrozen(DebugAllowWhileFrozen)
+        {
+            CreateBuilder().WithSurviveFreeze(debugSurviveFreeze)
+                .WithAllowWhileFrozen(debugAllowWhileFrozen)
                 .Play(debugAudioRequest);
-        
+        }
+
         GameLog.Info(this)
             .Subsystem("Core")
             .Name(LogName.Class)
             .Issue(LogIssue.Specify($"Manual requested Audio: {debugAudioRequest}. \n" +
                                     $"Request time: {requestTime}\n" +
-                                    $"Survive freeze: {DebugSurviveFreeze}\n" +
-                                    $"Allow while frozen: {DebugAllowWhileFrozen}. "))
+                                    $"Survive freeze: {debugSurviveFreeze}\n" +
+                                    $"Allow while frozen: {debugAllowWhileFrozen}. "))
             .Write();
     }
 

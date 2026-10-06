@@ -40,7 +40,7 @@ Core 是本工程共享运行时基础设施的单一入口.
 - `CoreFacade.Instance` -> `CoreFacade`: **唯一**能熬过场景切换的访问点. 新场景中的代码用它取回 Core.
 - `SceneSwitchManager.IsSwitching`: 是否有一次切换在途. 调用方可以查, 但 `RequestSwitch` 无论如何都会强制该约束.
 - `AudioBuilder` 的链式项: `WithVolume` / `WithPitch` / `WithRandomPitch` / `WithPosition` / `WithFollowTarget` /
-  `WithSurviveFreeze` / `WithAllowWhileFrozen`.
+  `WithSurviveFreeze` / `WithAllowWhileFrozen` / `WithFade`.
 - `AudioManager.Registry` -> `AudioRegistry`: 只读的事实查询, 供需要知道"现在在播什么"的代码使用.
 - `InputManager`, `AudioManager` 与 `SceneSwitchManager` 是 `CoreFacade` 的必需组件, 由 `InitializeInternal()` 通过 `GetComponent<>()` 解析.
 - `AudioClipData` 与 `AudioManagerConfigs` 是数据定义; `AudioId` 是 clip 查找键. `SceneSwitchConfigs` 是场景白名单.
@@ -137,10 +137,10 @@ Core 是本工程共享运行时基础设施的单一入口.
 - **全局上限**: `AudioManagerConfigs.MaxSoundInstance`, 保护总声部数.
 - **池大小**: `AudioManagerConfigs.MaxPoolSize`, 只界定保留多少 emitter 用于复用.
 
-因此 `MaxPoolSize` 必须不小于 `MaxSoundInstance`, 否则超出的 emitter 会被销毁而不是回收, 池化在最需要它的场景下失效.
+`MaxPoolSize` 还由预定入口限制总创建量; 建议不小于 `MaxSoundInstance`, 否则池容量会先于声部上限拒绝请求.
 
-请求路径是: 检查冻结期入口 -> 解析 `AudioId` -> 应用每 clip 上限 -> 应用全局上限 -> 预定 emitter -> 注册 -> 配置 -> 定位 -> 启动.
-两级上限的抢占都只做一件事: 停止最旧且**非循环**的受害者, 其余交给常规结束路径, 因此池归还, 注册表注销与句柄失效都只发生在一处.
+请求路径是: 解析 `AudioId` 并检查 clip -> 检查冻结期入口 -> 应用每 clip 上限 -> 应用全局上限 -> 预定 emitter -> 注册 -> 配置 -> 定位 -> 启动.
+两级上限只抢占最旧且**非循环**的声部; 如果全是循环声则拒绝请求. 停止后统一归还池、注销注册表并使句柄失效. 注册表的总数只统计存活项, 不把延迟清理的空槽计入限制.
 
 池归还链路有**两个方向**, 必须分开, 否则会互相递归:
 
@@ -150,46 +150,29 @@ Core 是本工程共享运行时基础设施的单一入口.
 `AudioEmitter.onAudioFinished` 是**所有**结束路径的唯一汇合点: 自然播完, 句柄 `Stop()`, 以及被抢占.
 这条链一旦断掉, emitter 就会永久滞留在池外.
 
-结束判定本身由一个 Timer 完成, 并使用 `UseUnscaledTime()`: `GameStateManager.Freeze()` 会设
-`Time.timeScale = 0`, 而走 scaled time 的判定在暂停期间不会推进 —— 若不清除这一处, 暂停期间所有 emitter
-都将永不归还池. 这两处是一对, 不能只保留其一.
+非循环播放由 emitter 持有的 Timer 检测自然结束, 使用 `UseUnscaledTime()`; 停止、重置和销毁都会取消它, 防止旧排程影响复用后的播放. 循环播放没有自然结束 Timer.
 
-订阅是**先退订再订阅**的: emitter 是池化复用的, 若只订阅不退订, 复用会让处理器累积, 导致同一次结束被多次归还.
+结束先归还池和注销注册表, 再通知句柄. `IsFinished` 记录自然结束, 主动停止或抢占则为 false; emitter 在重置时保留本次结果, 到下一次 Play 才清除. `Finished` 的调用方可以立刻请求新声音. 完成回调各自隔离异常, 避免某个调用方阻断池归还.
 
 ### 音频与游戏状态
 
-`AudioManager` 在 `OnEnable` / `OnDisable` 中订阅 `GameStateManager.Changed`, 据状态暂停或恢复 `AudioListener.pause`.
-依赖方向是**单向**的: 音频认识 `GameState`, 而 `GameState` 对其一无所知.
+`AudioManager` 在 `OnEnable` / `OnDisable` 中成对订阅 `GameStateManager.Changed`, 按 `state == Freezed` 暂停或恢复 `AudioListener.pause`. 音频读取 GameState, 后者不依赖音频. 当前 Loading 不保留监听器暂停, 暂停中切场景需按实际玩法验证.
 
-冻结涉及**两个互相独立**的问题. 把它们合并会得到错误的模型, 因此分开陈述:
+`AudioClipData.DefaultSurviveFreeze` 提供静态默认值, `WithSurviveFreeze` 按次覆盖并映射到 `AudioSource.ignoreListenerPause`; 它与 Loop 无关. 不保留的音受监听器暂停, 保留的音继续播放.
 
-| 问题 | 含义 | 机制 |
-| --- | --- | --- |
-| 进入冻结时, 已在播放的音是否被掐断 | 一次性的保留决定 | `AudioSource.ignoreListenerPause` |
-| 冻结期间, 新到达的请求是否被受理 | 一道入口门 | `AudioManager.Play` 的入口检查 |
+冻结期间的新请求必须同时允许 `WithAllowWhileFrozen(true)` 且有效的 SurviveFreeze 为 true, 否则入口拒绝并返回 null. 默认不允许冻结期间的新请求; 仅设置其中一个开关不足以放行.
 
-`SurviveFreeze` 回答第一个问题. 它**与 `Loop` 无关**: 循环音可以被冻结掐断, 一次性音也可以熬过冻结.
+### 音量、音高与渐变
 
-| `SurviveFreeze` | 效果 |
-| --- | --- |
-| `false`(默认) | 进入冻结时该音被 `AudioListener.pause` 切断 |
-| `true` | 该音在冻结期间继续播放(常用于音乐) |
+`AudioClipData.Volume` / `Pitch` 提供默认值. Builder 未指定时保留默认值; `WithVolume` / `WithPitch` 覆盖本次播放, 不会被 Play 重置. `WithRandomPitch` 以显式音高或 1 为基准增加随机偏移. 活跃句柄可继续通过 `TrySetVolume` / `TrySetPitch` 修改.
 
-`WithAllowWhileFrozen` 回答第二个问题. 默认**拒绝**, 并在日志中记录被拒绝的 `AudioId`;
-`WithAllowWhileFrozen(true)` 使该请求在冻结期间也被服务. 它存在的意义是让"冻结期间必须被拒绝"的请求得以表达,
-例如由本不该运行的玩法所驱动的音效.
+`AudioClipData.FadeIn` / `FadeOut` 定义默认渐变时长; `WithFade` 可按次覆盖, 0 保留硬起/硬切. 渐变使用非缩放时间, 乘在当前音量上. 非循环播放在尾部淡出; 句柄 `Stop()` 请求优雅淡出并立即失效, 但声部在淡出完成前仍占用池槽位. 抢占和跟随目标丢失时的循环停止立即硬切, 以同步释放槽位.
 
-两者**不是同一个开关的正反两面**: 一个已在播放的音可以被保留, 而一个新的请求仍被拒绝; 反之亦然.
+### 持久化音量与 Mixer
 
-参数层级遵循全工程的静态/动态划分:
+`AudioManager.Start()` 在 Mixer 初始化后调用 `ApplyAudioSettings()`, 从 `SettingBootstrap.Settings.Audio` 读取 Master/Ost/Sfx 音量. 修改设置后需再次调用该方法, 当前没有自动变更订阅; 保存设置仍由 Setting 层负责.
 
-| 层 | 载体 | 作用 |
-| --- | --- | --- |
-| 静态初值 | `AudioClipData.DefaultSurviveFreeze`(默认 `false`) | 该 clip 的默认保留行为 |
-| 动态覆盖 | `AudioBuilder.WithSurviveFreeze(bool)` | 仅覆盖本次请求的保留行为 |
-| 动态覆盖 | `AudioBuilder.WithAllowWhileFrozen(bool)` | 仅覆盖本次请求是否可进入 |
-
-实现落在代码里, 因此无需在 prefab 上逐个勾选, 且 `AudioEmitter.prefab` 未被改动.
+`SO/Audio/DefaultAudioManagerConfigs.asset` 指向 `Audios/Mixers/Master.mixer`, 使用已暴露的 `MasterVolume` / `OstVolume` / `SfxVolume` 参数. 线性音量换算为 `20 * log10(volume)`, 0 使用 -80 dB. 缺少 mixer、空参数名或未暴露参数会记录日志.
 
 ### 音频的位置与空间化
 
@@ -221,7 +204,6 @@ Core 是本工程共享运行时基础设施的单一入口.
 注意 `SpatialBlend == 0` 时位置**完全无影响**; 而 `SpatialBlend > 0` 时若既不跟随也不给坐标,
 声音会始终从 `AudioRoot` 发出, 空间化形同无效. 二者必须一起使用才有意义.
 
-## TODO
+## 音频回归检查
 
-- TODO: 音频设置尚未被应用. `AudioSettings` 已有 `MasterVolume` / `OstVolume` / `SfxVolume`, 但 `AudioManager` 未读取它们, 因此改动设置不影响实际音量. 未实现原因: 归属 `Setting` 与 `Core` 的交界, 按 §4.1 应作为独立交付; 应用方式已定 —— 由音频自行拉取设置并应用到 mixer.
-- TODO: 为音频增加"总线整体缩放"(如全局音量滑条). 当前 `Master.mixer` 虽已有 `SFX` / `OST` 分组, 但 `m_ExposedParameters` 为空数组, 因此代码层面无法调节总线音量; 正确的落点是 AudioMixer 的 exposed parameter, 需要一次独立的资产配置交付.
+进入带有 TimerRunner 的测试场景 Play Mode 后, 调用 `AudioIntegrationChecks.Run()` 并读取 `LastResult`. 检查使用临时对象和生成的静音 clip, 覆盖默认参数、Builder 覆盖、释放与复用、自然结束、旧 Timer 取消以及循环声部淡出. 它不修改磁盘资源或保存场景; Mixer 资产配置仍需在实际 Core 场景验证.

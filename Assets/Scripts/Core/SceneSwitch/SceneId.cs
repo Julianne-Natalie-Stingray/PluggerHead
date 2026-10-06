@@ -27,6 +27,7 @@ public enum SceneId
 
     JillTestScene,
     JillTestSceneSwitch,
+    JillTestWireScene,
 
 #endregion
 

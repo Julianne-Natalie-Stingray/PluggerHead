@@ -34,7 +34,7 @@ Read subsystem README files before changing their contracts.
 Use Unity **2022.3.43f1c1**, as recorded in `../ProjectSettings/ProjectVersion.txt`.
 
 - Open the parent project through Unity Hub. Load a development scene and press Play for local iteration.
-- Use **File > Build Settings > Build** for a player build. The configured scene list contains `JillTestScene`, `JillTestSceneSwitch`, and `HeXieTestScene` under `Scenes/Tests/`; review it before building.
+- Use **File > Build Settings > Build** for a player build. The configured scene list contains `JillTestScene`, `JillTestSceneSwitch`, `HeXieTestScene`, and `JillTestWireScene` under `Scenes/Tests/`; review it before building.
 - Use **Window > General > Test Runner** to run EditMode and PlayMode tests.
 - Run `git diff --check` before submitting to catch whitespace errors.
 
@@ -55,6 +55,9 @@ Preserve existing XML documentation and bilingual comments when updating behavio
 Unity Test Framework 1.1.33 is installed. No dedicated project test suite or coverage threshold was found; bundled package examples are not gameplay regression coverage. For new automated tests, use EditMode or PlayMode test assemblies and descriptive names such as `Freeze_WhenAlreadyFrozen_PreservesTimeScale`.
 
 Smoke-test affected scenes, check Console errors, and report reproduction steps and results.
+
+- `Tools > PluggerHead > Verify Player and Environment` runs isolated Edit Mode integration checks without saving the current scene.
+- In unpaused Play Mode with Core/TimerRunner present, call `AudioIntegrationChecks.Run()` and read `AudioIntegrationChecks.LastResult` after completion. See the subsystem READMEs for current contracts.
 
 ## Commit & Pull Request Guidelines
 
@@ -120,7 +123,7 @@ Describe the behavior change, affected scenes or prefabs, and validation perform
 
 - `Game/GameState/`：静态 `GameStateManager` 持有 `Playing`、`Freezed`、`Loading`，通过 `Changed` 通知订阅方。`Freeze()` 暂停时间与监听器，`Resume()` 恢复此前时间倍率；`EnterLoading()` / `ExitLoading()` 记录并恢复加载前状态。业务方应成对订阅与退订事件。
 - `Game/Setting/`：`ISettingData` 定义默认值重置；`SettingStore<TData>` 负责文件存取；`FileSettingStore` 使用 JsonUtility；`SettingBootstrap` 在首个场景加载前初始化，并在退出时保存。数据路径为 `Application.persistentDataPath/GameSettings.json`。
-- 当前 `GameSettings.Audio` 已包含 Master/Ost/Sfx 音量，默认值分别为 `1`、`0.5`、`0.5`。`ResetToDefault()` 只更新内存，需要立即落盘时调用 `Save()` 并检查返回值。设置层只存储数据，当前 AudioManager 未将这些值应用到混音器。
+- 当前 `GameSettings.Audio` 已包含 Master/Ost/Sfx 音量，默认值分别为 `1`、`0.5`、`0.5`。`ResetToDefault()` 只更新内存，需要立即落盘时调用 `Save()` 并检查返回值。AudioManager 在 Start 应用这些值；运行时更改设置后调用 `ApplyAudioSettings()` 更新混音器。
 - 命名区分：`Configs` 是开发者维护的 ScriptableObject 参数；`Settings` 是玩家可调且可持久化的数据。
 
 ### Debug、Infra 与工具依赖
@@ -135,5 +138,11 @@ Describe the behavior change, affected scenes or prefabs, and validation perform
 
 - 在测试场景中确认 Core 实例及配置齐全，再通过 `CoreFacade.Instance.Input` 等接口访问；不要假设其他物体的 `Awake` 一定晚于 Core，通常在 `Start` 或明确初始化后获取服务。跨场景重新获取场景对象依赖。
 - 音频冻结期间启动新声音，需要同时允许 `WithAllowWhileFrozen(true)` 与有效的 SurviveFreeze。池耗尽、配置缺失等情况下必须处理空句柄。
-- 当前音频实现中，`AudioEmitter.Play()` 会重置音量和音高，因此 Builder 的对应覆盖值可能被覆盖；自然结束也走 `Stop()`，不能将 `ISoundHandle.IsFinished` 当作已验证的自然播完判据。循环声部被选作抢占对象时会跳过停止，故实例限制不应视作严格保证。
+- 音频默认音量和音高来自 AudioClipData，Builder 可按次覆盖；`WithFade` 配置淡入淡出，句柄 `Stop()` 请求淡出并立即使句柄失效，抢占则立即释放声部。自然结束与手动停止分别报告，池复用会取消旧 Timer；不可抢占的循环声占满上限时拒绝新请求。
 - `AudioManager` 按 `state == Freezed` 设置监听器暂停，进入 Loading 时可能改变冻结期间的声音行为。需要“暂停中切场景”等组合行为时，先在测试场景验证，并根据任务范围修复实现。
+
+### Env 与 Player
+
+- `Scripts/Env/EnvironmentFacade.cs` 是真实关卡环境实现，管理绕线、插接、换线和通关；旧 `EnvFacade`、示例目标分类与请求数据已移除。先阅读 `Scripts/Env/README.md`。
+- Player 通过 `IEnvironmentInteractable`、`IEnvironmentPickup`、`InteractionDetails` 和 `IPickupInstance` 交互。背包持有真实实例，放下恢复原场景对象；UI 从实例的 `SourceObject` 读取图标。
+- `HeXieTestScene` 集成真实 Player 与电路；`JillTestWireScene` 保留原诊断布局和 MockPlayer。移动阻力来自真实持线的绕线路径及长度配置，未持线或未设置长度上限时为零。

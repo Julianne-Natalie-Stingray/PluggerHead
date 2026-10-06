@@ -3,27 +3,38 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 保存 Env 道具的原始场景对象引用，不复制或销毁道具。
-/// 场景道具被销毁后，对应引用会在下次访问背包时清理。
-/// 当前背包不限制容量，不实现堆叠；最终物品模型和消耗规则由 Jill 决定。
+/// 持有 Env 返回的拾取实例，并通过实例接口将原场景对象放回关卡。
+/// 不复制或销毁道具；源对象被销毁后，在下次访问背包时清理实例。
+/// AnchorInstance 当前不可堆叠，每次拾取占用一个槽位。
 /// </summary>
 [DisallowMultipleComponent]
 public class PlayerInventory : MonoBehaviour
 {
     [SerializeField]
-    [Tooltip("处理该玩家拾取和使用请求的 Env。")]
-    private EnvFacade environment;
+    [Tooltip("该玩家所在关卡的环境服务；未指定时使用当前场景的 EnvironmentFacade。")]
+    private EnvironmentFacade environment;
 
-    private readonly List<GameObject> items = new List<GameObject>();
-    private IReadOnlyList<GameObject> readOnlyItems;
+    private readonly List<IPickupInstance> items = new List<IPickupInstance>();
+    private IReadOnlyList<IPickupInstance> readOnlyItems;
 
-    public EnvFacade Environment => environment;
+    public EnvironmentFacade Environment
+    {
+        get
+        {
+            if (environment == null || environment.gameObject.scene != gameObject.scene)
+            {
+                environment = EnvironmentFacade.ForScene(gameObject.scene);
+            }
 
-    /// <summary>道具引用集合变化后通知；Sprite 变化不属于背包集合变化。</summary>
+            return environment;
+        }
+    }
+
+    /// <summary>道具实例集合变化后通知；Sprite 变化不属于背包集合变化。</summary>
     public event Action Changed;
 
-    /// <summary>只读的道具引用列表；引用本身仍指向 Env 中的原对象。</summary>
-    public IReadOnlyList<GameObject> Items
+    /// <summary>Env 的真实拾取实例，每个实例保留与原场景对象的绑定。</summary>
+    public IReadOnlyList<IPickupInstance> Items
     {
         get
         {
@@ -39,37 +50,19 @@ public class PlayerInventory : MonoBehaviour
 
     public int Count => Items.Count;
 
-    /// <summary>通过 Inspector 指定的 Env 请求拾取，成功时保存原物品引用。</summary>
-    public bool PickUpItem(GameObject item)
+    /// <summary>通过环境拾取契约请求拾取，只有收到实例才加入背包。</summary>
+    public bool PickUpItem(IEnvironmentPickup pickup)
     {
-        return environment != null && environment.PickUpItem(new PickUpItemData
+        Component source = pickup as Component;
+        if (!CanOperate() || source == null || source.gameObject.scene != gameObject.scene ||
+            !source.gameObject.activeInHierarchy ||
+            !pickup.CanPickup || Contains(source.gameObject))
         {
-            Actor = gameObject,
-            Item = item
-        });
-    }
+            return false;
+        }
 
-    /// <summary>请求使用已持有的物品；返回 true 仅表示请求已发出。</summary>
-    public bool UseItem(GameObject item, GameObject target = null)
-    {
-        return environment != null && environment.UseItem(new UseItemData
-        {
-            Actor = gameObject,
-            Item = item,
-            Target = target
-        });
-    }
-
-    public bool Contains(GameObject item)
-    {
-        RemoveDestroyedItems();
-        return item != null && items.Contains(item);
-    }
-
-    /// <summary>由 Env 在拾取时加入引用，拒绝空对象及重复引用。</summary>
-    internal bool TryAddItem(GameObject item)
-    {
-        if (item == null || Contains(item))
+        IPickupInstance item = pickup.Pickup(new InteractionDetails(gameObject, source.gameObject));
+        if (item == null)
         {
             return false;
         }
@@ -79,22 +72,41 @@ public class PlayerInventory : MonoBehaviour
         return true;
     }
 
-    /// <summary>供消耗或丢弃逻辑移除引用；不销毁、不移动物品对象。</summary>
-    public bool RemoveItem(GameObject item)
+    public bool Contains(GameObject source)
     {
         RemoveDestroyedItems();
-        if (item == null || !items.Remove(item))
+        if (source == null)
         {
             return false;
         }
 
+        return items.Exists(item => item.SourceObject == source);
+    }
+
+    /// <summary>放下指定实例；Env 拒绝放置时保留背包内容。</summary>
+    public bool DropItem(IPickupInstance item, Vector3 position)
+    {
+        RemoveDestroyedItems();
+        if (!CanOperate() || item == null || !items.Contains(item) || !item.TryDrop(position))
+        {
+            return false;
+        }
+
+        items.Remove(item);
         Changed?.Invoke();
         return true;
     }
 
+    private bool CanOperate()
+    {
+        PlayerMove movement = GetComponent<PlayerMove>();
+        return isActiveAndEnabled && Time.timeScale > 0f &&
+            (movement == null || (!movement.IsDead && !movement.IsInputLocked));
+    }
+
     private void RemoveDestroyedItems()
     {
-        if (items.RemoveAll(item => item == null) > 0)
+        if (items.RemoveAll(item => item == null || item.SourceObject == null) > 0)
         {
             Changed?.Invoke();
         }

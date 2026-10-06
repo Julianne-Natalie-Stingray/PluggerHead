@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 显示背包内 Env 道具的 SpriteRenderer.sprite，不改变原道具。
+/// 通过 Env 拾取实例显示原道具的 SpriteRenderer.sprite，不改变原道具。
 /// 场景中的槽位由 uGUI GridLayoutGroup 排列，物品增加时复用并扩展槽位。
-/// 最终道具图标的数据来源由 Jill 决定。
+/// 道具被收起后仍从其场景对象读取 Sprite。
 /// </summary>
 [DisallowMultipleComponent]
 public class InventoryUI : MonoBehaviour
@@ -101,7 +101,7 @@ public class InventoryUI : MonoBehaviour
     {
         nextSpriteCheckTime = Time.unscaledTime + SpriteCheckInterval;
         // SpriteRenderer 不提供 Sprite 变更事件，低频检查也会清理背包已销毁引用。
-        IReadOnlyList<GameObject> items = inventory != null ? inventory.Items : null;
+        IReadOnlyList<IPickupInstance> items = inventory != null ? inventory.Items : null;
         int count = items != null ? items.Count : 0;
         if (refreshRequested || count != displayedItemCount || count > slots.Count)
         {
@@ -155,7 +155,7 @@ public class InventoryUI : MonoBehaviour
             CacheSlots();
         }
 
-        IReadOnlyList<GameObject> items = inventory != null ? inventory.Items : null;
+        IReadOnlyList<IPickupInstance> items = inventory != null ? inventory.Items : null;
         int itemCount = items != null ? items.Count : 0;
         int visibleCount = Mathf.Max(minimumSlots, itemCount);
         ExtendSlots(visibleCount);
@@ -185,14 +185,14 @@ public class InventoryUI : MonoBehaviour
         }
     }
 
-    private Sprite GetItemSprite(GameObject item)
+    private Sprite GetItemSprite(IPickupInstance item)
     {
-        if (item == null)
+        if (item == null || item.SourceObject == null)
         {
             return null;
         }
 
-        SpriteRenderer renderer = item.GetComponentInChildren<SpriteRenderer>(true);
+        SpriteRenderer renderer = item.SourceObject.GetComponentInChildren<SpriteRenderer>(true);
         return renderer != null ? renderer.sprite : null;
     }
 
