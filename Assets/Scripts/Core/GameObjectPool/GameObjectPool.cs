@@ -5,6 +5,12 @@ using UnityEngine.Pool;
 using System;
 using System.Linq;
 
+/// <summary>
+/// Component pool wrapper. Get activates and Release deactivates; callers own checkout lifetime.
+/// poolSize limits inactive retention, while a hard creation limit requires a separate CanReuse check.
+/// 组件对象池包装. Get 激活、Release 禁用; 调用方负责借还配对.
+/// poolSize 限制闲置保留数量, 创建硬上限需调用方另行检查 CanReuse.
+/// </summary>
 public sealed class GameObjectPool<TPooled>
     where TPooled : Component
 {
@@ -19,15 +25,12 @@ public sealed class GameObjectPool<TPooled>
     public int CountAll => pool.CountAll;
 
     /// <summary>
-    /// True when Get() will reuse a pooled instance rather than create a new one.
-    /// Implementation approach: compares against the pool's own capacity before delegating, because Unity's
-    /// ObjectPool creates a fresh instance whenever it is empty instead of refusing, so a caller that needs a
-    /// hard ceiling must ask this first. Reuse is preferred even when the pool is empty, so an empty pool
-    /// below its ceiling still reports true and is allowed to grow into it.
-    /// Get() 会复用池化实例而不是新建时返回 true.
-    /// 实现思路: 在委托之前先与池自身容量比较, 因为 Unity 的 ObjectPool 在池空时总是新建实例而不拒绝,
-    /// 因此需要硬上限的调用方必须先问这里. 即使池为空也优先复用之下的增长:
-    /// 空池只要未达上限仍返回 true, 允许它增长到上限.
+    /// True when an inactive instance exists OR CountAll is below the caller-supplied creation ceiling.
+    /// This is an advisory check, not a promise of reuse or a reservation. Get itself does not enforce it.
+    /// An inactive object is allowed even if maxSize is smaller than the current CountAll.
+    /// 有闲置对象, 或 CountAll 小于调用方传入的创建上限时返回 true.
+    /// 这是建议性检查, 不保证复用, 不预留名额; Get 本身不执行此限制.
+    /// 即使 maxSize 小于当前 CountAll, 只要有闲置对象仍返回 true.
     /// </summary>
     public bool CanReuse(int maxSize)
         => CountInactive > 0 || CountAll < maxSize;
