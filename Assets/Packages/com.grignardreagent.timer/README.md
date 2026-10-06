@@ -14,14 +14,14 @@
 
 ### API 与边界
 
-- `At`、`OnComplete`、`UseUnscaledTime`、`CompleteWhen` 只允许在首次 Start 找到 Runner 并进入启动流程前配置；没有 Runner 的提前返回不锁定配置。找到但失活的宿主可能无法启动协程，配置仍已锁定；Stop 后也不能重新配置，Restart 保留原配置。
+- `At`、`OnComplete`、`UseUnscaledTime`、`CompleteWhen` 只允许在首次 Start 找到 Runner 并进入启动流程前配置；Runner 缺失或其 GameObject 失活时提前返回，不锁定首次配置。此检查不拒绝仅 enabled=false 的组件；已经启动过的计时器 Stop 后不能重新配置，Restart 保留原配置。
 - Start 启动或继续，Stop 保留 Elapsed 与已执行时间点；完成后必须 Restart 才会再运行。Restart 重置进度并立即 Start。零时长完成和时间0回调可在 Start 调用内同步发生，但也先要求 Runner 存在。
-- CompleteWhen 每次循环检查条件，成立时把 Elapsed 推到 Duration，执行剩余时间点再触发完成；不是取消。scaled time 在 timeScale=0 时不推进，但条件仍可被轮询并触发完成，不能笼统理解为所有逻辑冻结。
-- 时间点按时间排序，相同时间的注册顺序没有稳定排序保证。多次 OnComplete 按委托注册顺序追加，但任何回调抛错都会中断该次调用链，没有异常隔离。
-- 负时长钳到0；没有完整的 NaN/Infinity 输入校验。回调内 Stop/Restart/修改宿主等重入没有版本守卫，可能使外层协程继续执行过时流程；不要据流式接口推断这些组合已安全处理。
-- Runner 被禁用、失活、销毁或替换时，计时器没有统一的中断通知与状态修复；IsRunning 不保证底层协程仍在推进。Stop 使用当时的全局 Runner，并未保存最初宿主引用。
+- CompleteWhen 每次循环检查条件，成立时把 Elapsed 推到 Duration，执行剩余时间点再触发完成；不是取消。条件或时间点回调若调用 Stop/Restart，旧代次停止后续派发。scaled time 在 timeScale=0 时不推进，但条件仍可被轮询并触发完成，不能笼统理解为所有逻辑冻结。
+- 时间点按时间排序，相同时间的注册顺序没有稳定排序保证。多次 OnComplete 按委托注册顺序追加；回调抛错仍中断该次调用链，不逐订阅者吞错，但 finally 清理该次运行状态。完成回调抛错时保留已完成状态。
+- 负时长钳到0；正无穷时长配合 CompleteWhen 仍受支持（AudioEmitter 使用此模式），没有扩展为完整的 NaN 参数校验。进入启动流程及调用 Stop 时更新运行代次，Restart 经 Stop/Start 更新；被拒绝的 Start 不更新代次。时间点、条件和完成回调返回后检查代次；Stop/Restart 后旧流程不继续派发，旧 Start 的同步返回或旧回调异常也不会覆盖新运行的句柄和状态。
+- Stop 保存并使用最初宿主，而不是之后的全局 Runner。Start 拒绝不存在或 GameObject 失活的宿主。Runner 被禁用、失活、销毁时仍没有统一的中断通知契约；这次修复没有增加 Runner 注册表或自动恢复机制。
 
-本项目 AudioEmitter 使用 Timer，并在复用/重置时取消旧任务。现有音频测试覆盖部分自然结束和旧任务隔离，不等于 Timer 全部参数、异常、重入及宿主生命周期分支已验证。本轮为静态核查及文档修订，未改变包代码。
+本项目 AudioEmitter 使用 Timer，并在复用/重置时取消旧任务。后续修复新增 TimerTests 的 12 项真实 Runner 检查，覆盖同步/后续帧 Stop 与 Restart、条件重入、零时长、回调异常、原宿主及无限时长条件完成；不证明所有参数或宿主生命周期分支已验证。最终运行结果见[测试说明](../../Tests/README.md)。
 
 A lightweight coroutine-backed fluent timer for Unity.
 
