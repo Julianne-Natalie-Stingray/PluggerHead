@@ -195,6 +195,9 @@ public static class MainMenuIntegrationChecks
             "A fresh gameplay scene must have a hidden next-level prompt.");
         Scene completedScene = nextScreen.gameObject.scene;
         environment = EnvironmentFacade.ForScene(completedScene);
+        // Use fixture voltages for completion UI; authored level balance can change independently.
+        typeof(EnvironmentFacade).GetField("initialVoltage", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(environment, 220f);
+        typeof(EnvironmentFacade).GetField("targetVoltage", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(environment, 220f);
         PlayerInteraction actor = UnityEngine.Object.FindObjectOfType<PlayerInteraction>();
         foreach (Wire wire in UnityEngine.Object.FindObjectsOfType<Wire>())
         {

@@ -332,6 +332,9 @@ public static class TilemapIntegrationChecks
             environment.SetActive(false);
             Environment = environment.AddComponent<EnvironmentFacade>();
             Set(Environment, "routingTilemap", Map);
+            // Explicit fixture voltages keep wiring checks independent of level tuning.
+            Set(Environment, "initialVoltage", 220f);
+            Set(Environment, "targetVoltage", 220f);
             environment.SetActive(true);
             Environment.enabled = false;
             Require(Environment.HeldWire == Wire, "The real outlet must initialize the fixture's held wire.");

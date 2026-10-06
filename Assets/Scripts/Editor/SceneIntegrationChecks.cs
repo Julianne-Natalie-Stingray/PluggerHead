@@ -252,6 +252,14 @@ public static class SceneIntegrationChecks
         {
             if (scene.path == GameplayScenePath)
             {
+                foreach (EnvironmentFacade environment in FindComponents<EnvironmentFacade>(scene))
+                {
+                    // Completion UI checks own this loaded copy and do not validate production voltage tuning.
+                    typeof(EnvironmentFacade).GetField("initialVoltage", BindingFlags.Instance | BindingFlags.NonPublic)
+                        .SetValue(environment, 220f);
+                    typeof(EnvironmentFacade).GetField("targetVoltage", BindingFlags.Instance | BindingFlags.NonPublic)
+                        .SetValue(environment, 220f);
+                }
                 foreach (Wire wire in FindComponents<Wire>(scene))
                 {
                     typeof(Wire).GetField("maxLength", BindingFlags.Instance | BindingFlags.NonPublic)

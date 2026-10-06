@@ -67,6 +67,9 @@ public static class EnvironmentIntegrationChecks
                 .AddComponent<EnvironmentFacade>();
             Set(environment, "playerTransform", player.transform);
             Set(environment, "routingTilemap", map);
+            // Explicit fixture voltages keep wiring checks independent of level tuning.
+            Set(environment, "initialVoltage", 220f);
+            Set(environment, "targetVoltage", 220f);
             environment.RefreshNodes();
             Invoke(environment, "BeginRun");
             Check(environment.HeldWire == live && live.IsHeld && !environment.IsCircuitClosed,

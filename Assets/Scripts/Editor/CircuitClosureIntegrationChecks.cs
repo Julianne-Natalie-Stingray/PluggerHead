@@ -335,6 +335,9 @@ public static class CircuitClosureIntegrationChecks
                 Set(Outlet, "wires", new List<Wire> { First, Second });
                 Environment = Create("Environment", 0, 0).AddComponent<EnvironmentFacade>();
                 Set(Environment, "routingTilemap", map);
+                // Explicit fixture voltages keep wiring checks independent of level tuning.
+                Set(Environment, "initialVoltage", 220f);
+                Set(Environment, "targetVoltage", 220f);
                 Set(Environment, "playerTransform", Player.transform);
             }
             catch
