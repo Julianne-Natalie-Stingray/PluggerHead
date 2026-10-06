@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 
 /// <summary>
-/// Tracks which pooled emitters are currently playing, in start order.
+/// Tracks registered emitters in registration order; it does not verify AudioSource playback state.
 /// Subsystem: Core (Audio).
 /// Where it lives: nowhere. It is a plain object owned by AudioManager and never attached to a GameObject.
 /// Responsibility: registration, removal, per-AudioId counting, and answering which registration is the
@@ -12,12 +12,10 @@ using System.Collections.Generic;
 /// Ordering: registrations carry a monotonically increasing sequence number. A sequence is used instead of
 /// a timestamp because Time.time repeats within one frame, which would make two sounds started in the same
 /// frame indistinguishable, while a sequence is always strictly ordered.
-/// Removal is deferred: Unregister only marks a slot empty, and compaction happens on the next Register.
-/// This is deliberate. Stopping a sound raises its completion callback, and that callback unregisters the
-/// sound, so a preemption pass would otherwise mutate this list while iterating it. Deferring the removal
-/// makes that safe without copying the list on every pass.
+/// Removal is deferred: Unregister marks the first matching slot empty. Register compacts first;
+/// callers can also invoke Compact explicitly. Duplicate registrations are not rejected.
 /// Paradigms: none. It is a bookkeeping helper, not a service, and is not a singleton.
-/// 跟踪当前正在播放的池化 emitter, 按开始顺序排列.
+/// 按注册顺序跟踪 emitter, 不检查 AudioSource 是否真正播放.
 /// Subsystem 归属: Core (Audio).
 /// 存在位置: 无. 它是普通对象, 归 AudioManager 所有, 不贴在任何 GameObject 上.
 /// 职能: 注册, 移除, 按 AudioId 计数, 以及回答"哪个注册项最旧". 这就是它的全部工作.
@@ -26,9 +24,8 @@ using System.Collections.Generic;
 /// 生命周期: 由 AudioManager 在 InitializeInternal 中创建, 与管理器同寿命.
 /// 顺序语义: 注册项携带单调递增的序号. 用序号而不是时间戳, 是因为 Time.time 在同一帧内会重复,
 /// 使同帧启动的两个声音无法区分, 而序号永远严格有序.
-/// 移除是延迟的: Unregister 只把槽位标记为空, 压实发生在下一次 Register.
-/// 这是刻意的. 停止一个声音会触发它的完成回调, 而该回调会注销这个声音,
-/// 否则抢占遍历就会在迭代过程中改动本列表. 延迟移除使这一过程无需每次遍历都复制列表即可安全.
+/// 移除是延迟的: Unregister 只把首个匹配槽位置空, Register 前压实, 也可显式调用 Compact.
+/// 不拒绝同一 emitter 的重复注册.
 /// 使用范式: 无. 它是记账助手, 不是服务, 也不是单例.
 /// </summary>
 public sealed class AudioRegistry
@@ -56,10 +53,10 @@ public sealed class AudioRegistry
     private long nextSequence;
 
     /// <summary>
-    /// Single entry point for recording that an emitter has started playing.
+    /// Record an emitter; AudioManager calls this before Configure and Play.
     /// Implementation approach: compacts deferred removals first, then appends the emitter together with
     /// the next sequence number, which is what establishes start order.
-    /// 记录某个 emitter 已开始播放的单一入口.
+    /// 注册 emitter; AudioManager 在 Configure 与 Play 之前调用.
     /// 实现思路: 先压实延迟移除, 再把 emitter 与下一个序号一起追加 —— 序号即为开始顺序的依据.
     /// </summary>
     public void Register(AudioEmitter emitter)
@@ -76,11 +73,8 @@ public sealed class AudioRegistry
     }
 
     /// <summary>
-    /// Single entry point for marking an emitter's playback as over.
-    /// Implementation approach: marks the slot empty instead of removing it, so a preemption pass that is
-    /// currently iterating this registry cannot observe a mutated list.
-    /// 把某个 emitter 的播放标记为结束的单一入口.
-    /// 实现思路: 只把槽位置空而不移除, 使正在迭代本注册表的抢占流程不会遇到被改动的列表.
+    /// Mark the first matching registration empty without shifting later slots or stopping playback.
+    /// 将首个匹配注册项置空, 不移动后续槽位, 也不停止音源.
     /// </summary>
     public void Unregister(AudioEmitter emitter)
     {

@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Fluent, single-use configuration token for one playback request.
+/// Fluent value-type configuration for a playback request; consumption is local to each struct copy.
 /// Subsystem: Core (Audio).
 /// Where it lives: nowhere. It is a value created on demand by AudioManager.CreateBuilder and discarded
 /// after Play.
@@ -11,10 +11,9 @@ using UnityEngine;
 /// AudioClipData, which is their single source of truth; a request that needs the same clip to loop in one
 /// place and not in another is expressed as two AudioClipData assets, not as a builder switch.
 /// It also does not own the instance limits or preemption, which are AudioManager's policy.
-/// Lifetime: one instance per request. It is a struct, so the chain returns a copy and no request can leak
-/// its parameters into the next one; that also removes the reference implementation's cached-builder trap,
-/// where a stale position or pitch silently applied to every later playback.
-/// After Play the token is spent: any further With call is ignored and Play refuses to start a second sound.
+/// Lifetime: create a fresh builder for each request. With methods mutate their receiver and return a copy.
+/// Play with an existing manager consumes only its receiver, even if the manager refuses the request.
+/// Earlier copies remain usable; chained Play can consume a temporary instead of the original variable.
 /// Paradigms: Fluent API over a value type.
 /// 单次播放请求的链式配置凭证.
 /// Subsystem 归属: Core (Audio).
@@ -24,9 +23,8 @@ using UnityEngine;
 /// 不负责: clip, mixerGroup, 以及该 clip 是否循环. 这些是 AudioClipData 的静态特征, 以它为唯一真相来源;
 /// 若同一 clip 需要在某处循环而另一处不循环, 正确做法是建两个 AudioClipData 资产, 而不是给 Builder 加开关.
 /// 也不负责实例上限与抢占, 那属于 AudioManager 的策略.
-/// 生命周期: 每次请求一个实例. 它是 struct, 因此链式调用返回的是副本, 任何请求的参数都无法泄漏到下一个;
-/// 这也消除了参考实现里缓存 Builder 的陷阱 —— 过期的位置或音高会静默应用到之后每一次播放.
-/// Play 之后该凭证即用尽: 再调用任何 With 都被忽略, Play 也拒绝启动第二个声音.
+/// 生命周期: 每次请求新建 Builder. With 修改接收者并返回副本; 有有效 manager 时 Play 消费当前副本,
+/// 即使请求被管理器拒绝也如此. 先前的副本仍可使用, 链式 Play 可能只消费临时值而非原变量.
 /// 使用范式: 值类型上的 Fluent API.
 /// </summary>
 public struct AudioBuilder
@@ -91,7 +89,9 @@ public struct AudioBuilder
     /// <summary>
     /// Add a small random offset to the pitch of this request, for clips that would otherwise sound
     /// mechanical when repeated.
+    /// Samples immediately, adding to the current override or 1 (not the clip's default pitch).
     /// 为本次请求的音高加上小幅随机偏移, 用于避免重复播放时听感机械.
+    /// 调用时立即抽样, 加到当前覆盖值或 1 上, 并非加到 clip 的默认音高上.
     /// </summary>
     public AudioBuilder WithRandomPitch(float min = -0.05f, float max = 0.05f)
     {
@@ -108,10 +108,10 @@ public struct AudioBuilder
     /// Place this request at an explicit world position.
     /// Implementation approach: records the point and leaves following untouched. Position and follow are
     /// exclusive in practice -- a follow target drives the position every frame, so passing both lets the
-    /// target win -- and a request that passes neither keeps the emitter at AudioRoot.
+    /// target win -- and a request that passes neither keeps the emitter at its current position.
     /// 把本次请求放在指定的世界坐标.
     /// 实现思路: 记录该点, 不触碰跟随状态. 位置与跟随在实践中互斥 —— 跟随目标每帧驱动位置, 因此两者都传时跟随胜出 ——
-    /// 两者都不传时 emitter 停在 AudioRoot.
+    /// 两者都不传时 emitter 使用当前坐标; 正常归还路径会把它复位到 AudioRoot.
     /// </summary>
     public AudioBuilder WithPosition(Vector3 position)
     {
@@ -170,11 +170,13 @@ public struct AudioBuilder
     /// playing is kept, whereas this one decides whether a request arriving during a freeze is served at all.
     /// It exists for requests that must be refused during a freeze, such as sounds driven by gameplay that is
     /// not supposed to be running.
+    /// Frozen entry also requires an effective SurviveFreeze value of true.
     /// 仅对本次请求覆盖"游戏冻结期间该请求是否被受理".
     /// 实现思路: 记录一个可空覆盖, 由 AudioManager 在预定 emitter 之前查询.
     /// 这与 WithSurviveFreeze 是不同的问题: 后者决定已在播放的音是否被保留,
     /// 而本方法决定冻结期间到达的请求是否被服务. 它存在的意义是让"冻结期间必须被拒绝"的请求得以表达,
     /// 例如由本不该运行的玩法所驱动的音效.
+    /// 冻结期进入还要求有效的 SurviveFreeze 为 true.
     /// </summary>
     public AudioBuilder WithAllowWhileFrozen(bool allow)
     {

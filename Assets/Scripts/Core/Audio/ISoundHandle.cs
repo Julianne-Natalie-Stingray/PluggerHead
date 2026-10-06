@@ -20,33 +20,35 @@ public interface ISoundHandle
     AudioId AudioId { get; }
 
     /// <summary>
-    /// True while this playback is still running. Returns false once the handle is invalidated,
-    /// and never reports the state of a later playback that reused the same pooled emitter.
-    /// 本次播放仍在进行时为真. 句柄失效后返回 false, 且永不会误报复用同一池化 emitter 的后一次播放.
+    /// Reads the source's playing state while this handle is valid; false after invalidation.
+    /// False alone does not prove the completion callback has already run.
+    /// 句柄有效时读取音源播放状态, 失效后为 false; false 本身不证明完成回调已经执行.
     /// </summary>
     bool IsPlaying { get; }
 
     /// <summary>
-    /// True when the playback ended by reaching the end of the clip, false when it was interrupted.
+    /// True when the emitter classified completion as natural, false when it was interrupted.
+    /// Natural completion is detected from a stopped source, not from proof that the clip reached its end.
     /// Interruptions are an explicit Stop, a preemption by the instance limits, or the loop policy
     /// applied when the followed target was destroyed.
-    /// 播放自然到达 clip 末尾结束时为真; 被打断时为假.
+    /// emitter 将结束归类为自然完成时为真; 被打断时为假. 检测依据是音源停止, 不证明已播放到 clip 末尾.
     /// 打断包括显式 Stop, 被实例上限抢占, 以及被跟随目标销毁时应用的循环策略.
     /// </summary>
     bool IsFinished { get; }
 
     /// <summary>
-    /// Raised once, when this playback ends for any reason. The handle is already invalid when it fires.
-    /// 本次播放因任何原因结束时触发一次. 触发时句柄已失效.
+    /// Raised once on invalidation. A graceful Stop invalidates before the audible fade has ended.
+    /// External emitter destruction does not currently guarantee this notification.
+    /// 句柄失效时触发一次; 优雅停止会在实际淡出结束前通知. 外部销毁 emitter 不保证触发此事件.
     /// </summary>
     event System.Action<ISoundHandle> Finished;
 
     /// <summary>
     /// Stop this playback early. Idempotent: stopping an already ended handle does nothing and returns false.
-    /// When the clip declared a fade-out, the sound ramps down before it ends, and this handle is invalidated
+    /// When this playback's effective FadeOut is positive, the sound ramps down and this handle is invalidated
     /// immediately either way: IsPlaying reports false as soon as this call returns.
     /// 提前停止本次播放. 幂等: 对已结束的句柄再次调用不产生副作用并返回 false.
-    /// 若该 clip 声明了淡出, 声音会先降音再结束; 两种情况都立即让本句柄失效 —— 本调用返回后 IsPlaying 即为 false.
+    /// 若本次播放的有效 FadeOut 为正, 声音会先降音再结束; 两种情况都立即使句柄失效, 返回后 IsPlaying 为 false.
     /// </summary>
     bool Stop();
 

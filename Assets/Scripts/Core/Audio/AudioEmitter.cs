@@ -10,7 +10,8 @@ using System;
 /// the end of a playback exactly once so the pool can take the emitter back.
 /// Does NOT own: which clip plays next, the decision to play at all, the instance limits, preemption, which
 /// Transform to follow (AudioBuilder decides that), or the registry.
-/// Lifetime: created by the pool, which is the only thing that destroys it. One instance serves many
+/// Lifetime: normally created by the pool; external or parent destruction can also destroy it.
+/// OnDestroy cancels its timer but does not notify completion. One instance serves many
 /// playbacks, so Configure establishes defaults and the request overrides them before Play. The emitter is inert
 /// on the frame it is returned.
 /// Completion model: Play arms a Timer that completes as soon as the source stops playing. That timer is the
@@ -18,7 +19,7 @@ using System;
 /// therefore funnel through one completion signal.
 /// Ramp model: a playback may fade in from silence, and it may fade out either at the tail of a non-looping
 /// clip or when it is stopped gracefully. Ramps run on unscaled time and multiply the playback volume rather
-/// than replacing it. They are opt-in through AudioClipData: a duration of 0 reproduces the original hard
+/// than replacing it. They are configured through AudioClipData or a builder override: 0 reproduces the hard
 /// start and hard cut exactly. Preemption never ramps, because it must free its pool slot in the same frame.
 /// Paradigms: none. It is a pooled component driven by AudioManager.
 /// 单个池化的音频声部. 它播放一个 clip 并报告该次播放结束.
@@ -28,12 +29,13 @@ using System;
 /// 使自身世界坐标与 Builder 传入的 Transform 同步, 并且只报告一次播放结束, 以便池收回该 emitter.
 /// 不负责: 下一个播放什么 clip, 是否播放, 实例上限, 抢占, 跟随哪个 Transform(由 AudioBuilder 决定),
 /// 以及注册表.
-/// 生命周期: 由池创建, 也只有池会销毁它. 一个实例服务多次播放,
+/// 生命周期: 正常由池创建, 外部或父级销毁也会销毁它; OnDestroy 只取消 Timer, 不发送完成通知.
+/// 一个实例服务多次播放,
 /// 因此每次由 Configure 确立默认值, 再由请求覆盖; 归还的那一帧它是惰性的.
 /// 结束检测: Play 装载一个 Timer, 在 source 停止时报告自然结束;
 /// 句柄请求优雅停止, 抢占则立即停止. 三条路径汇入同一个结束信号.
 /// 渐变模型: 一次播放可以从静音淡入; 也可以在非循环 clip 的尾部淡出, 或被优雅停止时淡出.
-/// 渐变走 unscaled time, 且是**乘在**播放音量上的, 而不是替换它. 渐变由 AudioClipData 选配:
+/// 渐变走 unscaled time, 且是**乘在**播放音量上的, 而不是替换它. 渐变由 AudioClipData 或 Builder 覆盖配置:
 /// 时长为 0 即精确复现原先的硬起与硬切. 抢占永不走渐变, 因为它必须在同一帧释放池槽位.
 /// 使用范式: 无. 它是由 AudioManager 驱动的池化组件.
 /// </summary>
@@ -313,15 +315,15 @@ public class AudioEmitter : MonoBehaviour
     }
 
     /// <summary>
-    /// Single entry point for ending a playback, early or naturally.
+    /// Single entry point for immediately interrupting a playback.
     /// Implementation approach: idempotent, so the callers that race in practice -- a handle's Stop and a
-    /// preemption -- cannot report one playback twice. Guarding on isPlaying alone is not enough, because
+    /// preemption -- cannot report one playback twice. Guarding on AudioSource.isPlaying is not enough, because
     /// the source may already have stopped while the completion callback is still pending.
     /// This is always a hard cut: RequestStop is the graceful variant, and preemption deliberately uses this
     /// one so that it releases its pool slot in the same frame.
-    /// 结束一次播放的单一入口, 无论提前还是自然结束.
+    /// 立即打断一次播放的单一入口, 结束原因记为非自然完成.
     /// 实现思路: 幂等, 使实际会竞争的两个调用方(句柄的 Stop 与抢占)无法把同一次播放报告两次.
-    /// 只用 isPlaying 守卫是不够的, 因为完成回调尚未执行时 source 可能已经自行停止.
+    /// 使用内部 isPlaying 守卫, 不只依赖 AudioSource.isPlaying, 因为回调尚未执行时音源可能已自行停止.
     /// 本方法永远是硬切: 优雅的变体是 RequestStop, 而抢占刻意使用本方法, 以便在同一帧释放池槽位.
     /// </summary>
     public void Stop()
@@ -338,12 +340,12 @@ public class AudioEmitter : MonoBehaviour
 
     /// <summary>
     /// Single entry point for ending a playback gracefully.
-    /// Implementation approach: a clip that declared a fade-out ramps down first, and Stop follows from
+    /// Implementation approach: a playback with positive effective FadeOut ramps down first, and Stop follows from
     /// AdvanceFade; otherwise this is exactly Stop. The emitter stays checked out until the ramp ends, which
-    /// is the price of hearing the tail, and only clips that ask for a fade-out ever pay it.
+    /// is the price of hearing the tail. The effective duration can come from the clip or the builder.
     /// 优雅结束一次播放的单一入口.
-    /// 实现思路: 声明了淡出的 clip 先跑渐变, 再由 AdvanceFade 调用 Stop; 否则与 Stop 完全等价.
-    /// 渐变结束前 emitter 一直处于被占用状态, 这是听见尾音的代价, 且只有要求淡出的 clip 才会付.
+    /// 实现思路: 有效 FadeOut 为正时先跑渐变, 再由 AdvanceFade 调用 Stop; 否则与 Stop 完全等价.
+    /// 渐变结束前 emitter 仍占用池槽; 有效时长可来自 clip 或 Builder 覆盖.
     /// </summary>
     public void RequestStop()
     {
@@ -365,13 +367,11 @@ public class AudioEmitter : MonoBehaviour
     /// Single entry point for placing this emitter at an explicit point.
     /// Implementation approach: writes only the world position and leaves following untouched, so the caller
     /// may pass a position, a follow target, or neither. With none of them the emitter stays where the pool
-    /// left it, which is AudioRoot. A position is what makes a spatial clip audible from somewhere other than
-    /// the listener, so a clip with spatialBlend above zero is inert unless this or SetFollowTarget is used.
+    /// left it. Spatial playback still uses that Transform position without either call.
+    /// The manager's normal release path resets the local position to zero under AudioRoot.
     /// 把本 emitter 放到指定点的单一入口.
     /// 实现思路: 只写世界坐标, 不触碰跟随状态, 因此调用方可以只给位置, 只给跟随目标, 或两者都不给.
-    /// 两者都不给时 emitter 停在池留下的位置, 即 AudioRoot.
-    /// 位置正是让空间化 clip 从非听者位置发声的前提, 所以 spatialBlend 大于零的 clip
-    /// 若不使用本方法或 SetFollowTarget, 其空间化是无效的.
+    /// 两者都不给时仍按当前 Transform 坐标空间化; 管理器的正常归还路径会复位到 AudioRoot 的局部零点.
     /// </summary>
     public void SetPosition(Vector3 position)
     {
@@ -410,10 +410,11 @@ public class AudioEmitter : MonoBehaviour
     /// <summary>
     /// Single entry point for returning a pooled emitter to its inert state.
     /// Implementation approach: clears the per-playback data, the follow target and the ramp, then restores the
-    /// default volume and pitch, so a later playback cannot inherit anything from the previous one.
+    /// default volume and pitch. IsFinished is retained until Play; events, spatial settings, mixer and
+    /// Transform are not reset here. Normal manager reuse also repositions and calls Configure.
     /// 把池化 emitter 恢复到惰性状态的单一入口.
     /// 实现思路: 清空单次播放数据, 跟随目标与渐变状态, 再恢复默认音量与音高,
-    /// 使之后的播放不会继承上一次的任何东西.
+    /// IsFinished 保留至 Play; 此处不重置事件、空间设置、混音组或 Transform, 正常复用还需管理器重定位和 Configure.
     /// </summary>
     public void ResetEmitter()
     {
@@ -451,10 +452,10 @@ public class AudioEmitter : MonoBehaviour
 
     /// <summary>
     /// Single entry point for latching the end of a playback.
-    /// Implementation approach: clears the running flag, records whether the clip reached its end, and raises
+    /// Implementation approach: clears the running flag, records the supplied completion classification, and raises
     /// the public callback exactly once, so the pool release path runs once per playback.
     /// 锁定一次播放结束的单一入口.
-    /// 实现思路: 清除运行标志, 记录是否为自然播完, 并只触发一次公开回调,
+    /// 实现思路: 清除运行标志, 记录传入的结束分类, 并触发公开回调,
     /// 使池的归还路径每次播放只执行一次.
     /// </summary>
     private void Complete(bool finishedNaturally)
