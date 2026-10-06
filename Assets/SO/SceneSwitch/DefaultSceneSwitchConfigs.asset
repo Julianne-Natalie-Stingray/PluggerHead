@@ -13,11 +13,9 @@ MonoBehaviour:
   m_Name: DefaultSceneSwitchConfigs
   m_EditorClassIdentifier:
   scenes:
-  - id: 0
-    sceneName: JillTestScene
   - id: 1
-    sceneName: JillTestSceneSwitch
+    sceneName: SceneSwitchTarget
   - id: 3
-    sceneName: HeXieTestScene
+    sceneName: GameplayIntegration
   - id: 2
-    sceneName: JillTestWireScene
+    sceneName: CircuitDiagnostics

@@ -5,13 +5,18 @@ namespace PluggerHead.Tests
     [Category("Integration")]
     public sealed class SceneAssetTests
     {
-        [TestCase("Assets/Scenes/Tests/JillTestScene.unity")]
-        [TestCase("Assets/Scenes/Tests/JillTestSceneSwitch.unity")]
-        [TestCase("Assets/Scenes/Tests/HeXieTestScene.unity")]
-        [TestCase("Assets/Scenes/Tests/JillTestWireScene.unity")]
+        [TestCase("Assets/Scenes/Tests/SceneSwitchTarget.unity")]
+        [TestCase("Assets/Scenes/Tests/GameplayIntegration.unity")]
+        [TestCase("Assets/Scenes/Tests/CircuitDiagnostics.unity")]
         public void BuildScene_HasValidScriptsPrefabsAndWireMaterials(string scenePath)
         {
             IntegrationCheckBridge.Invoke("SceneIntegrationChecks", "CheckSceneAsset", scenePath);
+        }
+
+        [Test]
+        public void SceneRegistry_MapsEveryFunctionalSceneToAnEnabledBuildScene()
+        {
+            IntegrationCheckBridge.Invoke("SceneIntegrationChecks", "CheckSceneRegistry");
         }
     }
 }

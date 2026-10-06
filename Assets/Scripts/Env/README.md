@@ -26,7 +26,7 @@
 
 ## 拐角自动绕线
 
-`Prefabs/Env/Corner.prefab` 是场景节点，包含 Trigger `CircleCollider2D`、`Corner` 行为和 Anchor prefab 引用。在 Ground 的凸角处放置实例，圆心就是挂线点；`HeXieTestScene` 已在 Ground 四角放置，世界检测半径为 0.15。父物体非等比缩放时应补偿 Corner 的局部缩放，保持世界缩放 `(1,1,1)`。
+`Prefabs/Env/Corner.prefab` 是场景节点，包含 Trigger `CircleCollider2D`、`Corner` 行为和 Anchor prefab 引用。在 Ground 的凸角处放置实例，圆心就是挂线点；`GameplayIntegration` 已在 Ground 四角放置，世界检测半径为 0.15。父物体非等比缩放时应补偿 Corner 的局部缩放，保持世界缩放 `(1,1,1)`。
 
 `Wire` 的 Trigger `EdgeCollider2D` 与 LineRenderer 共用折线路径，世界坐标转换为局部碰撞体坐标；仅在点变化时重建形状，重合的相邻点合并，零长度线禁用碰撞体。无需 Rigidbody2D，不产生实体碰撞。Player 的接地查询排除 Trigger，交互扫描排除线碰撞体，防止沿电线远距离操作父级插座。
 
@@ -36,7 +36,7 @@ Environment 在 LateUpdate 同步线碰撞体后，由 Corner 查询真实 Colli
 
 同一 Corner 为不同 Wire 分别保留 Anchor；插线、换线不清除旧线的折点。重开、禁用或销毁 Corner 会清理它自己的自动 Anchor。自动 Anchor 不参与 J/K 收回；手动 Anchor 行为保持原有契约。场景之间的 Corner 与 Wire 不混用。
 
-验证覆盖 7 个 Corner PlayMode 用例，以及真实 `HeXieTestScene` 玩家绕过左上角再反向返回的流程。[挂线运行截图](../../Docs/Development/CornerHook.png)。碰撞体会增加物理形状更新与查询成本；当前验证针对本项目两根线和四个场景 Corner，未做大量长折线的性能压测。
+验证覆盖 7 个 Corner PlayMode 用例，以及真实 `GameplayIntegration` 玩家绕过左上角再反向返回的流程。[挂线运行截图](../../Docs/Development/CornerHook.png)。碰撞体会增加物理形状更新与查询成本；当前验证针对本项目两根线和四个场景 Corner，未做大量长折线的性能压测。
 
 ## 地面极性
 
@@ -48,7 +48,7 @@ Environment 在 LateUpdate 同步线碰撞体后，由 Corner 查询真实 Colli
 
 在 Unity Test Runner 运行 `PluggerHead.EditModeTests` 和 `PluggerHead.PlayModeTests` 可自动复用下方检查及实际场景流程；MCP 调用、用例范围和隔离规则见 `Assets/Tests/README.md`。
 
-- `Scenes/Tests/HeXieTestScene.unity`：真实 Player、输入、背包与回路集成场景，用于实际移动及 J/K 操作冒烟测试。
-- `Scenes/Tests/JillTestWireScene.unity`：保留独立回路诊断场景及模拟玩家，不是完整 Player 操作场景；可用 EnvironmentFacade 的调试按钮驱动交互和验收。
+- `Scenes/Tests/GameplayIntegration.unity`：真实 Player、输入、背包与回路集成场景，用于实际移动及 J/K 操作冒烟测试。
+- `Scenes/Tests/CircuitDiagnostics.unity`：保留独立回路诊断场景及模拟玩家，不是完整 Player 操作场景；可用 EnvironmentFacade 的调试按钮驱动交互和验收。
 - Edit Mode 执行菜单 **Tools > PluggerHead > Verify Player and Environment**，或调用 `EnvironmentIntegrationChecks.Run()`。验证在独立未保存的预览场景中运行真实组件，覆盖 Anchor 放置/收回、J 最近目标选择、操作限制、绕线、阻力、极性拒绝、换线、通关及重开，并清理测试对象；包含跨场景隔离和无效 Actor 检查。这不替代 Play Mode 场景冒烟测试。
 - 关闭同项目 Editor 后可批处理运行：`Unity.exe -batchmode -projectPath <项目根目录> -executeMethod EnvironmentIntegrationChecks.RunBatch -quit -logFile <日志路径>`。使用项目指定 Unity 2022.3.43f1c1，并检查退出码及日志中的 PASS。

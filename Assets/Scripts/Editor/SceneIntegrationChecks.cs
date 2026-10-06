@@ -11,7 +11,7 @@ using UnityEngine.SceneManagement;
 /// <summary>Reusable checks for the authored integration scenes; never saves a scene.</summary>
 public static class SceneIntegrationChecks
 {
-    private const string GameplayScenePath = "Assets/Scenes/Tests/HeXieTestScene.unity";
+    private const string GameplayScenePath = "Assets/Scenes/Tests/GameplayIntegration.unity";
     private const float TimeoutSeconds = 15f;
     private static Scene ownedScene;
     private static Scene previousScene;
@@ -19,6 +19,32 @@ public static class SceneIntegrationChecks
     private static CoreFacade ownedCore;
     private static AsyncOperation pendingLoad;
     private static bool gameplayStarted;
+
+    public static void CheckSceneRegistry()
+    {
+        SceneSwitchConfigs configs = AssetDatabase.LoadAssetAtPath<SceneSwitchConfigs>(
+            "Assets/SO/SceneSwitch/DefaultSceneSwitchConfigs.asset");
+        Require(configs != null, "Default scene switch configuration must exist.");
+        string[] scenePaths = AssetDatabase.FindAssets("t:Scene", new[] { "Assets/Scenes" })
+            .Select(AssetDatabase.GUIDToAssetPath).ToArray();
+        SceneId[] ids = (SceneId[])Enum.GetValues(typeof(SceneId));
+        Require(scenePaths.Length == ids.Length, "Every project scene must have a functional SceneId.");
+        SerializedProperty entries = new SerializedObject(configs).FindProperty("scenes");
+        Require(entries.arraySize == ids.Length, "Scene configuration must contain exactly one entry per SceneId.");
+        HashSet<string> mappedPaths = new HashSet<string>();
+        foreach (SceneId id in ids)
+        {
+            Require(configs.TryGetSceneName(id, out string name), $"Missing mapping for {id}.");
+            string path = $"Assets/Scenes/Tests/{name}.unity";
+            Require(mappedPaths.Add(path) && scenePaths.Contains(path), $"Invalid or duplicate scene mapping: {id}.");
+            Require(EditorBuildSettings.scenes.Count(scene => scene.enabled && scene.path == path) == 1,
+                $"Build Settings must enable {path} exactly once.");
+        }
+        Require(EditorBuildSettings.scenes.All(scene => AssetDatabase.LoadAssetAtPath<SceneAsset>(scene.path) != null),
+            "Build Settings must not reference deleted scenes.");
+        Require(EditorBuildSettings.scenes.First(scene => scene.enabled).path == GameplayScenePath,
+            "The build must start in the playable integration scene.");
+    }
 
     public static void CheckSceneAsset(string path)
     {
@@ -53,6 +79,20 @@ public static class SceneIntegrationChecks
                         renderer.sharedMaterial.shader != null && renderer.sharedMaterial.shader.isSupported,
                         $"{path}: {wire.name} needs a supported wire material.");
                 }
+            }
+
+            Require(FindComponents<Camera>(scene).Count == 1 && FindComponents<AudioListener>(scene).Count == 1,
+                $"{path}: each scene must provide one camera and listener.");
+            bool switchTarget = path.EndsWith("/SceneSwitchTarget.unity", StringComparison.Ordinal);
+            Require(FindComponents<CoreFacade>(scene).Count == (switchTarget ? 0 : 1),
+                $"{path}: content scenes need one Core; the switch target must rely on the persistent Core.");
+            if (path.EndsWith("/CircuitDiagnostics.unity", StringComparison.Ordinal))
+            {
+                Require(FindComponents<EnvironmentFacade>(scene).Count == 1 &&
+                    FindComponents<PlayerInteraction>(scene).Count == 0 &&
+                    FindComponents<Transform>(scene).Count(item => item.CompareTag("Player")) == 1 &&
+                    FindComponents<PowerSocket>(scene).Any(socket => socket.StartingWire != null && socket.Wires.Count >= 2),
+                    "Circuit diagnostics must retain its mock player and configured circuit, independent of real Player controls.");
             }
 
             if (path == GameplayScenePath)

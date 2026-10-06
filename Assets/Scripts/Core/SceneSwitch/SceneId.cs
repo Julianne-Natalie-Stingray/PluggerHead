@@ -23,18 +23,9 @@
 /// </summary>
 public enum SceneId
 {
-#region Jill
-
-    JillTestScene,
-    JillTestSceneSwitch,
-    JillTestWireScene,
-
-#endregion
-
-#region HeXie
-
-    HeXieTestScene
-
-#endregion
-
+    // Preserve serialized values when renaming scenes. Retired Core-only scene used 0.
+    // 场景更名保留序列化值；已合并的纯 Core 场景占用过 0，不再复用。
+    SceneSwitchTarget = 1,
+    CircuitDiagnostics = 2,
+    GameplayIntegration = 3
 }

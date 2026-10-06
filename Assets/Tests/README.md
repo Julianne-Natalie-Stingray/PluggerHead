@@ -2,6 +2,20 @@
 
 Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 
+## 功能场景
+
+项目场景均在 `Assets/Scenes/Tests/`，按功能命名，可直接打开；第三方包内的示例场景不纳入此目录与构建列表。
+
+| 场景 | 功能与使用入口 |
+| --- | --- |
+| `GameplayIntegration` | 构建启动场景。真实 Player、地面四角绕线、双线回路、背包及设置 UI；Play 后移动、J 交互/收回、K 放置 Anchor。 |
+| `CircuitDiagnostics` | MockPlayer 与独立电路布局；Play 后用 EnvironmentFacade 调试按钮验证回路，拖动 MockPlayer 检查线端。含完整 Core，可用 AudioManager 的 Test Audio Request 检查音频。 |
+| `SceneSwitchTarget` | 仅保留相机与 AudioListener；从前两者调用 `CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.SceneSwitchTarget)`，确认场景切换完成、Loading 退出且原 Core 存活。单独播放只显示背景。 |
+
+2026-10-06 整理：`HeXieTestScene` → `GameplayIntegration`，`JillTestWireScene` → `CircuitDiagnostics`，`JillTestSceneSwitch` → `SceneSwitchTarget`，三者保留原 GUID。原 `JillTestScene` 仅含相机及同一个 Core prefab，其服务检查职责合并到 `CircuitDiagnostics`，删除重复场景及枚举项。现有 SceneId 的序列化值 1/2/3 保持不变，退役值 0 不复用；构建顺序改为 GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget。
+
+真实 Player 集成与 MockPlayer 电路诊断保持分开，便于区分输入/动画问题和回路问题。Core 继续随内容场景配置并通过 DontDestroyOnLoad 保活，无需额外 Bootstrap 或叠加加载。
+
 ## Unity Test Runner
 
 打开 **Window > General > Test Runner**，分别运行以下程序集；所有用例的 Category 都是 `Integration`。
@@ -9,9 +23,9 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 | 模式 | 程序集 | 用例 | 覆盖 |
 | --- | --- | --- | --- |
 | EditMode | `PluggerHead.EditModeTests` | 1 个 Player/Env 集成用例 | Anchor 不作为道具、无限放置/收回、无线放置、最近目标、绕线、阻力、输入锁、暂停、跨场景隔离、换线、闭环、重开、线长边界及单次死亡通知 |
-| EditMode | `PluggerHead.EditModeTests` | 4 个场景参数用例 | Build Settings、场景加载、丢失脚本/预制体、电线材质、实际 Player 与电路配置 |
+| EditMode | `PluggerHead.EditModeTests` | 3 个场景参数用例＋1 个注册表用例 | 场景枚举/白名单/构建列表一致性、构建入口、场景加载、丢失脚本/预制体、电线材质、实际 Player 与电路配置 |
 | PlayMode | `PluggerHead.PlayModeTests` | 1 个音频生命周期用例 | 原有 19 项断言：默认参数、Builder 覆盖、停止、自然结束、池复用、旧 Timer 隔离、循环及淡出 |
-| PlayMode | `PluggerHead.PlayModeTests` | 1 个实际玩法场景用例 | `HeXieTestScene` 启动、帧推进、K 放置/J 收回 Anchor、绕线渲染、换线、通关一次、重开、超限死亡及单次死亡通知 |
+| PlayMode | `PluggerHead.PlayModeTests` | 1 个实际玩法场景用例 | `GameplayIntegration` 启动、帧推进、K 放置/J 收回 Anchor、绕线渲染、换线、通关一次、重开、超限死亡及单次死亡通知 |
 | PlayMode | `PluggerHead.PlayModeTests` | 4 个地面极性用例 | 真实 2D 支撑接触、双向异极死亡、同极/无线安全、侧墙与天花板排除、Trigger/层过滤、禁用组件、站立换线与输入锁、自动物理帧死亡 |
 | PlayMode | `PluggerHead.PlayModeTests` | 7 个 Corner 用例 | 活动线段进入、方向退绕、高速多角顺序、静止/向外移动、微小位移累积、双线独立 Anchor、重开/禁用清理、真实碰撞体坐标、远程交互排除、自动 LateUpdate 与 Anchor 销毁 |
 
