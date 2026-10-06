@@ -282,14 +282,15 @@ public static class EnvironmentIntegrationChecks
         movement.LockInput();
         Check(!interaction.TryPerformOperation() && !interaction.TryPlaceAnchor(),
             "The manual input lock blocks environment operations and anchor placement", ref checks);
-        movement.UnlockInput();
-        movement.OnDashStarted();
         movement.OnInteractionStarted();
-        movement.OnDashEnded();
+        movement.UnlockInput();
         Check(movement.IsInputLocked && !interaction.TryPerformOperation() && !interaction.TryPlaceAnchor(),
-            "Overlapping animation locks block anchor operations until both animations finish", ref checks);
+            "Interaction animation keeps operations locked after the manual lock is released", ref checks);
+        movement.LockInput();
         movement.OnInteractionEnded();
-        Check(!movement.IsInputLocked, "Finishing the final animation releases input", ref checks);
+        Check(movement.IsInputLocked, "Finishing interaction preserves the manual input lock", ref checks);
+        movement.UnlockInput();
+        Check(!movement.IsInputLocked, "Releasing both lock sources restores input", ref checks);
     }
 
     private static Tilemap AddRoutingMap(Scene scene, Tile tile)

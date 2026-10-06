@@ -33,11 +33,11 @@ Die 首次设置 IsDead、手动锁输入、清空线速度/角速度、关闭�
 
 ## 输入锁与动画
 
-手动锁、冲刺动画锁、交互动画锁为三个独立布尔来源，任一个生效即 IsInputLocked。锁会清除待跳跃请求并停止用输入覆盖速度，但保留当前速度、继续施加阻力；它不是冻结物理，地面与线长危险也不会被免除。禁用 PlayerMove 才会清除水平速度并保留竖直运动。
+手动锁、交互动画锁为两个独立布尔来源，任一个生效即 IsInputLocked。锁会清除待跳跃请求并停止用输入覆盖速度，但保留当前速度、继续施加阻力；它不是冻结物理，地面与线长危险也不会被免除。禁用 PlayerMove 才会清除水平速度并保留竖直运动。
 
-Animator 需要 bool 参数 tryMoving、trigger 参数 Dash/Interact；动作状态标签分别为 PlayerDash、PlayerInteract。Callbacks 在 OnEnable、FixedUpdate 和 LateUpdate 同步，聚合当前及过渡目标状态；基础层始终检查，其他层仅权重>0 时检查。先发送进入再发送退出，避免动作交接的短暂解锁；禁用回调组件释放它跟踪的动画锁，不清除手动锁。Animator 引用仅在为空/已销毁时重新查询，替换控制器对象布局后应重新确认绑定。
+Animator 需要 bool 参数 tryMoving、trigger 参数 Interact；交互状态标签为 PlayerInteract。Callbacks 在 OnEnable、FixedUpdate 和 LateUpdate 同步，聚合当前及过渡目标状态；基础层始终检查，其他层仅权重>0 时检查。聚合后仅在交互状态变化时通知输入锁；禁用回调组件释放它跟踪的动画锁，不清除手动锁。Animator 引用仅在为空/已销毁时重新查询，替换控制器对象布局后应重新确认绑定。
 
-TryStartDashAnimation 只发 Dash trigger，未发现生产调用方、对应按键或冲刺位移实现，因此当前不宣称存在完整冲刺玩法。TryStartInteractionAnimation 在 J 操作被认为成功后请求；操作本身先执行，动画请求失败不会回滚操作。K 放置不主动请求交互动画。
+TryStartInteractionAnimation 在 J 操作被认为成功后请求；操作本身先执行，动画请求失败不会回滚操作。K 放置不主动请求交互动画。
 
 ## J/K 操作的判定
 
@@ -67,6 +67,6 @@ UI 不提供拖放/点击放下或堆叠数字。minimumSlots 的 Min(1) 属性�
 
 逐一检查五个脚本及 meta，再核对输入源、Env 接口、GameplayIntegration 组件与动画资源、现有测试。原脚本注释与正常路径基本一致，本轮只新增总文档和 meta，未改代码或资源行为。
 
-EnvironmentIntegrationChecks 覆盖最近 Anchor、J/K、操作锁、环境隔离和超长死亡；SceneGameplayTests 在真实场景走 Anchor/回路流程及超长死亡；GroundPolarityTests 验证真实接触、极性组合、墙顶/Trigger/排除层、站立换线和锁定时死亡。场景流程会等待交互动画解锁，但不能证明所有动画进入/过渡/多层时序正确。没有发现真实 A/D/Space 输入、跳跃、完整通用背包/UI、冲刺位移及异常订阅者的专项测试。
+EnvironmentIntegrationChecks 覆盖最近 Anchor、J/K、操作锁、环境隔离和超长死亡；SceneGameplayTests 在真实场景走 Anchor/回路流程及超长死亡；GroundPolarityTests 验证真实接触、极性组合、墙顶/Trigger/排除层、站立换线和锁定时死亡。场景流程会等待交互动画解锁，但不能证明所有动画进入/过渡/多层时序正确。没有发现真实 A/D/Space 输入、跳跃、完整通用背包/UI 及异常订阅者的专项测试。
 
 最近已完成的回归为 EditMode 17/17、PlayMode 27/27（job `1d96f6f716264310af0df0e75726f731`、`21336b3daa794474982d80666cea66c0`），覆盖当时的 Player 与场景代码。该结果不验证上面列出的缺口或其后并行修复；纯文档新增无需重跑 Unity 测试。两位独立审查者复核后已补齐直接背包 API 的操作限制和 Inspector 范围属性边界；文档链接有效，新增 GUID 唯一，未留下文档审查问题。

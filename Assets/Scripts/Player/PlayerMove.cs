@@ -33,14 +33,12 @@ public class PlayerMove : MonoBehaviour
     private InputManager input;
     private Animator animator;
     private static readonly int MovingParameter = Animator.StringToHash("tryMoving");
-    private static readonly int DashParameter = Animator.StringToHash("Dash");
     private static readonly int InteractParameter = Animator.StringToHash("Interact");
-    private bool isDashInputLocked;
     private bool isInteractionInputLocked;
     private bool isManuallyInputLocked;
 
     /// <summary>手动锁或动画锁任一生效时，停止处理移动和跳跃输入。</summary>
-    public bool IsInputLocked => isManuallyInputLocked || isDashInputLocked || isInteractionInputLocked;
+    public bool IsInputLocked => isManuallyInputLocked || isInteractionInputLocked;
 
     /// <summary>
     /// 启动时绑定关卡 Env 的实际阻力查询，也允许调用方覆盖；传入玩家世界坐标，返回由 AddForce 施加的力。
@@ -69,7 +67,7 @@ public class PlayerMove : MonoBehaviour
         Died?.Invoke();
     }
 
-    /// <summary>设置手动输入锁；不会修改冲刺或物理系统施加的速度。</summary>
+    /// <summary>设置手动输入锁；不会修改物理系统施加的速度。</summary>
     public void LockInput(bool locked = true)
     {
         isManuallyInputLocked = locked;
@@ -84,28 +82,16 @@ public class PlayerMove : MonoBehaviour
         LockInput(false);
     }
 
-    /// <summary>请求冲刺动画；冲刺位移由动作实现负责，不在动画回调中重复触发。</summary>
-    public bool TryStartDashAnimation()
-    {
-        return TryTriggerAnimation(DashParameter);
-    }
-
     /// <summary>在收回、拾取或交互请求成功后调用。</summary>
     public bool TryStartInteractionAnimation()
-    {
-        return TryTriggerAnimation(InteractParameter);
-    }
-
-    private bool TryTriggerAnimation(int trigger)
     {
         if (!isActiveAndEnabled || IsInputLocked || Time.timeScale <= 0f || !CanUseAnimator())
         {
             return false;
         }
 
-        animator.ResetTrigger(DashParameter);
         animator.ResetTrigger(InteractParameter);
-        animator.SetTrigger(trigger);
+        animator.SetTrigger(InteractParameter);
         return true;
     }
 
@@ -121,16 +107,6 @@ public class PlayerMove : MonoBehaviour
     {
         return animator != null && animator.isActiveAndEnabled &&
             animator.runtimeAnimatorController != null && animator.isInitialized;
-    }
-
-    public void OnDashStarted()
-    {
-        SetAnimationInputLock(ref isDashInputLocked, true);
-    }
-
-    public void OnDashEnded()
-    {
-        SetAnimationInputLock(ref isDashInputLocked, false);
     }
 
     public void OnInteractionStarted()
@@ -334,7 +310,6 @@ public class PlayerMove : MonoBehaviour
         UpdateMovementAnimation(false);
         if (CanUseAnimator())
         {
-            animator.ResetTrigger(DashParameter);
             animator.ResetTrigger(InteractParameter);
         }
 
