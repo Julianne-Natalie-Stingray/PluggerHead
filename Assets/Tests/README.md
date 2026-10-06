@@ -27,6 +27,7 @@ Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。
 | EditMode | `PluggerHead.EditModeTests` | 4 个场景参数用例＋1 个注册表用例 | 场景枚举/白名单/构建列表一致性、主菜单构建入口、场景加载、丢失脚本/预制体、电线材质、实际 Player 与电路配置 |
 | EditMode | `PluggerHead.EditModeTests` | 1 个关卡存档用例 | 只序列化关卡、重新读盘、缺失/损坏/未知关卡、写入失败保留旧存档 |
 | EditMode | `PluggerHead.EditModeTests` | 2 个 GameState 参数用例 | Playing/Freezed 起点下加载中交错暂停/恢复，保留标签与冻结前时间倍率 |
+| EditMode | `PluggerHead.EditModeTests` | 音频池配置用例 | 非正池容量在运行时和 OnValidate 后均安全，正常容量不变，真实 ObjectPool 可构造 |
 | EditMode | `PluggerHead.EditModeTests` | 1 个音量属性用例 | 三路 NaN 保留原值、有限越界及无穷值钳制、总线互不影响、Default 对象独立性 |
 | EditMode | `PluggerHead.EditModeTests` | 1 个设置存储用例 | 临时路径读写、越界/非有限音量恢复默认值、替换失败保留旧文件 |
 | EditMode | `PluggerHead.EditModeTests` | 1 个 Debug 按钮用例 | EditMode 调用不访问未初始化设置 |

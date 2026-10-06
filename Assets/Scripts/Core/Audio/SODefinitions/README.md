@@ -30,11 +30,11 @@ TryGetClip 返回列表中首个非空且 AudioId 匹配的 AudioClipData；没�
 | --- | --- |
 | CollectionCheck | 传入底层 ObjectPool 的重复归还检查开关。 |
 | DefaultCapacity | 底层池容器的初始容量，不会预先实例化这些对象。 |
-| MaxPoolSize | 底层池的闲置保留上限；管理器 ReserveEmitter 另外通过 CanReuse 用它限制正常请求的总创建量。 |
+| MaxPoolSize | 底层池的闲置保留上限；只读属性在运行时将旧序列化或动态配置中的非正值规范到至少 1。管理器 ReserveEmitter 另外通过 CanReuse 用它限制正常请求的总创建量。 |
 | PrewarmAmount | Start 中借出再归还的预热数量；预热路径不执行 ReserveEmitter 的容量检查，过大值可临时创建超额对象后销毁。 |
 | MaxSoundInstance | 注册表的全局声部上限，与每个 AudioClipData.MaxInstances 分别检查；只抢占最旧的非循环候选。 |
 
-OnValidate 把四个负整数改成 0，但这并不保证有效配置：底层 ObjectPool 需要正的 MaxPoolSize，也没有自动约束 PrewarmAmount 与池上限。建议预热不超过池上限；池上限小于总声部上限时，正常请求可能先被池拒绝。运行时减少实例上限后，当前管理器每次请求仅尝试一次同 ID 抢占和一次全局抢占，不保证立刻把已有声部降到新上限。通用池生命周期见 [GameObjectPool](../../GameObjectPool/README.md)。
+OnValidate 把非正 MaxPoolSize 写回为 1，符合底层 ObjectPool 对正上限的要求；DefaultCapacity、PrewarmAmount、MaxSoundInstance 的负值仍按原规则改成 0。MaxPoolSize 属性本身也保证返回至少 1，但读取不修改原序列化字段。不自动约束 PrewarmAmount 与池上限；建议预热不超过池上限。池上限小于总声部上限时，正常请求可能先被池拒绝。运行时减少实例上限后，当前管理器每次请求仅尝试一次同 ID 抢占和一次全局抢占，不保证立刻把已有声部降到新上限。通用池生命周期见 [GameObjectPool](../../GameObjectPool/README.md)。
 
 Mixer 和 MasterVolume/OstVolume/SfxVolume 参数名通过此资产配置。缺 Mixer 只记录警告，不自动赋值；ApplyAudioSettings 也会检查 Mixer，并对空参数名或 SetFloat 失败记录日志。参数名需与 Mixer 中实际暴露的参数一致。
 
@@ -46,6 +46,10 @@ Mixer 和 MasterVolume/OstVolume/SfxVolume 参数名通过此资产配置。缺 
 
 ## 核查与验证（2026-10-06）
 
+本轮修复 MaxPoolSize 非正配置导致池构造异常的缺口，同时覆盖编辑器写回与运行时只读规范化，不调整其他池参数。新增 `AudioConfigurationTests` 参数用例，在独立、未保存的 AudioManagerConfigs 对象中写入 0、-1、int.MinValue、1、30，经实际 MaxPoolSize 属性构造 Unity ObjectPool 并借还对象，再调用真实 OnValidate 检查字段写回和其他参数不变；finally 销毁临时配置。实际 Test Runner 结果由主任务收尾记录。
+
+### 修复前核查记录
+
 逐一检查两个源码及 meta，并核对默认配置、三个音频数据资产、Emitter 预制体、Manager/Emitter/Builder、通用池和 AudioIntegrationChecks。纠正了冻结即切断、Builder 实时修改和最大距离保证不可听的注释/Inspector 提示；本轮不改变播放逻辑或资产数据。
 
 现有音频集成检查覆盖请求默认值与覆盖、在实例上限为 1 的夹具中顺序播放和复用、句柄失效、自然结束及渐变等正常路径；没有覆盖超限抢占/拒绝、空映射列表、超额预热、动态降低上限或距离衰减边界。
@@ -53,3 +57,7 @@ Mixer 和 MasterVolume/OstVolume/SfxVolume 参数名通过此资产配置。缺 
 本轮编译完成后 Console 无错误；EditMode job `c6fd2108319e4b33bdef27b7515d1a85` 结果 12/12 通过。PlayMode job `5f3bf863270b461a81fb0f8f9208c05a` 终态 succeeded、完成 20/20、失败列表为空；再次查询仍未返回 result 汇总，因此保留这一工具返回限制，不把它写成拥有完整逐项结果的报告。测试包括当时并行工作的场景恢复与 Debug 检查，不证明之后新增的音频设置修复已被本轮覆盖。
 
 另用临时托管对象调用当前 Unity 2022.3.43f1c1 的 `ObjectPool<object>` 构造器，传 maxSize=0，实测抛出 ArgumentException（Max Size must be greater than 0）。此探针没有修改场景、配置资产或创建 Unity 对象。独立审查提出的测试覆盖表述过宽问题已修正。
+
+### 池容量修复验证
+
+独立代码审查通过。编译后无编译错误，依次完成 EditMode job `c5b179b30af94251856a5b93ca858ec1`（17/17）与 PlayMode job `4181c9b49e374ec6bd69803dcc768cfc`（20/20），均已结束并通过。新增五个参数用例覆盖 0、-1、int.MinValue、1、30，验证运行时读取和 Inspector 校验写回、真实 ObjectPool 构造/借还，以及其他参数不变。测试使用未保存的独立配置对象并销毁；Test Runner 临时场景和设置已清理恢复。

@@ -57,7 +57,9 @@ public class AudioManagerConfigs : ScriptableObject
     public string SfxVolumeParameter => sfxVolumeParameter;
     public bool CollectionCheck => collectionCheck;
     public int DefaultCapacity => defaultCapacity;
-    public int MaxPoolSize => maxPoolSize;
+    // Runtime normalization also protects old serialized assets that have not passed OnValidate.
+    // 运行时规范化同时保护尚未经过 OnValidate 的旧序列化资产.
+    public int MaxPoolSize => Mathf.Max(1, maxPoolSize);
     public int PrewarmAmount => prewarmAmount;
     public int MaxSoundInstance => maxSoundInstance;
 
@@ -108,7 +110,7 @@ public class AudioManagerConfigs : ScriptableObject
             defaultCapacity = 0;
         }
 
-        if (maxPoolSize < 0)
+        if (maxPoolSize <= 0)
         {
             GameLog.Warning(this)
                 .Subsystem("Core")
@@ -116,7 +118,7 @@ public class AudioManagerConfigs : ScriptableObject
                 .Issue(LogIssue.Invalid(nameof(maxPoolSize)))
                 .Action(LogAction.ClampValue)
                 .Write();
-            maxPoolSize = 0;
+            maxPoolSize = 1;
         }
 
         if (maxSoundInstance < 0)
