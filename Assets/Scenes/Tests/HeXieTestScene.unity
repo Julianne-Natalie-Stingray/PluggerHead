@@ -279,7 +279,6 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   canInteract: 1
-  canPickup: 1
 --- !u!212 &89928978
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -5818,7 +5817,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d4dcb291734e0464caa8bba9ad186a2e, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  dualTargetMode: 0
+  anchorPrefab: {fileID: -6388371806577989308, guid: 6d363d07c7479c044afdf3231bee9670, type: 3}
   interactionRadius: 2
   interactionLayers:
     serializedVersion: 2

@@ -258,6 +258,35 @@ public class EnvironmentFacade : MonoBehaviour
         RebuildWaypoints();
     }
 
+    /// <summary>Register a newly placed anchor without resetting circuit state.
+    /// 注册新放置的锚点，不重置回路状态。</summary>
+    public void RegisterAnchor(Anchor anchor)
+    {
+        if (!anchor || anchor.gameObject.scene != gameObject.scene || anchors.Contains(anchor))
+        {
+            return;
+        }
+
+        anchors.Add(anchor);
+        nodes.Add(anchor);
+        anchor.OnInteracted += HandleInteracted;
+        RebuildWaypoints();
+    }
+
+    /// <summary>Remove a reclaimed anchor and rebuild paths immediately.
+    /// 收回锚点后立即移除节点并重建路径。</summary>
+    public void UnregisterAnchor(Anchor anchor)
+    {
+        if (!anchors.Remove(anchor))
+        {
+            return;
+        }
+
+        nodes.Remove(anchor);
+        anchor.OnInteracted -= HandleInteracted;
+        RebuildWaypoints();
+    }
+
     /// <summary>
     /// Single entry point for asking which wire a given actor is carrying.
     /// Implementation approach: a static lookup, because a routing node is asked to act on the wire the actor
@@ -870,7 +899,6 @@ public class EnvironmentFacade : MonoBehaviour
     [SerializeField, BoxGroup("Debug")]
     [Tooltip("Node to drive by hand while the Player side is not wired to this subsystem yet.")]
     private Transform debugTarget;
-    private IPickupInstance debugPickup;
 
     /// <summary>
     /// Single entry point for driving one interaction by hand.
@@ -908,55 +936,16 @@ public class EnvironmentFacade : MonoBehaviour
         node.Interact(details);
     }
 
-    /// <summary>
-    /// Single entry point for driving one pickup by hand, for the same reason as the interaction above.
-    /// 手动驱动一次拾取的单一入口, 原因同上.
-    /// </summary>
-    [Button("Pick up / drop debug target")]
-    private void DebugSimulatePickup()
+    /// <summary>Reclaim the debug anchor using the same entry point as Player.
+    /// 使用 Player 相同入口收回调试锚点。</summary>
+    [Button("Reclaim debug anchor")]
+    private void DebugReclaimAnchor()
     {
-        GameObject actor = FindTaggedObject(playerTag);
-        if (!actor)
+        Anchor anchor = debugTarget ? debugTarget.GetComponentInParent<Anchor>() : null;
+        if (anchor)
         {
-            actor = gameObject;
+            anchor.TryReclaim(new InteractionDetails(DebugActor(), anchor.gameObject));
         }
-
-        if (debugPickup != null)
-        {
-            if (debugPickup.TryDrop(actor.transform.position))
-            {
-                debugPickup = null;
-            }
-
-            return;
-        }
-
-        if (!debugTarget)
-        {
-            GameLog.Warning(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.NotAssigned(nameof(debugTarget)))
-                .Action(LogAction.Return)
-                .Write();
-
-            return;
-        }
-
-        Anchor anchor = debugTarget.GetComponentInParent<Anchor>();
-        if (!anchor)
-        {
-            GameLog.Warning(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.CannotFind(nameof(Anchor), nameof(debugTarget)))
-                .Action(LogAction.Return)
-                .Write();
-
-            return;
-        }
-
-        debugPickup = anchor.Pickup(new InteractionDetails(actor, debugTarget.gameObject));
     }
 
     private IEnvironmentInteractable ResolveDebugNode()

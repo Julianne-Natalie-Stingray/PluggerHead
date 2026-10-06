@@ -4,19 +4,13 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// 接收 Core 输入，寻找最近的环境组件并调用真实拾取或交互契约。
-/// 双属性目标由 K 切换拾取或交互模式，J 每次只处理一个目标。
+/// K 放置不限数量的 Anchor，J 收回最近的 Anchor 或操作其他环境目标。
 /// </summary>
 [RequireComponent(typeof(PlayerInventory))]
 [DisallowMultipleComponent]
 public class PlayerInteraction : MonoBehaviour
 {
-    public enum OperationMode
-    {
-        PickUp,
-        Select
-    }
-
-    [SerializeField] private OperationMode dualTargetMode = OperationMode.PickUp;
+    [SerializeField] private Anchor anchorPrefab;
     [SerializeField, Min(0f)] private float interactionRadius = 2f;
     [SerializeField] private LayerMask interactionLayers = ~0;
 
@@ -24,8 +18,6 @@ public class PlayerInteraction : MonoBehaviour
     private InputManager input;
     private PlayerMove playerMove;
     private readonly List<Collider2D> hits = new List<Collider2D>();
-
-    public OperationMode CurrentMode => dualTargetMode;
 
     private void Awake()
     {
@@ -58,7 +50,7 @@ public class PlayerInteraction : MonoBehaviour
         if (input != null)
         {
             input.SecondaryPressed += HandleOperation;
-            input.TertiaryPressed += ToggleOperationMode;
+            input.TertiaryPressed += HandlePlaceAnchor;
         }
     }
 
@@ -72,33 +64,44 @@ public class PlayerInteraction : MonoBehaviour
         if (input != null)
         {
             input.SecondaryPressed -= HandleOperation;
-            input.TertiaryPressed -= ToggleOperationMode;
+            input.TertiaryPressed -= HandlePlaceAnchor;
         }
     }
 
-    /// <summary>K 只切换双属性目标的 J 操作，不直接发出 Env 请求。</summary>
-    public void ToggleOperationMode()
+    private void HandlePlaceAnchor()
     {
-        if (!CanOperate())
-        {
-            return;
-        }
-
-        dualTargetMode = dualTargetMode == OperationMode.PickUp
-            ? OperationMode.Select
-            : OperationMode.PickUp;
+        TryPlaceAnchor();
     }
 
-    private OperationMode GetOperation(MonoBehaviour target)
+    /// <summary>在玩家当前位置放置新的锚点；持线时自动绕线，不消耗背包或数量。</summary>
+    public bool TryPlaceAnchor()
     {
-        bool canPickup = target is IEnvironmentPickup pickup && pickup.CanPickup;
-        bool canInteract = target is IEnvironmentInteractable interactable && interactable.CanInteract;
-        if (canPickup && canInteract)
+        if (!CanOperate() || anchorPrefab == null)
         {
-            return dualTargetMode;
+            return false;
         }
 
-        return canPickup ? OperationMode.PickUp : OperationMode.Select;
+        EnvironmentFacade environment = EnvironmentFacade.ForScene(gameObject.scene);
+        Vector3 position = transform.position;
+        if (environment == null || !IsFinite(position.x) || !IsFinite(position.y) || !IsFinite(position.z))
+        {
+            return false;
+        }
+
+        Anchor anchor = Instantiate(anchorPrefab, position, Quaternion.identity);
+        SceneManager.MoveGameObjectToScene(anchor.gameObject, gameObject.scene);
+        anchor.gameObject.SetActive(true);
+        environment.RegisterAnchor(anchor);
+        if (environment.HeldWire != null)
+        {
+            anchor.Interact(new InteractionDetails(gameObject, anchor.gameObject));
+        }
+        return true;
+    }
+
+    private static bool IsFinite(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
     }
 
     private void HandleOperation()
@@ -151,9 +154,14 @@ public class PlayerInteraction : MonoBehaviour
 
     private bool PerformOperation(MonoBehaviour target)
     {
-        if (GetOperation(target) == OperationMode.PickUp)
+        if (target is Anchor anchor)
         {
-            return inventory.PickUpItem(target as IEnvironmentPickup);
+            return anchor.TryReclaim(new InteractionDetails(gameObject, anchor.gameObject));
+        }
+
+        if (target is IEnvironmentPickup pickup && pickup.CanPickup)
+        {
+            return inventory.PickUpItem(pickup);
         }
 
         IEnvironmentInteractable interactable = target as IEnvironmentInteractable;
@@ -205,9 +213,11 @@ public class PlayerInteraction : MonoBehaviour
                 }
 
                 bool canPickup = candidate is IEnvironmentPickup pickup && pickup.CanPickup;
-                bool canInteract = candidate is IEnvironmentInteractable interactable && interactable.CanInteract;
+                bool canInteract = candidate is Anchor anchor
+                    ? anchor.CanReclaim
+                    : candidate is IEnvironmentInteractable interactable && interactable.CanInteract;
                 if ((!canPickup && !canInteract) ||
-                    (GetOperation(candidate) == OperationMode.PickUp && inventory.Contains(candidate.gameObject)))
+                    (canPickup && inventory.Contains(candidate.gameObject)))
                 {
                     continue;
                 }

@@ -60,6 +60,12 @@ public static class SceneIntegrationChecks
                 Require(FindComponents<CoreFacade>(scene).Count == 1, "Gameplay scene must contain one configured Core.");
                 Require(FindComponents<EnvironmentFacade>(scene).Count == 1, "Gameplay scene must contain one environment.");
                 Require(FindComponents<PlayerInteraction>(scene).Count == 1, "Gameplay scene must contain the real Player.");
+                PlayerInteraction player = FindComponents<PlayerInteraction>(scene).Single();
+                Anchor anchorPrefab = (Anchor)typeof(PlayerInteraction)
+                    .GetField("anchorPrefab", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(player);
+                Require(anchorPrefab != null && AssetDatabase.Contains(anchorPrefab) &&
+                    anchorPrefab.GetComponentInChildren<Collider2D>(true) != null,
+                    "Gameplay Player must reference a reclaimable anchor prefab with a collider.");
                 Require(FindComponents<PowerSocket>(scene).Any(socket => socket.StartingWire != null &&
                     socket.Wires.Count >= 2), "Gameplay outlet must reference its authored wires.");
             }
@@ -135,7 +141,7 @@ public static class SceneIntegrationChecks
         Require(initialWire != null && initialWire.IsHeld && !environment.IsCircuitClosed,
             "The environment must start with an open circuit and a held wire.");
 
-        Anchor anchor = FindComponents<Anchor>(ownedScene).First(node => node.CanPickup && node.CanInteract);
+        Anchor anchor = FindComponents<Anchor>(ownedScene).First(node => node.CanReclaim);
         Vector3 anchorPosition = anchor.transform.position;
         Rigidbody2D body = movement.GetComponent<Rigidbody2D>();
         // Keep the authored Player at the target during this interaction check; movement physics
@@ -145,22 +151,38 @@ public static class SceneIntegrationChecks
         body.position = anchorPosition;
         interaction.transform.position = anchorPosition;
         Physics2D.SyncTransforms();
-        Require(interaction.TryPerformOperation(), "J must find the nearby anchor through scene colliders.");
-        Require(inventory.Count == 1 && inventory.Items[0].SourceObject == anchor.gameObject &&
-            !anchor.gameObject.activeSelf, "Pickup must store the original nearest anchor instance.");
-        IPickupInstance carried = inventory.Items[0];
+        RaiseInput(ownedCore.Input, "HandleSecondaryPressed");
+        Require(inventory.Count == 0 && !anchor.gameObject.activeSelf && !anchor.CanReclaim,
+            "Reclaim must immediately deactivate the anchor without storing an inventory item.");
+        Require(!anchor.TryReclaim(new InteractionDetails(interaction.gameObject, anchor.gameObject)),
+            "A reclaimed anchor must reject a second request before deferred destruction.");
+        yield return null;
+        Require(anchor == null, "Play Mode reclaim must destroy the anchor at the end of the frame.");
         yield return WaitForUnlocked(movement);
-        Require(inventory.DropItem(carried, anchorPosition) && inventory.Count == 0 && anchor.gameObject.activeSelf,
-            "Drop must restore the original scene anchor.");
-        Physics2D.SyncTransforms();
-        interaction.ToggleOperationMode();
-        Require(interaction.CurrentMode == PlayerInteraction.OperationMode.Select &&
-            interaction.TryPerformOperation() && anchor.EngagedBy == initialWire,
-            "K followed by J must route the held wire around the restored anchor.");
+        List<Anchor> existingAnchors = FindComponents<Anchor>(ownedScene);
+        RaiseInput(ownedCore.Input, "HandleTertiaryPressed");
+        Require(FindComponents<Anchor>(ownedScene).Count == existingAnchors.Count + 1,
+            "The K input event must create one anchor without inventory stock.");
+        anchor = FindComponents<Anchor>(ownedScene).Single(node => !existingAnchors.Contains(node));
+        Require(anchor.EngagedBy == initialWire && inventory.Count == 0 &&
+            (anchor.transform.position - anchorPosition).sqrMagnitude < 0.0001f,
+            "Placement must immediately route the held wire at the player position.");
         yield return null;
         LineRenderer line = initialWire.GetComponent<LineRenderer>();
         Require(line.positionCount == 3 && (line.GetPosition(1) - anchorPosition).sqrMagnitude < 0.0001f,
-            "LateUpdate must render the anchor as the wire's intermediate bend.");
+            "LateUpdate must render the dynamic anchor as the wire's intermediate bend.");
+        yield return WaitForUnlocked(movement);
+        Physics2D.SyncTransforms();
+        Require(interaction.TryPerformOperation() && !anchor.gameObject.activeSelf,
+            "J must reclaim a dynamically placed anchor.");
+        yield return null;
+        Require(anchor == null && line.positionCount == 2 && environment.HeldWire == initialWire,
+            "Reclaiming a routed anchor must update the wire path and preserve the held wire.");
+        yield return WaitForUnlocked(movement);
+        existingAnchors = FindComponents<Anchor>(ownedScene);
+        Require(interaction.TryPlaceAnchor(), "Placement remains available after reclaiming an anchor.");
+        anchor = FindComponents<Anchor>(ownedScene).Single(node => !existingAnchors.Contains(node));
+        yield return WaitForUnlocked(movement);
 
         PolaritySocket dual = FindComponents<PolaritySocket>(ownedScene).First(node => node.IsDual && node.CanInteract);
         PowerSocket outlet = initialWire.Socket;
@@ -246,6 +268,12 @@ public static class SceneIntegrationChecks
         ownedCore = null;
         pendingLoad = null;
         gameplayStarted = false;
+    }
+
+    private static void RaiseInput(InputManager input, string handler)
+    {
+        typeof(InputManager).GetMethod(handler, BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(input, new object[] { default(UnityEngine.InputSystem.InputAction.CallbackContext) });
     }
 
     private static IEnumerator WaitForUnlocked(PlayerMove movement)

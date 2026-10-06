@@ -5,7 +5,7 @@ using UnityEngine;
 /// <summary>
 /// 持有 Env 返回的拾取实例，并通过实例接口将原场景对象放回关卡。
 /// 不复制或销毁道具；源对象被销毁后，在下次访问背包时清理实例。
-/// AnchorInstance 当前不可堆叠，每次拾取占用一个槽位。
+/// Anchor 不进入背包，由 PlayerInteraction 独立放置与收回。
 /// </summary>
 [DisallowMultipleComponent]
 public class PlayerInventory : MonoBehaviour

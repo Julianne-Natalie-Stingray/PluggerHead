@@ -34,10 +34,10 @@ public sealed class InputManager : MonoBehaviour
     public event Action PrimaryPressed;
     public event Action PrimaryReleased;
 
-    /// <summary>第二操作按钮（当前为 J）；由 Player 决定拾取或交互。</summary>
+    /// <summary>第二操作按钮（当前为 J）；由 Player 决定收回、拾取或交互。</summary>
     public event Action SecondaryPressed;
 
-    /// <summary>第三操作按钮（当前为 K）；玩法层决定切换行为。</summary>
+    /// <summary>第三操作按钮（当前为 K）；由 Player 解释为放置 Anchor。</summary>
     public event Action TertiaryPressed;
 
     /// <summary>Up 按钮按下/松开事件；玩法层决定其含义，当前绑定为空格。</summary>

@@ -3,30 +3,18 @@ using NaughtyAttributes;
 using UnityEngine;
 
 /// <summary>
-/// A fixture the wire can be routed around, and optionally a resource the player can move.
-/// Subsystem: Environment.
-/// Where it lives: in the level, as the parent of nothing in particular; wires reference it through the facade's
-/// node sweep rather than through the hierarchy.
-/// Responsibility: remember whether the wire currently held by a player is routed around it, and expose whether it
-/// may be moved at all.
-/// Does NOT own: which wire is held, how the polyline is computed, or the win check.
-/// Lifetime: part of the level object; never created at runtime.
-/// Two independent questions: CanInteract answers "may the wire be routed around this fixture", CanPickup answers
-/// "may this fixture itself be taken away". The original sketch wrote the second one as if it were the first.
-/// 线可以绕过其折向的固定物, 同时也可能是玩家可以搬动的资源.
-/// Subsystem 归属: Environment.
-/// 存在位置: 关卡中, 不作任何东西的父物体; 线经由门面的节点扫描引用它, 而不是经由层级.
-/// 职能: 记住"当前被玩家持有的那根线是否绕过它", 并暴露它是否可以被搬动.
-/// 不负责: 哪根线被持有, 折线如何计算, 以及通关判定.
-/// 生命周期: 属于关卡物体; 从不在运行时创建.
-/// 两个互相独立的问题: CanInteract 回答"线能否绕过这个固定物", CanPickup 回答"这个固定物本身能否被拿走".
-/// 原稿把后者写成了前者的样子.
+/// A freely placed routing fixture, never an inventory item.
+/// 无限放置、收回的绕线锚点，不是背包道具。
+/// Remembers its wire and routing order; Environment owns the circuit and polyline.
+/// 只记录绕线归属与顺序；回路及路径由 Environment 管理。
+/// Lifetime: authored in a level or created by Player, destroyed on reclaim.
+/// 生命周期：关卡预设或 Player 创建，收回时销毁。
 /// </summary>
 [DisallowMultipleComponent]
-public class Anchor : MonoBehaviour, IEnvironmentInteractable, IEnvironmentPickup
+public class Anchor : MonoBehaviour, IEnvironmentInteractable
 {
-    public bool CanInteract => canInteract && !isStowed;
-    public bool CanPickup => canPickup && !isStowed;
+    public bool CanInteract => canInteract && CanReclaim;
+    public bool CanReclaim => isActiveAndEnabled && !isReclaimed;
     public bool IsEngaged => engagedBy != null;
     public int EngagementSequence => engagementSequence;
 
@@ -39,16 +27,12 @@ public class Anchor : MonoBehaviour, IEnvironmentInteractable, IEnvironmentPicku
     public event Action<IEnvironmentInteractable> OnInteracted;
 
     [SerializeField, BoxGroup("Routing")]
-    [Tooltip("Whether the player may route a wire around this fixture. False marks a fixture the level fixes in place.")]
+    [Tooltip("Whether the player may route a wire around this fixture. Reclaim remains available independently of routing.")]
     private bool canInteract = true;
-
-    [SerializeField, BoxGroup("Pickup")]
-    [Tooltip("Whether this fixture may be picked up and moved. False marks an immovable anchor.")]
-    private bool canPickup = false;
 
     private Wire engagedBy;
     private int engagementSequence;
-    private bool isStowed;
+    private bool isReclaimed;
 
     internal void ResetRouting()
     {
@@ -67,7 +51,7 @@ public class Anchor : MonoBehaviour, IEnvironmentInteractable, IEnvironmentPicku
     /// </summary>
     public void Interact(InteractionDetails details)
     {
-        if (!CanInteract)
+        if (!CanInteract || !IsValidActor(details))
         {
             GameLog.Info(this)
                 .Subsystem("Environment")
@@ -105,53 +89,38 @@ public class Anchor : MonoBehaviour, IEnvironmentInteractable, IEnvironmentPicku
         OnInteracted?.Invoke(this);
     }
 
-    /// <summary>
-    /// Single entry point for taking this fixture.
-    /// Gate on CanPickup, detach this anchor from its wire, and return its carried instance to the caller.
-    /// The scene object is preserved while inactive; Player owns inventory membership and the drop position.
-    /// 拾取本固定物的单一入口. 按 CanPickup 设门, 解除绕线并返回携带实例.
-    /// 场景物体隐藏但保留, Player 负责背包归属及放置坐标.
-    /// </summary>
-    public IPickupInstance Pickup(InteractionDetails details)
+    /// <summary>Detach and remove this anchor without creating an inventory item.
+    /// 解除绕线并收回锚点，不创建背包实例。</summary>
+    public bool TryReclaim(InteractionDetails details)
     {
-        if (!CanPickup || details == null || !details.Actor)
-        {
-            GameLog.Info(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.Specify("Pickup refused: the anchor is unavailable or the actor is missing. "))
-                .Action(LogAction.Return)
-                .Write();
-
-            return null;
-        }
-
-        isStowed = true;
-        engagedBy = null;
-        engagementSequence = 0;
-        OnInteracted?.Invoke(this);
-        gameObject.SetActive(false);
-        return new AnchorInstance(this);
-    }
-
-    /// <summary>Restore the same scene anchor without replacing its identity or subscriptions.
-    /// 放回原场景锚点, 保留物体身份与事件订阅.</summary>
-    public bool Restore(Vector3 position)
-    {
-        if (!isStowed || !IsFinite(position.x) || !IsFinite(position.y) || !IsFinite(position.z))
+        if (!CanReclaim || !IsValidActor(details))
         {
             return false;
         }
 
-        transform.position = position;
-        isStowed = false;
-        gameObject.SetActive(true);
-        OnInteracted?.Invoke(this);
+        isReclaimed = true;
+        ResetRouting();
+        EnvironmentFacade.ForScene(gameObject.scene)?.UnregisterAnchor(this);
+        gameObject.SetActive(false);
+        if (Application.isPlaying)
+        {
+            Destroy(gameObject);
+        }
+        else
+        {
+            DestroyImmediate(gameObject);
+        }
         return true;
     }
 
-    private static bool IsFinite(float value)
+    private bool IsValidActor(InteractionDetails details)
     {
-        return !float.IsNaN(value) && !float.IsInfinity(value);
+        return details != null && details.Actor && details.Actor.scene == gameObject.scene &&
+            (!details.Target || details.Target == gameObject);
+    }
+
+    private void OnDestroy()
+    {
+        EnvironmentFacade.ForScene(gameObject.scene)?.UnregisterAnchor(this);
     }
 }

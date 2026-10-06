@@ -37,8 +37,6 @@ public static class EnvironmentIntegrationChecks
         EnvironmentFacade previousEnvironment = EnvironmentFacade.Current;
         float previousTimeScale = Time.timeScale;
         Scene preview = EditorSceneManager.NewPreviewScene();
-        Sprite sprite = null;
-        Texture2D texture = null;
         int checks = 0;
         try
         {
@@ -58,9 +56,8 @@ public static class EnvironmentIntegrationChecks
             Wire neutral = Create(preview, "CheckNeutralWire", Vector3.zero).AddComponent<Wire>();
             Set(neutral, "polarity", WirePolarity.Neutral);
             Set(outlet, "wires", new List<Wire> { live, neutral });
-            Anchor anchor = AddAnchor(preview, "CheckAnchor", Vector3.right, true);
-            Anchor farther = AddAnchor(preview, "CheckFartherAnchor", new Vector3(1.8f, 0f), true);
-            Anchor fixedAnchor = AddAnchor(preview, "CheckFixedAnchor", new Vector3(20f, 0f), false);
+            Anchor anchor = AddAnchor(preview, "CheckAnchor", Vector3.right);
+            Anchor farther = AddAnchor(preview, "CheckFartherAnchor", new Vector3(1.8f, 0f));
             PolaritySocket dual = AddPolaritySocket(preview, "CheckDual", new Vector3(30f, 0f),
                 WirePolarity.Live | WirePolarity.Neutral);
             PolaritySocket mismatch = AddPolaritySocket(preview, "CheckMismatch", new Vector3(40f, 0f),
@@ -81,42 +78,28 @@ public static class EnvironmentIntegrationChecks
 
             CheckSceneBindings(environment, player, inventory, anchor, live, ref checks);
 
-            texture = new Texture2D(2, 2);
-            sprite = Sprite.Create(texture, new Rect(0f, 0f, 2f, 2f), Vector2.one * 0.5f);
-            anchor.gameObject.AddComponent<SpriteRenderer>().sprite = sprite;
-            InventoryUI ui = Create(preview, "CheckInventoryUI", Vector3.zero).AddComponent<InventoryUI>();
+            Check(!typeof(IEnvironmentPickup).IsAssignableFrom(typeof(Anchor)),
+                "Anchors do not implement the inventory pickup contract", ref checks);
+            Anchor prefab = AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Prefabs/Env/Anchor.prefab");
+            Check(prefab != null, "The player anchor prefab is available", ref checks);
+            Set(interaction, "anchorPrefab", prefab);
             int inventoryChanges = 0;
             inventory.Changed += () => inventoryChanges++;
-
             Physics2D.SyncTransforms();
-            Check(interaction.TryPerformOperation(), "J finds a pickup through its child collider", ref checks);
-            Check(inventory.Count == 1 && inventory.Items[0] is AnchorInstance &&
-                inventory.Items[0].SourceObject == anchor.gameObject && !anchor.gameObject.activeSelf &&
-                farther.gameObject.activeSelf, "Only the nearest anchor is stowed, with its original identity", ref checks);
-            IPickupInstance carried = inventory.Items[0];
-            Check((Sprite)Invoke(ui, "GetItemSprite", carried) == sprite,
-                "Inventory icons still read the inactive source sprite", ref checks);
-            Check(!inventory.PickUpItem(anchor), "Repeated pickup cannot duplicate an instance", ref checks);
-            Check(!inventory.PickUpItem(fixedAnchor), "A fixed anchor cannot be picked up", ref checks);
-            Check(!inventory.DropItem(carried, new Vector3(float.NaN, 0f, 0f)) && inventory.Count == 1,
-                "Invalid placement preserves the carried instance", ref checks);
-            Check(inventory.DropItem(carried, Vector3.right) && inventory.Count == 0 &&
-                anchor.gameObject.activeSelf && anchor.transform.position == Vector3.right &&
-                carried.SourceObject == null && carried.CurrentStackAmount == 0,
-                "Drop restores the same anchor and consumes the instance", ref checks);
-            Check(!inventory.DropItem(carried, Vector3.zero) && !carried.TryDrop(Vector3.zero),
-                "A consumed instance cannot drop twice", ref checks);
-            Check(inventoryChanges == 2, "Only successful membership changes notify the UI", ref checks);
-
-            Physics2D.SyncTransforms();
-            interaction.ToggleOperationMode();
-            Check(interaction.CurrentMode == PlayerInteraction.OperationMode.Select &&
-                interaction.TryPerformOperation() && anchor.EngagedBy == live && inventory.Count == 0,
-                "K switches a dual-purpose anchor from pickup to routing", ref checks);
+            Check(interaction.TryPerformOperation() && anchor == null && farther != null,
+                "J reclaims only the nearest anchor through its child collider", ref checks);
+            Check(inventory.Count == 0 && inventoryChanges == 0,
+                "Reclaiming anchors never adds an inventory item", ref checks);
+            player.transform.position = Vector3.right;
+            Check(interaction.TryPlaceAnchor(), "K places an anchor without an inventory item", ref checks);
+            anchor = Get<List<Anchor>>(environment, "anchors").Find(node => node != farther);
+            Check(anchor != null && anchor.transform.position == player.transform.position && anchor.EngagedBy == live,
+                "A newly placed anchor is registered and routes the held wire at the player", ref checks);
             Invoke(environment, "LateUpdate");
             Check(live.GetComponent<LineRenderer>().positionCount == 3 &&
                 live.GetComponent<LineRenderer>().GetPosition(1) == anchor.transform.position,
                 "Routing inserts the real anchor into the rendered wire path", ref checks);
+            player.transform.position = Vector3.zero;
 
             hand.transform.position = new Vector3(5f, 0f);
             Set(live, "maxLength", 6f);
@@ -138,16 +121,30 @@ public static class EnvironmentIntegrationChecks
             Check(environment.GetResistance(player.transform.position) == Vector2.zero,
                 "Unrestricted wires apply no resistance", ref checks);
 
-            Check(inventory.PickUpItem(anchor) && !anchor.IsEngaged && environment.HeldWire == live,
-                "Picking up a routed anchor detaches it without losing the held wire", ref checks);
+            Check(anchor.TryReclaim(new InteractionDetails(player, anchor.gameObject)) && anchor == null &&
+                environment.HeldWire == live,
+                "Reclaiming a routed anchor destroys it without losing the held wire", ref checks);
             Invoke(environment, "LateUpdate");
             Check(live.GetComponent<LineRenderer>().positionCount == 2,
-                "Picking up an anchor removes its bend from the path", ref checks);
-            carried = inventory.Items[0];
-            Check(inventory.DropItem(carried, Vector3.right), "A routed anchor can be placed again", ref checks);
-            Check(interaction.TryPerformOperation() && anchor.IsEngaged,
-                "A dropped anchor remains subscribed and can route again", ref checks);
-            anchor.Interact(new InteractionDetails(player, anchor.gameObject));
+                "Reclaim removes its bend from the rendered path", ref checks);
+            const int placementCount = 16;
+            for (int i = 0; i < placementCount; i++)
+            {
+                Check(interaction.TryPlaceAnchor(), "Repeated placement does not require inventory stock", ref checks);
+            }
+            Check(Get<List<Anchor>>(environment, "anchors").Count == placementCount + 1 &&
+                inventory.Count == 0 && inventoryChanges == 0,
+                "Sixteen simultaneous anchors use no inventory slots or inventory notifications", ref checks);
+            foreach (Anchor placed in new List<Anchor>(Get<List<Anchor>>(environment, "anchors")))
+            {
+                if (placed != farther)
+                {
+                    Check(placed.TryReclaim(new InteractionDetails(player, placed.gameObject)),
+                        "Every dynamically registered anchor can be reclaimed", ref checks);
+                }
+            }
+            Check(Get<List<Anchor>>(environment, "anchors").Count == 1,
+                "Reclaim unregisters destroyed anchors without rescanning the scene", ref checks);
 
             point.Interact(new WirePointDetails(player, point.gameObject));
             Invoke(environment, "LateUpdate");
@@ -156,15 +153,13 @@ public static class EnvironmentIntegrationChecks
             point.Interact(new WirePointDetails(player, point.gameObject));
             Check(!point.IsEngaged, "A second wire-point interaction releases the bend", ref checks);
 
-            CheckLocks(interaction, inventory, movement, anchor, ref checks);
-            Check(inventory.PickUpItem(anchor), "Pickup works after input locks are released", ref checks);
-            carried = inventory.Items[0];
-            Time.timeScale = 0f;
-            Check(!inventory.DropItem(carried, Vector3.right) && inventory.Count == 1,
-                "Pause prevents dropping without losing inventory", ref checks);
-            Time.timeScale = 1f;
-            UnityEngine.Object.DestroyImmediate(anchor.gameObject);
-            Check(inventory.Count == 0, "Destroyed source objects are removed from inventory", ref checks);
+            CheckLocks(interaction, movement, ref checks);
+            Set(farther, "canInteract", false);
+            player.transform.position = farther.transform.position;
+            Physics2D.SyncTransforms();
+            Check(interaction.TryPerformOperation() && farther == null,
+                "J still reclaims anchors whose diagnostic routing is disabled", ref checks);
+            player.transform.position = Vector3.zero;
 
             int clearedCount = 0;
             environment.LevelCleared += () => clearedCount++;
@@ -185,6 +180,13 @@ public static class EnvironmentIntegrationChecks
             environment.EvaluateCircuit();
             Check(clearedCount == 1 && environment.GetResistance(Vector2.right * 100f) == Vector2.zero,
                 "Completed circuits neither repeat the win event nor pull the player", ref checks);
+
+            Check(interaction.TryPlaceAnchor(), "Placement succeeds with no held wire after circuit completion", ref checks);
+            Anchor wireless = Get<List<Anchor>>(environment, "anchors").Find(node => node != farther);
+            Check(wireless != null && !wireless.IsEngaged && inventory.Count == 0,
+                "An anchor placed without a wire remains independently reclaimable", ref checks);
+            Check(wireless.TryReclaim(new InteractionDetails(player, wireless.gameObject)),
+                "A wireless anchor can be reclaimed", ref checks);
 
             Invoke(environment, "BeginRun");
             Check(environment.HeldWire == live && live.IsHeld && !neutral.IsClosed &&
@@ -219,14 +221,6 @@ public static class EnvironmentIntegrationChecks
             {
                 EditorSceneManager.ClosePreviewScene(preview);
             }
-            if (sprite != null)
-            {
-                UnityEngine.Object.DestroyImmediate(sprite);
-            }
-            if (texture != null)
-            {
-                UnityEngine.Object.DestroyImmediate(texture);
-            }
             Time.timeScale = previousTimeScale;
             typeof(EnvironmentFacade).GetField("<Current>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic)
                 .SetValue(null, previousEnvironment);
@@ -247,7 +241,7 @@ public static class EnvironmentIntegrationChecks
             Wire otherWire = Create(otherScene, "OtherWire", Vector3.zero).AddComponent<Wire>();
             PowerSocket otherOutlet = AddSocket(otherScene, "OtherOutlet", Vector3.zero);
             Set(otherOutlet, "wires", new List<Wire> { otherWire });
-            Anchor otherAnchor = AddAnchor(otherScene, "OtherAnchor", Vector3.right, true);
+            Anchor otherAnchor = AddAnchor(otherScene, "OtherAnchor", Vector3.right);
             EnvironmentFacade otherEnvironment = Create(otherScene, "OtherEnvironment", Vector3.zero)
                 .AddComponent<EnvironmentFacade>();
             otherEnvironment.RefreshNodes();
@@ -263,8 +257,12 @@ public static class EnvironmentIntegrationChecks
                 "Missing actor details cannot acquire a wire", ref checks);
             Check(EnvironmentFacade.HeldWireOf(new InteractionDetails(player, otherAnchor.gameObject)) == null,
                 "Cross-scene interaction targets cannot acquire a wire", ref checks);
-            Check(!inventory.PickUpItem(otherAnchor) && otherAnchor.gameObject.activeSelf && inventory.Count == 0,
-                "Inventory cannot take an anchor from another scene", ref checks);
+            Check(!otherAnchor.TryReclaim(null) &&
+                !otherAnchor.TryReclaim(new InteractionDetails(null, otherAnchor.gameObject)),
+                "Missing actor details cannot reclaim an anchor", ref checks);
+            Check(!otherAnchor.TryReclaim(new InteractionDetails(player, otherAnchor.gameObject)) &&
+                otherAnchor.gameObject.activeSelf && inventory.Count == 0,
+                "An actor cannot reclaim an anchor from another scene", ref checks);
 
             Check(inventory.Environment == environment,
                 "A valid explicit environment is preserved while another scene is current", ref checks);
@@ -281,24 +279,21 @@ public static class EnvironmentIntegrationChecks
             environment.RefreshNodes();
         }
     }
-    private static void CheckLocks(PlayerInteraction interaction, PlayerInventory inventory,
-        PlayerMove movement, Anchor anchor, ref int checks)
+    private static void CheckLocks(PlayerInteraction interaction, PlayerMove movement, ref int checks)
     {
         Time.timeScale = 0f;
-        PlayerInteraction.OperationMode mode = interaction.CurrentMode;
-        interaction.ToggleOperationMode();
-        Check(!interaction.TryPerformOperation() && !inventory.PickUpItem(anchor) && interaction.CurrentMode == mode,
-            "Pause blocks pickup, interaction, and mode changes", ref checks);
+        Check(!interaction.TryPerformOperation() && !interaction.TryPlaceAnchor(),
+            "Pause blocks reclaiming and placing anchors", ref checks);
         Time.timeScale = 1f;
         movement.LockInput();
-        Check(!interaction.TryPerformOperation() && !inventory.PickUpItem(anchor),
-            "The manual input lock blocks environment operations", ref checks);
+        Check(!interaction.TryPerformOperation() && !interaction.TryPlaceAnchor(),
+            "The manual input lock blocks environment operations and anchor placement", ref checks);
         movement.UnlockInput();
         movement.OnDashStarted();
         movement.OnInteractionStarted();
         movement.OnDashEnded();
-        Check(movement.IsInputLocked && !interaction.TryPerformOperation() && !inventory.PickUpItem(anchor),
-            "Overlapping animation locks remain active until both animations finish", ref checks);
+        Check(movement.IsInputLocked && !interaction.TryPerformOperation() && !interaction.TryPlaceAnchor(),
+            "Overlapping animation locks block anchor operations until both animations finish", ref checks);
         movement.OnInteractionEnded();
         Check(!movement.IsInputLocked, "Finishing the final animation releases input", ref checks);
     }
@@ -315,11 +310,10 @@ public static class EnvironmentIntegrationChecks
         return result;
     }
 
-    private static Anchor AddAnchor(Scene scene, string name, Vector3 position, bool movable)
+    private static Anchor AddAnchor(Scene scene, string name, Vector3 position)
     {
         GameObject root = Create(scene, name, position);
         Anchor anchor = root.AddComponent<Anchor>();
-        Set(anchor, "canPickup", movable);
         BoxCollider2D collider = Create(scene, name + "Collider", position, root.transform).AddComponent<BoxCollider2D>();
         collider.size = Vector2.one * 0.25f;
         collider.isTrigger = true;

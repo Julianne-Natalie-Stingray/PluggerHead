@@ -90,7 +90,7 @@ public class PlayerMove : MonoBehaviour
         return TryTriggerAnimation(DashParameter);
     }
 
-    /// <summary>在拾取或选中请求成功后调用。</summary>
+    /// <summary>在收回、拾取或交互请求成功后调用。</summary>
     public bool TryStartInteractionAnimation()
     {
         return TryTriggerAnimation(InteractParameter);
