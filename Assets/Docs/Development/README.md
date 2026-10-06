@@ -4,6 +4,7 @@
 
 | 文件 | 内容与边界 |
 | --- | --- |
+| [DocumentationAudit.md](DocumentationAudit.md) | 本轮文档审计的范围、目录提交和验证快照；明确后续改动的待同步项。 |
 | `WorkflowHistory.md` | 已撤销的 DSH 双语工作流；全文仅归档，现行权限和风格以根 AGENTS 为准。 |
 | `CHANGELOG.md` | 历史交付、修复与验证过程，开头补充现行实现勘误；不追改原日期和结论。 |
 | `PENDING_INSPECTOR.md` | 历史手工检查清单；保留勾选状态，在各节添加当前说明。未勾选不自动成为本轮待办或审批门槛。 |
