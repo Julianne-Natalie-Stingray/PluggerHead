@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using UnityEditor;
@@ -86,6 +87,9 @@ public static class SceneCleanupFailureChecks
         float expectedTime = Time.timeScale;
         bool expectedPause = AudioListener.pause;
         GameState expectedGameState = GameStateManager.Current;
+        bool expectedManualFreeze = (bool)Get(typeof(GameStateManager), "manualFreeze");
+        bool expectedRestoreTime = (bool)Get(typeof(GameStateManager), "restoreTimeAfterLoading");
+        var expectedOwners = new HashSet<object>((HashSet<object>)Get(typeof(GameStateManager), "freezeOwners"));
         MainMenuIntegrationChecks.BeginProgressIsolation();
         isolatedProgress = true;
         object isolatedStore = Get(typeof(GameProgress), "store");
@@ -141,6 +145,8 @@ public static class SceneCleanupFailureChecks
                 }
             }
             GameStateManager.Freeze();
+            GameStateManager.RequestFreeze(new object());
+            Set(typeof(GameStateManager), "restoreTimeAfterLoading", !expectedRestoreTime);
             Set(typeof(EnvironmentFacade), "<Current>k__BackingField", null);
         }
 
@@ -149,6 +155,10 @@ public static class SceneCleanupFailureChecks
         Require(CoreFacade.Instance == null, "A failed unload must not skip owned persistent Core destruction.");
         Require(Time.timeScale == expectedTime && AudioListener.pause == expectedPause && GameStateManager.Current == expectedGameState,
             "A failed unload must restore synchronous game state.");
+        Require((bool)Get(typeof(GameStateManager), "manualFreeze") == expectedManualFreeze &&
+            (bool)Get(typeof(GameStateManager), "restoreTimeAfterLoading") == expectedRestoreTime &&
+            expectedOwners.SetEquals((HashSet<object>)Get(typeof(GameStateManager), "freezeOwners")),
+            "A failed unload must restore manual pause, pending time restoration and freeze ownership, not only the visible state.");
         Require(EnvironmentFacade.Current == priorEnvironment, "A failed unload must restore the previous environment reference.");
         if (kind == "Recovery")
         {
