@@ -105,7 +105,7 @@ public static class MainMenuIntegrationChecks
     {
         Require(CoreFacade.Instance == null, "Run in a fresh Test Runner session.");
         Require(!ownsScenes, "Previous menu scene cleanup remains pending.");
-        foreach (string sceneName in new[] { "MainMenuScene", "GameplayIntegration", "SceneSwitchTarget" })
+        foreach (string sceneName in new[] { "MainMenuScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
         {
             Require(!SceneManager.GetSceneByName(sceneName).isLoaded,
                 "Refusing to modify a pre-existing menu flow scene: " + sceneName);
@@ -248,6 +248,86 @@ public static class MainMenuIntegrationChecks
         return IntegrationSceneWait.Finally(CleanupMenuScenes(), RestoreMenuState);
     }
 
+    public static IEnumerator CheckMenuRestart()
+    {
+        Require(CoreFacade.Instance == null && !ownsScenes, "Run restart checks in a fresh Runner session.");
+        foreach (string sceneName in new[] { "MainMenuScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
+        {
+            Require(!SceneManager.GetSceneByName(sceneName).isLoaded,
+                "Refusing to modify a pre-existing scene: " + sceneName);
+        }
+        previousSceneState = new IntegrationSceneState();
+        testHostScene = SceneManager.GetActiveScene();
+        ownsScenes = true;
+        foreach (string path in new[] { "Assets/Scenes/Tests/GameplayIntegration.unity", "Assets/Levels/Scene/Level0.unity" })
+        {
+            pendingSceneOperation = UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(
+                path, new LoadSceneParameters(LoadSceneMode.Single));
+            yield return IntegrationSceneWait.Operation(pendingSceneOperation, "loading restart fixture", 20f);
+            yield return null;
+            Scene scene = SceneManager.GetActiveScene();
+            var settings = Resources.FindObjectsOfTypeAll<SettingsScreen>().Single(s => s.gameObject.scene == scene);
+            var death = UnityEngine.Object.FindObjectOfType<RestartLevelScreen>();
+            PlayerMove player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+            Require(player != null && !player.IsDead, "Restart fixture must start with a living player.");
+            Vector3 initialPosition = player.transform.position;
+            var marker = new GameObject("MenuRestartRuntimeMarker");
+            SceneManager.MoveGameObjectToScene(marker, scene);
+            player.GetComponent<Rigidbody2D>().simulated = false;
+            player.transform.position += Vector3.right * 2f;
+            var menuButton = death.GetComponentsInChildren<UnityEngine.UI.Button>(true).Single(b => b.name == "MenuButton");
+            menuButton.onClick.Invoke();
+            var button = Field<UnityEngine.UI.Button>(settings, "restartButton");
+            Require(settings.gameObject.activeInHierarchy && Time.timeScale == 0f &&
+                button != null && button.gameObject.activeInHierarchy && button.interactable,
+                "Menu must open a paused panel with an enabled restart button.");
+            Require(button.GetComponentInChildren<TMPro.TMP_Text>().text == "重开关卡" &&
+                button.onClick.GetPersistentTarget(0) == settings &&
+                button.onClick.GetPersistentMethodName(0) == "RestartLevel",
+                "Authored restart label and click target must match the menu controller.");
+            Require(!Field<GameObject>(death, "panel").activeSelf, "Menu restart must not show a death prompt.");
+            SceneSwitchManager switcher = CoreFacade.Instance.SceneSwitch;
+            switcher.enabled = false;
+            try
+            {
+                button.onClick.Invoke();
+                Require(settings.gameObject.activeInHierarchy && button.interactable && Time.timeScale == 0f &&
+                    !player.IsDead && Field<TMPro.TMP_Text>(settings, "saveStatus").text == "重新开始失败，请重试。",
+                    "Rejected restart must retain pause, show a Chinese error, and allow retry without killing the player.");
+            }
+            finally
+            {
+                switcher.enabled = true;
+            }
+            button.onClick.Invoke();
+            Require(switcher.IsSwitching && !button.interactable && !settings.gameObject.activeSelf,
+                "Accepted restart must close the menu and block repeated clicks.");
+            AsyncOperation accepted = Field<AsyncOperation>(switcher, "operation");
+            button.onClick.Invoke();
+            Require(ReferenceEquals(accepted, Field<AsyncOperation>(switcher, "operation")),
+                "Repeated clicks must not replace the in-flight reload.");
+            yield return WaitForSwitch(scene.name);
+            Scene fresh = SceneManager.GetActiveScene();
+            player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+            Require(fresh.path == path && fresh.handle != scene.handle && marker == null &&
+                player != null && !player.IsDead && player.GetComponent<Rigidbody2D>().simulated &&
+                Mathf.Abs(player.transform.position.x - initialPosition.x) < 0.1f &&
+                Time.timeScale > 0f && GameStateManager.Current == GameState.Playing && !AudioListener.pause,
+                "Menu restart must reload its own level, discard runtime state and release pause.");
+
+            // The death prompt must share the same target and still work after the menu refactor.
+            death = UnityEngine.Object.FindObjectOfType<RestartLevelScreen>();
+            player.Die();
+            Require(Field<GameObject>(death, "panel").activeInHierarchy && Time.timeScale == 0f,
+                "Death must still show and freeze its prompt.");
+            Field<UnityEngine.UI.Button>(death, "restartButton").onClick.Invoke();
+            yield return WaitForSwitch(fresh.name);
+            Require(SceneManager.GetActiveScene().path == path &&
+                !UnityEngine.Object.FindObjectOfType<PlayerMove>().IsDead && Time.timeScale > 0f,
+                "Death restart must return to the same fresh, unpaused level.");
+        }
+    }
+
     private static IEnumerator CleanupMenuScenes()
     {
         if (!ownsScenes)
@@ -323,7 +403,8 @@ public static class MainMenuIntegrationChecks
 
     private static bool IsMenuFlowScene(Scene scene)
     {
-        return scene.name == "MainMenuScene" || scene.name == "GameplayIntegration" || scene.name == "SceneSwitchTarget";
+        return scene.name == "MainMenuScene" || scene.name == "GameplayIntegration" ||
+            scene.name == "SceneSwitchTarget" || scene.name == "Level0";
     }
 
     private static void CapturePendingSwitch()

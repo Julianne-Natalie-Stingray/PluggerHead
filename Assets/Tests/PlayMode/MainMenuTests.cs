@@ -21,6 +21,12 @@ namespace PluggerHead.Tests
             yield return (IEnumerator)IntegrationCheckBridge.Invoke("MainMenuIntegrationChecks", "CheckMenuFlow");
         }
 
+        [UnityTest]
+        public IEnumerator LevelMenu_RestartRetriesReloadsOwnSceneAndPreservesDeathRestart()
+        {
+            yield return (IEnumerator)IntegrationCheckBridge.Invoke("MainMenuIntegrationChecks", "CheckMenuRestart");
+        }
+
         [UnityTearDown]
         public IEnumerator Cleanup()
         {

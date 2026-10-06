@@ -45,6 +45,14 @@ Load 先 new 数据并 ResetToDefault，再读取文件并覆盖默认实例，�
 
 ## 暂停面板与实际音量
 
+关卡 GlobalUI 的“继续游戏”和“重开关卡”并排显示。SettingsScreen 的可选 `restartButton` 与 `restartScreen` 引用只配置在关卡 UI，主菜单设置页不新增重开入口。重开复用同场景 RestartLevelScreen.TryRestartLevel，不读取旧的固定目标配置，也不保存音量滑块的未保存修改。失败时保持面板可见、暂停和按钮可用，并显示“重新开始失败，请重试。”；成功后禁用按钮并关闭本面板，其他面板的暂停请求持续到场景卸载。Loading 时拒绝重复请求。
+
+回归入口为 `MainMenuTests.LevelMenu_RestartRetriesReloadsOwnSceneAndPreservesDeathRestart`：分别验证 GameplayIntegration 与 Level0 的真实菜单按钮、中文提示、失败重试、重复点击、场景默认状态恢复、暂停释放和死亡重开。
+
+2026-10-07：独立审查未发现阻断问题。最终 EditMode 53/53（`532d644b23a14c6685789311f778cb79`）、PlayMode 79/79（`d1712a8dbf214f65b5c839989b5c5ac1`）通过，无失败或跳过。一次 PlayMode 执行因 Editor 连接中断丢失 job，确认无活动测试后重跑，未计为通过。结果对应包含另一会话地面极性修改的完整工作区，本任务提交不包含那些修改。
+
+Level0 实测确认 TMP 字形覆盖、无溢出、射线首个命中 RestartLevelButton；派发 pointerClick 后仍加载 Level0、玩家存活、菜单隐藏、时间倍率恢复 1。画面：[正常菜单](../../../Docs/Development/MenuRestart.png)、[失败提示](../../../Docs/Development/MenuRestartFailure.png)。
+
 MainMenuScene 和 GameplayIntegration 都包含初始 inactive 的 SettingsScreen。Inspector 需配置三条音量 Slider（当前范围 0–1）、返回主菜单 Button 和保存状态 TMP 文本。GameplayIntegration 的 MenuButton 持久事件直接调用 Open；主菜单通过 MainMenuScreen.OpenSettings 间接调用 Open。面板按钮和滑块连接 ContinueGame/SaveSettings/ReturnToMainMenu/OnVolumeChanged。
 
 Open 在对象 activeSelf 已为 true 或全局 Loading 时直接返回，否则校验引用，使用 SetValueWithoutNotify 填滑块并清空状态文本。OnEnable 独立请求冻结，OnDisable 释放，包括直接激活、父对象停用和场景卸载。关闭面板仅释放自身请求；其他面板请求或手动暂停仍存在时保持冻结。主菜单场景禁用返回主菜单按钮，但公开 ReturnToMainMenu 方法没有同名场景保护，外部调用仍应遵循 UI 约束。

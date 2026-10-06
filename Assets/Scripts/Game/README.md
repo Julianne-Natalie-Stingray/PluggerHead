@@ -23,7 +23,7 @@
 
 设置、死亡、通关面板在可见时独立请求冻结，隐藏或销毁时释放自身请求；仍有其他面板请求或手动暂停时不恢复游戏。返回菜单先关闭设置面板再切换。SceneSwitchManager 驱动 Loading，SettingsScreen 在 Loading 时拒绝 Open。Loading 期间手动 Freeze/Resume 为空操作；面板请求可登记和释放，ExitLoading 据此恢复状态与冻结前倍率，避免切关后遗留暂停。
 
-`GameplayIntegration` 的 `GlobalUI` 挂载 RestartLevelScreen 组件，引用默认隐藏的死亡面板和 Restart 按钮；Player 未手动配置时自动查找同场景对象（包含停用对象），缺失时每 0.5 秒重试。公开 FindPlayer 方法也可通过组件菜单调用。禁用时退订并隐藏面板，重新启用时恢复已死亡玩家的提示。玩家死亡事件会显示提示并请求冻结；按钮请求以 Single 模式重新加载 `GameplayIntegration`，从关卡默认状态开始。
+`GlobalUI` 挂载 RestartLevelScreen 组件，引用默认隐藏的死亡面板和 Restart 按钮；Player 未手动配置时自动查找同场景对象（包含停用对象），缺失时每 0.5 秒重试。公开 FindPlayer 方法也可通过组件菜单调用。禁用时退订并隐藏面板，重新启用时恢复已死亡玩家的提示。玩家死亡事件会显示提示并请求冻结；按钮以 Single 模式重载 UI 所属关卡，从默认状态开始。关卡 Menu 的“重开关卡”按钮复用 `TryRestartLevel()`，不要求玩家死亡或显示死亡面板。重开失败显示中文提示并保留暂停和重试，成功后防止重复请求；旧面板卸载会释放暂停。Level0 等未注册 Build Settings 的已保存开发场景可在 Editor 中重开，发布构建仍需注册关卡。
 
 `NextLevelScreen` 同样挂在保持启用的 GlobalUI 根对象上，控制默认隐藏的同名子面板。Start 查询同场景 Env 并订阅 LevelCleared；通关后显示“恭喜通关！你已接通电路。”和“下一关”，面板可见期间请求冻结，隐藏时释放。按当前配置，下一关重新加载 `GameplayIntegration`；以后在组件的 `nextLevel` 中修改 SceneId。请求被拒时显示中文失败提示，保留重试；请求成功后禁用按钮，防止重复加载。组件禁用时退订并隐藏，重新启用会恢复已通关状态；Env 调试重开后面板在下一帧隐藏。运行画面见 [NextLevelScreen](../../Docs/Development/NextLevelScreen.png)。
 

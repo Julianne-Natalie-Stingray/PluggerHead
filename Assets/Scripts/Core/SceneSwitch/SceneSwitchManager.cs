@@ -108,13 +108,48 @@ public class SceneSwitchManager : MonoBehaviour
             return null;
         }
 
+        return StartSwitch($"{requested} ({sceneName})",
+            () => SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Single));
+    }
+
+    /// <summary>Reloads an already loaded scene, sharing the normal loading and concurrency guards.</summary>
+    public AsyncOperation RequestReload(Scene scene)
+    {
+        if (!Application.isPlaying || !isActiveAndEnabled || !configs || isSwitching ||
+            !ReferenceEquals(switchingOwner, null) || GameStateManager.Current == GameState.Loading ||
+            !scene.IsValid() || !scene.isLoaded || string.IsNullOrEmpty(scene.path))
+        {
+            return null;
+        }
+
+        string path = scene.path;
+        if (SceneUtility.GetBuildIndexByScenePath(path) >= 0)
+        {
+            return StartSwitch("Reload " + path,
+                () => SceneManager.LoadSceneAsync(path, LoadSceneMode.Single));
+        }
+
+#if UNITY_EDITOR
+        // Allow play-testing saved levels before they are registered for a player build.
+        if (UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEditor.SceneAsset>(path) != null)
+        {
+            return StartSwitch("Reload " + path,
+                () => UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(
+                    path, new LoadSceneParameters(LoadSceneMode.Single)));
+        }
+#endif
+        return null;
+    }
+
+    private AsyncOperation StartSwitch(string description, Func<AsyncOperation> startLoad)
+    {
         switchingOwner = this;
         isSwitching = true;
-        switchingDescription = $"{requested} ({sceneName})";
+        switchingDescription = description;
         AsyncOperation startedOperation;
         try
         {
-            startedOperation = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Single);
+            startedOperation = startLoad();
         }
         catch
         {

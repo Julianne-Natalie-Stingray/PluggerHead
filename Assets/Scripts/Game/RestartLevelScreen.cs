@@ -8,7 +8,6 @@ public sealed class RestartLevelScreen : MonoBehaviour
     [SerializeField] private GameObject panel;
     [SerializeField] private UnityEngine.UI.Button restartButton;
     [SerializeField] private TMPro.TMP_Text deathMessage;
-    [SerializeField] private SceneId level = SceneId.GameplayIntegration;
 
     private PlayerMove subscribedPlayer;
     private float nextPlayerSearchTime;
@@ -120,12 +119,13 @@ public sealed class RestartLevelScreen : MonoBehaviour
 
     public void RestartLevel()
     {
-        if (panel == null || !panel.activeInHierarchy || CoreFacade.Instance == null)
+        if (!isActiveAndEnabled || panel == null || !panel.activeInHierarchy ||
+            GameStateManager.Current == GameState.Loading)
         {
             return;
         }
 
-        if (CoreFacade.Instance.SceneSwitch.RequestSwitch(level) == null)
+        if (!TryRestartLevel())
         {
             if (deathMessage != null)
             {
@@ -137,6 +137,25 @@ public sealed class RestartLevelScreen : MonoBehaviour
         if (restartButton != null)
         {
             restartButton.interactable = false;
+        }
+    }
+
+    /// <summary>Shared by the death prompt and the in-level menu; reloads this UI's own scene.</summary>
+    public bool TryRestartLevel()
+    {
+        if (!isActiveAndEnabled || CoreFacade.Instance == null || CoreFacade.Instance.SceneSwitch == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return CoreFacade.Instance.SceneSwitch.RequestReload(gameObject.scene) != null;
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception, this);
+            return false;
         }
     }
 }

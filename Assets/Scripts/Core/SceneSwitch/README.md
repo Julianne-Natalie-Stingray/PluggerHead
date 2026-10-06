@@ -32,6 +32,8 @@ OnValidate 只警告空名。Inspector 的 Remove Duplicates 按钮会实际修�
 
 ## 切换流程
 
+`RequestReload(Scene)` 重载调用方传入的已加载、已保存场景，供关卡菜单和死亡提示共用。它与 RequestSwitch 共用服务启用/配置检查、跨实例并发预留及 Loading 完成清理；不使用 SceneId 推断当前关卡。构建中要求该场景已注册 Build Settings；Editor Play Mode 额外允许通过已保存 SceneAsset 路径重载尚未注册的开发关卡（如 Level0）。无效场景或被拒请求返回 null，启动异常仍向调用方传播。
+
 Awake 缺 configs 时记录一次错误并禁用组件。RequestSwitch 先拒绝失活/禁用、缺配置、本实例忙碌、另一服务持有切换预留或已有 Loading 的请求，静默返回 null；无映射或构建索引不存在时记录错误并返回 null。通过后取得跨实例预留并调用 LoadSceneAsync(Single)。同步启动异常释放预留并向调用方传播，Unity 返回 null 时释放预留并返回 null。
 
 加载保留默认 allowSceneActivation=true，进入 Loading 后注册 AsyncOperation.completed；即使操作已完成而注册立即触发回调，也保证先进入再退出 Loading。完成委托不依赖宿主协程，组件失活或销毁不会中断实际加载与状态清理。EnterLoading/ExitLoading 的订阅者异常会记录，但不阻止加载或 finally 中的清理；GameState 在通知前已更新标签。完成通知期间仍持有预留，拒绝回调重入请求，随后清空 operation、IsSwitching 及属于本实例的跨实例预留。

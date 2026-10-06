@@ -12,6 +12,8 @@ public sealed class SettingsScreen : MonoBehaviour
     [SerializeField] private UnityEngine.UI.Slider sfxVolume;
     [SerializeField] private UnityEngine.UI.Button exitButton;
     [SerializeField] private TMPro.TMP_Text saveStatus;
+    [SerializeField] private UnityEngine.UI.Button restartButton;
+    [SerializeField] private RestartLevelScreen restartScreen;
 
     private void OnEnable()
     {
@@ -34,7 +36,39 @@ public sealed class SettingsScreen : MonoBehaviour
         saveStatus.text = string.Empty;
         exitButton.interactable = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "MainMenuScene" &&
             CoreFacade.Instance != null;
+        if (restartButton != null)
+        {
+            restartButton.gameObject.SetActive(restartScreen != null &&
+                restartScreen.gameObject.scene == gameObject.scene && gameObject.scene.name != "MainMenuScene");
+            restartButton.interactable = true;
+        }
         gameObject.SetActive(true);
+    }
+
+    /// <summary>Restarts the current level through the same controller used by the death prompt.</summary>
+    public void RestartLevel()
+    {
+        if (!isActiveAndEnabled || GameStateManager.Current == GameState.Loading)
+        {
+            return;
+        }
+
+        if (restartScreen == null || restartScreen.gameObject.scene != gameObject.scene ||
+            gameObject.scene.name == "MainMenuScene" || !restartScreen.TryRestartLevel())
+        {
+            if (saveStatus != null)
+            {
+                saveStatus.text = "重新开始失败，请重试。";
+            }
+            return;
+        }
+
+        if (restartButton != null)
+        {
+            restartButton.interactable = false;
+        }
+        // Release only this panel's pause; other visible prompts retain their own pause until unload.
+        gameObject.SetActive(false);
     }
 
     private void LoadVolumeValues()
