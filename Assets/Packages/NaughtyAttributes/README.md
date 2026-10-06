@@ -2,6 +2,8 @@
 
 2026-10-06 核查。本地 package.json 版本2.1.6、Unity 2022.3；当前以 Assets 内源码使用，不需按[随附 HTML 手册](README.html)的安装步骤重复安装。HTML 中“Unity 2018.3 或更高”的旧说明不替代本地包声明或当前版本验证。
 
+原 HTML 保留导出时的 Grip 站点资源引用，例如 `/__/grip/static/` 和 `/images/`；这些站点路径未随仓提供，不保证完全离线还原样式。本文保留第三方 HTML 原文，不把展示依赖缺失当作属性实现缺失。
+
 | 文件或目录 | 内容与边界 |
 | --- | --- |
 | `README.html` | 原始属性说明、示例和分发入口，已阅读；保留原文。自定义 Inspector 若需完整支持，应继承 NaughtyInspector 并使用 NaughtyEditorGUI 绘制入口，与本地实现一致。 |
