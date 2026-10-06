@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 阅读说明与现状勘误（2026-10-06）
+
+本文件保存各交付当时的决策、失败、修改与人工验证记录。保留原日期、旧路径、勾选和日志，不把历史观察追改成今天的通过结果；下文旧工作流不是现行权限或待办。当前规则见 [AGENTS](../../AGENTS.md)，当前验证见 [Tests](../../Tests/README.md)。
+
+| 历史表述 | 当前实现与适用边界 |
+| --- | --- |
+| 目录迁移时保留旧场景名 | 后续已改名并新增 MainMenuScene 构建入口，见[场景总览](../../Scenes/README.md)。 |
+| 在任意 Awake 取 Core 即可；新增未配场景枚举会编译失败 | Core 初始化顺序不能普遍假定；枚举新增本身不强制存在场景资产，需注册表/资源验证。 |
+| 切换协程在 progress≥0.9 收尾、同场景拒绝 | 当前使用 AsyncOperation.completed 收尾，空闲时允许同场景重载；Single 不销毁已保活的 Core。见 [SceneSwitch](../../Scripts/Core/SceneSwitch/README.md)。 |
+| Loading 音频必然通过、冻结行为固定 | Loading 不额外触发冻结入口门，仍受配置/容量限制，监听器状态还受 AudioManager 状态订阅影响。 |
+| Timer 不能捕获场景对象；Play 必须无条件先 Stop；归还回调再 Release | 这些不是可复制的当前规则。现行通过取消 Timer、句柄失效与池重置管理生命周期；已播放的重复 Play 直接返回。详见 [Audio](../../Scripts/Core/Audio/README.md)。 |
+| 设置无字段、音量未应用、输入无消费者、渐变或总线未实现 | 已有三路音量、设置面板、真实 Player 输入消费和音频渐变；Mixer 已暴露参数。见 [Game](../../Scripts/Game/README.md)、[Player](../../Scripts/Player/README.md) 与[音频资源](../../Audios/README.md)。 |
+| 缺 JSON 字段必然抛错 | 当前采用 FromJsonOverwrite、默认值和显式校验；见 [Setting](../../Scripts/Game/Setting/README.md)。 |
+| 未传位置或跟随目标就不能空间化 | 仍可使用 emitter 自身 Transform；当前配置资产为2D。 |
+| 池只限制闲置数、循环上限无效、旧 Timer 自检日志必须存在 | 正常请求通过 CanReuse 控制增长；不可抢占的循环声占满上限时拒绝请求。初始化和限流以 [Managers](../../Scripts/Core/Managers/README.md) 为准。 |
+| Inspector、meta、CreateAssetMenu 必须由用户完成并审批 | 这是已归档工作流，不是现行任务门槛；保持旧清单只为记录过程。 |
+
+下列原始条目均按当时语境阅读；详细旧检查项的就地勘误见 [PENDING_INSPECTOR](PENDING_INSPECTOR.md)。
+
 ## 2026-10-06 — 按功能合并 HeXie/Jill 目录
 
 - 移除按作者划分的目录访问限制，现行规则统一放在 `Assets/AGENTS.md`，旧 DSH 工作流改名归档为 `WorkflowHistory.md`。

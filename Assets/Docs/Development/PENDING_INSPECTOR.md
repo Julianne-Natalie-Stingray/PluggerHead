@@ -3,9 +3,11 @@
 保留旧开发流程中的 Inspector 检查清单；2026-10-06 迁移至按功能组织的目录。
 以下勾选状态沿用原记录，不表示本次目录整理重新验证了相关功能。旧 DSH 审批规则已归档，现行规则见 `Assets/AGENTS.md`。
 
-## 未完成项
+## 历史检查项（非现行待办）
 
 ### 1. 音频限流的数值关系 — 已完成, 记录判定依据
+
+> 2026-10-06 核查：现行勘误：两个容量不等式不是代码硬约束。maxPoolSize 也经正常请求的 CanReuse 检查限制扩容；defaultCapacity 是容器初始容量，不是创建数。当前 GenericSfx/GenericOst/MouseClick 单 ID 上限分别为 5/1/10，详见 [默认配置](../../SO/Audio/README.md)。
 
 两个实例上限与池大小是三件不同的事:
 
@@ -28,6 +30,8 @@
 - [x] 按每个音效的设计意图复核 MaxInstances: 它此前从未生效, 因此现有的 10 是未经验证的默认值.
 
 ### 2. 验证本次音频交付
+
+> 2026-10-06 核查：以下是相继替代的历史实现，不可作为当前修改步骤。现行 Awake 建池，Start 预热并应用设置；重复 AudioEmitter.Play 直接返回，不先无条件 Stop。第4条归还处理曾被第5条替代，不应再次在池归还回调内调用 Release。详见 [Managers](../../Scripts/Core/Managers/README.md)。
 
 - [x] Unity Console 无编译错误; 四个新脚本已导入并生成 .meta.
 
@@ -61,6 +65,8 @@
 
 ### 6b. 冻结语义重构后的验收矩阵 (待实测)
 
+> 2026-10-06 核查：现行勘误：入口使用有效 SurviveFreeze（请求覆盖或 clip 默认值），同时要求 AllowWhileFrozen。OST 默认 SurviveFreeze=true，故只显式设置 AllowWhileFrozen 也可能获准；有效 SurviveFreeze=false 则拒绝。Freeze 通过监听器暂停，不主动切断并归还全部声部；循环声无自然结束 Timer。获准不等于保证可听。下表保留旧验收记录，不作为当前语义矩阵，见 [Audio](../../Scripts/Core/Audio/README.md)。
+
 `SurviveFreeze` 与 `AllowWhileFrozen` 是**两个独立**的决定, 因此需要分别验证, 不能只看"暂停有没有生效".
 
 **冻结期入口门的最终规则**: 只有**同时**满足"允许进入"与"会熬过冻结"的请求才被受理.
@@ -90,6 +96,8 @@
   且旧字段没有残留在任何 `.asset` 里(这是序列化字段改名, 旧值不会自动迁移, 默认值即 `false`).
 
 ### 请复验(按顺序)
+
+> 2026-10-06 核查：以下命令、行号、日志和临时 requestTime 是历史操作，不需照做。未指定 Position/Follow 时仍使用 emitter Transform；当前三个数据资产都是2D。十次同 ID 请求受单 ID 上限约束，不等于十声部叠加。
 
 - [x] **脚本编译已完成并核实**: 首次编译报 `CS0246`(`BoxGroup` 缺少 `using NaughtyAttributes;`), 已修正.
   修正后 `Assembly-CSharp.dll` @ `17:48:01`(`51712` -> `52736` 字节), 产物含 `SetPosition` / `WithPosition` /
@@ -122,6 +130,8 @@
 
 ### 3. "Pool exhausted" 警告的正确读法 (此前写错, 特此更正)
 
+> 2026-10-06 核查：现行勘误：抢占硬停会同帧同步归池，不等待下一帧。点击次数不能直接换算并发数；Pool exhausted 单条警告既不证明限流完全正确，也不单独证明泄漏，应结合配置、借还与拒绝原因检查。
+
 **该警告是设计生效的证据, 不是缺陷.** 判据:
 
 - 池上限为 `30`, 而 `Test Audio Request` 每次点击触发 `10` 次请求 —— 连点 3 次即达 30 并发.
@@ -132,10 +142,14 @@
 
 ### 4. 本次不包含的缺口 (无需你操作, 仅备忘)
 
+> 2026-10-06 核查：下列未勾选状态仅保留历史。淡入、自然尾淡出和句柄 Stop 淡出已实现，抢占仍硬切；Master.mixer 已暴露三路音量参数，设置面板会应用它们。见 [音频资源](../../Audios/README.md) 与 [Setting](../../Scripts/Game/Setting/README.md)。
+
 - [ ] 淡入淡出未实现: 抢占是硬切. 参见 CHANGELOG 的"本次不做"一节.
 - [ ] 总线整体缩放未实现: Master.mixer 未暴露参数, 需要一次独立的 AudioMixer 配置交付.
 
 ### 5. Setting 子系统交付 (待复验)
+
+> 2026-10-06 核查：历史导入/编译与手工破坏设置文件的步骤已被后续实现和隔离测试替代，不是当前待办。现行设置脚本位于 Game/Setting，测试只操作临时路径，见 [Tests](../../Tests/README.md)。
 
 **先决条件: 让 Unity 重新获得焦点并完成导入与编译.** 截至交付时, `Assets/Scripts/Game/` 下的 5 个 `.cs`
 都还没有生成 `.meta`, `Assembly-CSharp.dll` 也未更新 —— 编辑器失焦导致导入与编译循环未推进.
@@ -152,6 +166,8 @@
 
 ### 5b. JSON 健壮性重验 (修正后待验)
 
+> 2026-10-06 核查：现行字段示例为 `{"audio":{"masterVolume":0.3}}`，顶层 MasterVolume 不匹配当前数据。当前 FromJsonOverwrite 配合默认值与显式校验，Audio 非空且三路音量必须有限并位于0–1，否则整体回默认。嵌套缺字段边界以 [Setting](../../Scripts/Game/Setting/README.md) 的当前验证为准。
+
 - [x] **只有大括号 `{}`**: 应回落到**设计默认值**(`MasterVolume` 1, `OstVolume` 0.5, `SfxVolume` 0.5), 而**不是**类型零值 0.
   这是本次修正的核心: 旧实现用 `FromJson` 新建实例, 因此缺失成员取零值.
 - [x] **语法损坏的 json**: 应**不抛异常**, 记录一条 warning 并回落到设计默认值, 游戏正常启动.
@@ -161,12 +177,16 @@
 
 ### 5c. AudioManager 修正项
 
+> 2026-10-06 核查：建池已在 Awake 的 InitializeInternal 内进行，但不同对象的 Start 顺序不固定，不代表预热或 Mixer 应用必然先完成。下文 DSH 裁决要求属于旧流程，现行权限以 [AGENTS](../../AGENTS.md) 为准。
+
 - [x] **场景内 `Start` 播放音频**: 应正常工作. 用户已把建池移到 `InitializeInternal`, 本次仅补齐注解与一个空值守卫, 未改变该行为.
 - [x] **`configs` 故意留空时的行为**: 应记录一条错误并**不再**抛 `NullReferenceException`(旧代码在该分支仍会调用
   `BuildEmitterPool()`, 而它立即解引用 `configs`). 若你希望由 DSH 恢复"依赖缺失时仍可播放"的语义, 请给出裁决 ——
   当前实现是"缺依赖则不播放", 与"实例池的配置依赖"直接相关.
 
 ### 6. 音频冻结行为 (待实测)
+
+> 2026-10-06 核查：现行勘误：SurviveFreeze=true 映射 ignoreListenerPause，表示忽略监听器暂停而继续播放，不是停在原处等待解冻。以下观察不能替代对两种配置的分别验证。
 
 本项经两轮修订, 最终形态见 6b 的验收矩阵. 过程记录如下, 以免下次重新推导:
 
@@ -181,6 +201,8 @@
 
 ### 7. GameState 子系统交付 (待复验)
 
+> 2026-10-06 核查：退出/重进 Play 后恢复是当时编辑器设置下的观察，不是跨 Enter Play Mode Options 的保证；当前无统一静态重置钩子。Loading 中 Freeze/Resume 请求会被忽略，详见 [GameState](../../Scripts/Game/GameState/README.md)。
+
 - [x] 编译已核实(与 Setting 同一次编译).
 - [x] **实测 `Freeze` 的幂等与还原**: 在玩法代码里调用 `GameStateManager.Freeze()`, 确认游戏时间停止, 音频暂停;
   再调用一次 `Freeze()`, 确认只记一条"已处于 Freezed"的日志且**无其他副作用**.
@@ -191,6 +213,8 @@
 
 ### 8. 音频与 GameState 的相互作用 (交付 3 落地后必须验)
 
+> 2026-10-06 核查：归池取决于入口条件、非循环结束判定、TimerRunner 和对象生命周期，不能将未归池唯一归因于非缩放时间。当前暂停停止回归只设置 timeScale/Listener，不进入 Freezed 标签，不代表旧冻结矩阵已完整重测。
+
 `Time.timeScale = 0` 会让所有走 scaled time 的东西停摆, 因此音频侧已把 emitter 的结束判定改为 `UseUnscaledTime()`.
 这两处是一对, 不能只保留其一.
 
@@ -198,6 +222,8 @@
   若没有, 说明 `UseUnscaledTime()` 未生效, emitter 会在暂停期间永久滞留池外.
 
 ### 9. SceneSwitch 子系统交付 (已交付并已全面实测)
+
+> 2026-10-06 核查：本节“全面实测”“唯一待办”和缺口结论均限定在历史交付时点，不代表当前测试覆盖或现行待办。当前证据与未覆盖范围见 [Tests](../../Tests/README.md)。
 
 **本份交付已编译并已全面实测通过** —— 资产侧配置(9a / 9b)与全部实测项(9c / 9d)均已由用户完成并显式确认.
 
@@ -209,6 +235,8 @@
 
 #### 9a. `[CreateAssetMenu]` 往返 (§5.2.3.2) — 必须先做, 否则无法右键创建资产
 
+> 2026-10-06 核查：现行 CreateAssetMenu 已启用；下文取消注释往返与人工审批仅作历史记录。
+
 `SceneSwitchConfigs.cs` 顶部的 `[CreateAssetMenu]` **已被我注解掉**, 因为它引用 `MenuTool` 包的常量. 按约定分工:
 
 - [x] 你修改 `MenuTool` 的 `.menutool` 资产, 仿 `AudioManagerConfigs` 的结构加入 `Game/Basic Settings/SceneSwitchConfigs` 节点.
@@ -216,6 +244,8 @@
 - [x] 你确认 `Game.MenuTool.g.cs` 重新生成且包含 `SceneSwitchConfigs` 节点.
 
 #### 9b. 资产与 Inspector
+
+> 2026-10-06 核查：现行 SampleScene 已退休，配置含四个场景；路径为 Prefabs/Core/Core.prefab 与 SO/SceneSwitch/DefaultSceneSwitchConfigs.asset。下文旧禁区已撤销，不能据此要求额外审批。见 [场景映射](../../SO/SceneSwitch/README.md) 与 [AGENTS](../../AGENTS.md)。
 
 - [x] 创建 `SceneSwitchConfigs` 资产(建议与 `DefaultAudioManagerConfigs.asset` 同级放在 `Assets/SO/`).
 - [x] 在该资产里加一条映射: `SampleScene` -> `SampleScene`. **名字必须与场景文件名逐字一致, 且不含 `.unity`**.
@@ -226,6 +256,8 @@
 > **为什么我没有代做**: 新增场景、改动 Build Settings、编辑 `.prefab` 与创建 `.asset` 全部属于 §2.1 / §3.2 的禁区.
 
 #### 9c. 实测清单 (全部通过)
+
+> 2026-10-06 核查：保留旧 SampleScene 日志，不作当前可复制代码。Loading 日志顺序不能证明画面首帧时机；Loading 不触发冻结入口门，但仍受音频校验和限流，且 AudioManager 会解除监听器暂停。切换通过 completed 回调收尾，空闲时允许重载同场景。见 [SceneSwitch](../../Scripts/Core/SceneSwitch/README.md)。
 
 **八项全部通过**, 由用户实测并确认. 前三项有运行日志作为证据; 后五项是"证明某事没有发生", 在日志里天然不留证据, 因此以用户的实测确认作为依据 —— 这也是本节此前把未经证实的项标为未勾选的原因.
 
@@ -258,6 +290,8 @@
 > **注意**: `RemoveDuplicates` 已由用户改为**手动 `[Button]`**(`OnValidate` 只报空名), 理由是 Unity 界面上新增条目会默认复制上一项, 因此编辑过程中必然短暂出现重复, 自动去重会打断填写. 这意味着**去重不再是自动的** —— 需要你点一次按钮才会消除重复项. 已记此以免下次误以为它是自动的.
 
 #### 9d. 结转: 仍未闭合的观测
+
+> 2026-10-06 核查：句柄有效性守卫仍成立，行号及探针观察属于历史；此处“唯一未知量”只限当时非循环冻结实验，不涵盖循环、停用/销毁、手动停止或 TimerRunner 等生命周期边界。
 
 **本项已通过.** `ISoundHandle.IsPlaying` 确实反映底层 `AudioSource.isPlaying`:
 

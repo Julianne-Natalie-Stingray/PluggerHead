@@ -3,6 +3,8 @@
 2026-10-06：用户移除了 Jill 目录的读写限制，并将 HeXie/Jill 目录按功能合并。
 本文件从 `Scripts/Jill/AGENT-DOCs/AGENTS.md` 迁移并改名，仅保留历史背景；下文的目录边界、文件类型限制及审批流程不再作为现行规则。当前规则统一见 `Assets/AGENTS.md`。
 
+2026-10-06 核查补充：归档范围包括全文的交付流程、编码风格、编译前置条件及审批约定；正文中“本文件 AGENTS.md”指迁移前的名称。全文不产生现行操作指令，当前规则见 [Assets/AGENTS.md](../../AGENTS.md)。原文双语内容保持不变。
+
 # 1    工作流总述 / Workflow Overview
 
 ## 1.1    分工 / Division of labour
