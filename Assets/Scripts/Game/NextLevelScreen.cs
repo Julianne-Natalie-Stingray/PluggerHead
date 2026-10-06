@@ -23,6 +23,7 @@ public sealed class NextLevelScreen : MonoBehaviour
         if (panel != null)
         {
             panel.SetActive(false);
+            FreezeWhileVisible.Attach(panel);
         }
         if (nextLevelButton != null)
         {

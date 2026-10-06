@@ -7,7 +7,8 @@
 | 文件 | 行为 |
 | --- | --- |
 | `GameState.cs` | 定义枚举，默认零值为 Playing；枚举本身不执行状态变化。 |
-| `GameStateManager.cs` | 保存 Current、冻结前倍率和加载前标签，提供四个转换方法及 Changed 事件。 |
+| `GameStateManager.cs` | 保存 Current、冻结前倍率和加载前标签，提供状态转换、按持有者请求/释放冻结及 Changed 事件。 |
+| `FreezeWhileVisible.cs` | 面板 OnEnable 请求冻结，OnDisable 释放；由 RestartLevelScreen、NextLevelScreen 自动挂到实际子面板。 |
 | `README.md` | 本目录契约、调用约束与检查结论。 |
 
 对应 `.meta` 保存资源 GUID，无 Inspector 默认引用或执行顺序配置。静态字段随脚本域初始化，不随切场景重置；没有 `RuntimeInitializeOnLoadMethod`。当前项目关闭了 Enter Play Mode Options，因此常规进入播放会重载域；以后若禁用 Domain Reload，不能假定 Current、缓存倍率和事件订阅自动清空。
@@ -16,12 +17,14 @@
 
 | 调用 | 忽略条件 | 实际变化 |
 | --- | --- | --- |
-| `Freeze()` | Current 是 Loading（静默）或 Freezed（记录 Info） | 缓存当前 timeScale，设为 0，设 AudioListener.pause 为 true，再改为 Freezed 并广播。 |
-| `Resume()` | Current 是 Loading（静默）或 Playing（记录 Info） | 恢复缓存倍率（初始为 1），解除监听器暂停，再改为 Playing 并广播。 |
+| `Freeze()` | Current 是 Loading | 设置手动暂停标记；首次冻结缓存倍率、停止时间、暂停监听器并广播；已经冻结时不重复改变倍率。 |
+| `Resume()` | Current 是 Loading | 清除手动暂停；没有面板请求时恢复缓存倍率和监听器，改为 Playing。 |
+| `RequestFreeze(owner)` | 同一持有者重复请求 | 独立持有冻结；Loading 中登记，退出加载时生效。 |
+| `ReleaseFreeze(owner)` | 持有者没有请求 | 移除请求；最后一个请求释放且没有手动暂停时恢复。Loading 中释放则在退出加载时恢复。 |
 | `EnterLoading()` | Current 已是 Loading | 缓存当前标签，改为 Loading 并广播；不直接写倍率或监听器。 |
-| `ExitLoading()` | Current 不是 Loading | 还原缓存标签并广播；不检查 Unity 的加载操作，也不直接写倍率或监听器。 |
+| `ExitLoading()` | Current 不是 Loading | 结合加载前标签和仍存在的冻结请求恢复状态；面板请求发生变化时同步倍率与监听器。 |
 
-`Apply` 先赋 Current，再记录日志并同步调用 Changed。事件没有异常隔离或重入保护；订阅者应成对退订，不在回调中递归转换状态。Loading 期间 Freeze/Resume 均为空操作，不改标签、倍率缓存或监听器，也不广播事件；ExitLoading 还原加载前标签。它不是多层暂停的计数器。
+`Apply` 先赋 Current，再记录日志并同步调用 Changed。事件没有异常隔离或重入保护；订阅者应成对退订，不在回调中递归转换状态。Loading 期间 Freeze/Resume 均为空操作，不改标签、倍率缓存或监听器，也不广播事件；ExitLoading 结合仍有效的面板请求恢复状态。带持有者的 RequestFreeze/ReleaseFreeze 可在 Loading 期间登记和释放，不会抢占 Loading 标签。
 
 正常的 `Playing → Freeze → Resume` 会恢复进入暂停前的倍率，包括非 1 倍速。缩放时间为零不停止 Update 或使用 unscaled time 的任务。音频监听器暂停也不等于全部声源停止，忽略监听器暂停的声源可继续播放。
 
@@ -29,11 +32,11 @@
 
 `SceneSwitchManager` 在开始异步加载后调用 EnterLoading，保持默认允许激活，并在 AsyncOperation.completed 回调中调用 ExitLoading；回调不依赖组件保持激活或存活，也不代表首个可见帧的精确瞬间。Loading 不自行恢复倍率，所以从 Freezed 进入 Loading 时，倍率仍为 0。
 
-当前生产代码中 Changed 的订阅者是 `AudioManager`，在 OnEnable/OnDisable 成对订阅；它按 `state == Freezed` 设置监听器暂停。因此 Core 存在且音频组件订阅时，`Freezed → Loading` 会解除监听器暂停，`ExitLoading → Freezed` 才重新暂停。没有该订阅者时，EnterLoading/ExitLoading 都保留原监听器值。不能把管理器“不直接写音频”描述成全系统“不影响音频”。
+当前生产代码中 Changed 的订阅者是 `AudioManager`，在 OnEnable/OnDisable 成对订阅；它按 `state == Freezed` 设置监听器暂停。因此 Core 存在且音频组件订阅时，`Freezed → Loading` 会解除监听器暂停，`ExitLoading → Freezed` 才重新暂停。没有该订阅者且面板请求未变化时，EnterLoading/ExitLoading 保留原监听器值。不能把管理器“不直接写音频”描述成全系统“不影响音频”。
 
 音频的新请求仅在 Freezed 时受冻结入口条件限制，Loading 会绕过该条件，但仍受配置、音频实例上限和池容量限制，不保证所有请求成功。非循环声的结束判定使用 unscaled Timer；具体声音的暂停、生存和释放属于 [Core](../../Core/README.md) 的实现。
 
-`SettingsScreen.Open` 拒绝在 Loading 时打开，只在 Playing 时取得暂停所有权；关闭时仅恢复自己取得的暂停。返回主菜单先关闭面板释放暂停，再请求加载。因此现有菜单流程通常从 Playing 进入 Loading，不依赖“冻结中切场景仍持续静音”。
+`SettingsScreen.Open` 拒绝在 Loading 时打开；组件 OnEnable 独立请求冻结，OnDisable 释放。RestartLevelScreen 和 NextLevelScreen 通过实际面板上的 FreezeWhileVisible 执行同样的配对操作。多个面板叠加时，关闭其中一个不会释放其他面板的暂停。场景卸载会释放旧面板请求，ExitLoading 恢复游戏，避免下一关遗留零倍率；加载失败且面板仍显示时保留冻结。
 
 ## 行为检查结论与已知缺口
 

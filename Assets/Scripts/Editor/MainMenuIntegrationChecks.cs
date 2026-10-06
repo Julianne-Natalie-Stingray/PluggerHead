@@ -214,6 +214,13 @@ public static class MainMenuIntegrationChecks
         nextScreen.enabled = true;
         Require(Field<GameObject>(nextScreen, "panel").activeInHierarchy,
             "Re-enabling after victory must recover the current completion state.");
+        Require(GameStateManager.Current == GameState.Freezed && Time.timeScale == 0f,
+            "The visible completion prompt must freeze gameplay.");
+        settings = Resources.FindObjectsOfTypeAll<SettingsScreen>().Single(s => s.gameObject.scene == completedScene);
+        settings.gameObject.SetActive(true);
+        settings.ContinueGame();
+        Require(GameStateManager.Current == GameState.Freezed && Time.timeScale == 0f,
+            "Closing settings must preserve the visible completion prompt's freeze request.");
         UnityEngine.UI.Button nextButton = Field<UnityEngine.UI.Button>(nextScreen, "nextLevelButton");
         SceneSwitchManager switcher = CoreFacade.Instance.SceneSwitch;
         switcher.enabled = false;

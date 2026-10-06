@@ -13,7 +13,10 @@ public sealed class SettingsScreen : MonoBehaviour
     [SerializeField] private UnityEngine.UI.Button exitButton;
     [SerializeField] private TMPro.TMP_Text saveStatus;
 
-    private bool ownsPause;
+    private void OnEnable()
+    {
+        GameStateManager.RequestFreeze(this);
+    }
 
     public void Open()
     {
@@ -31,12 +34,6 @@ public sealed class SettingsScreen : MonoBehaviour
         saveStatus.text = string.Empty;
         exitButton.interactable = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "MainMenuScene" &&
             CoreFacade.Instance != null;
-        ownsPause = GameStateManager.Current == GameState.Playing;
-        if (ownsPause)
-        {
-            GameStateManager.Freeze();
-        }
-
         gameObject.SetActive(true);
     }
 
@@ -61,16 +58,10 @@ public sealed class SettingsScreen : MonoBehaviour
         }
 
         // Release this panel's pause before the switch captures the previous game state.
-        bool resume = ownsPause;
         gameObject.SetActive(false);
         if (CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.MainMenuScene) == null)
         {
             gameObject.SetActive(true);
-            ownsPause = resume;
-            if (ownsPause)
-            {
-                GameStateManager.Freeze();
-            }
             saveStatus.text = "返回主菜单失败，请重试。";
         }
     }
@@ -128,11 +119,6 @@ public sealed class SettingsScreen : MonoBehaviour
 
     private void OnDisable()
     {
-        if (ownsPause && GameStateManager.Current == GameState.Freezed)
-        {
-            GameStateManager.Resume();
-        }
-
-        ownsPause = false;
+        GameStateManager.ReleaseFreeze(this);
     }
 }
