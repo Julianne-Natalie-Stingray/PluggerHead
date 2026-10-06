@@ -1,5 +1,7 @@
 # Editor 集成检查实现
 
+Wire 行为更新：EditMode 22/22（job `3e2227f67e3f4dd58a41013bac8301f3`）、PlayMode 74/74（job `6ca8189c3df64c8c95ce6c9c82fbacd3`）终态通过。TilemapTests 现有 10 项，新增跨格接触旧路径截断、Anchor 固定与解除后的接触截断、同线/跨线重叠颜色及提示清除。以下 71 项结果为历史版本。
+
 2026-10-06 Tilemap 改造验证：EditMode 22/22（job `812b828e3ce84ea889c26457cc594fda`）、PlayMode 71/71（job `c12304087033435ebdf260a2b5541579`）均终态通过；以下较早 job 为历史记录。原 Corner 用例已替换为 TilemapTests，覆盖近角非格心往返、调试验收同格操作，并新增真实场景 Tilemap 落地及两个关卡的格心资源检查。
 
 这些脚本位于 Unity 的 Editor 特殊目录，编译进预定义 Editor 程序集。它们提供实际断言和测试夹具，由 `Tests/` 的 NUnit 包装通过反射调用；不是独立 Player 的运行时代码。逐文件核查日期：2026-10-06。运行入口和程序集说明见[测试总说明](../../Tests/README.md)。
@@ -15,7 +17,7 @@
 | `MainMenuIntegrationChecks.cs` | `CheckProgressStorage()` 检查临时关卡存档；`CheckMenuFlow()` 调用实际按钮事件，检查设置、菜单往返及仅恢复关卡默认状态的 Continue。提供进度存储替换/恢复与清理入口。 |
 | `SceneSwitchRecoveryChecks.cs` | `CheckRecovery(interruption)` 的失活、销毁、禁用及异常回调四条路径，检查重入拒绝、加载结束、预约释放与下一次请求；`Cleanup()` 清理服务与加载场景。 |
 | `GroundPolarityIntegrationChecks.cs` | 三个同步检查与一个帧推进协程；真实 2D 接触、极性、法向、层/Trigger/禁用过滤、换线、锁定危险及自动物理帧死亡。 |
-| `TilemapIntegrationChecks.cs` | 六个同步检查与一个帧推进协程；格子长度、跨格/对角回退、Anchor 固定与收回、每线独立/重开、变换/offset 和实际帧推进。 |
+| `TilemapIntegrationChecks.cs` | 九个同步检查与一个帧推进协程；接触旧路径截断、重叠颜色与清除、格子长度、跨格/对角回退、Anchor 固定与收回、每线独立/重开、变换/offset 和实际帧推进。 |
 | `OwnedPhysicsSceneCleanup.cs` | Tilemap/Ground 专用清理：先尝试所有自有场景，以有界等待确认卸载；保留未完成句柄供重试，汇总失败。 |
 | `PhysicsCleanupIntegrationChecks.cs` | Run(owner, failure) 通过两组真实 Cleanup 注入各六种情形，共 12 用例：空操作、异常、超时、Dispose、场景已卸载但句柄未确认，以及句柄完成但场景仍加载；Cleanup 供独立 TearDown 等待剩余卸载。 |
 | `IntegrationSceneWait.cs` | 有期限的操作等待，显式推进嵌套协程并逐层 Dispose，保留操作与恢复错误；提供场景检查的临时全局状态快照。 |

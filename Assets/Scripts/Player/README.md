@@ -19,7 +19,7 @@ Player 使用 [Core 输入](../Core/Input/README.md) 和 [Env 真实交互契约
 
 PlayerInteraction 要求 PlayerInventory，在 Start 获取 Core.Input 并确认环境存在，缺失时禁用。重新启用只重新订阅已缓存输入，不自动重走失败的 Start。输入事件均成对订阅/退订。PlayerInventory.Environment 的显式引用若为空或属于别的场景，就查询自身场景的 EnvironmentFacade；同场景已有引用不会因为另一个环境出现而自动替换。
 
-GameplayIntegration 中移动速度为 5、跳跃速度为 8、重力倍率为 1；groundLayers 和 interactionLayers 当前为全部层，交互半径 2，背包最少显示 8 格。InventoryUI 的 inventory、slotsRoot、slotTemplate 已装配。Anchor prefab 引用为 `Assets/Prefabs/Env/Anchor.prefab`；Player Tag 和 WireAttach 子挂点供 Env 查找。动画控制器为 `Assets/Visual/Player/PlayerAC.controller`。
+GameplayIntegration 中移动速度为 5、跳跃速度为 8、重力倍率为 1；groundLayers 和 interactionLayers 当前为全部层，交互半径 2，背包最少显示 8 格。InventoryUI 的 inventory、slotsRoot、slotTemplate 已装配。Anchor prefab 引用为 `Assets/Prefabs/Env/Anchor.prefab`；Player Tag 供 Env 采样根位置；历史 WireAttach 子挂点已不参与线逻辑。动画控制器为 `Assets/Visual/Player/PlayerAC.controller`。
 
 ## 移动、跳跃与死亡
 

@@ -151,9 +151,7 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   polarity: 1
-  fixedEnd: {fileID: 0}
   maxLength: 0
-  pullStrength: 10
 --- !u!68 &6717073136926383292
 EdgeCollider2D:
   m_ObjectHideFlags: 0

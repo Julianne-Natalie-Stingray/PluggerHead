@@ -17,6 +17,119 @@ public static class TilemapIntegrationChecks
     private static bool hasEnvironmentSnapshot;
     private static readonly OwnedPhysicsSceneCleanup sceneCleanup = new OwnedPhysicsSceneCleanup();
 
+    public static void CheckLoopTruncation()
+    {
+        BeginChecks();
+        Fixture fixture = new Fixture();
+        fixture.Move(4, 0);
+        fixture.Move(4, 3);
+        fixture.Move(1, 3);
+        fixture.Move(1, -2);
+        AssertCells(fixture.Wire, Vector3Int.zero, Vector3Int.right,
+            new Vector3Int(1, -1, 0), new Vector3Int(1, -2, 0));
+        Require(Mathf.Approximately(fixture.Wire.TilePath.GetLength(fixture.Map), 3f),
+            "Crossing an earlier cell must immediately discard the loop, even in a multi-cell sample.");
+        AssertRenderedPath(fixture);
+        fixture.Move(0, -2);
+        fixture.Move(0, 0);
+        AssertCells(fixture.Wire, Vector3Int.zero);
+        Require(!fixture.Wire.PathCollider.enabled, "Returning to the origin erases the whole unpinned path.");
+    }
+
+    public static void CheckPinnedOverlapColor()
+    {
+        BeginChecks();
+        Fixture fixture = new Fixture();
+        fixture.Move(3, 0);
+        Anchor pin = fixture.AddAnchor(3, 0);
+        pin.Interact(new InteractionDetails(fixture.Player, pin.gameObject));
+        fixture.Move(3, 3);
+        fixture.Move(1, 3);
+        fixture.Move(1, 0);
+        Require(fixture.Wire.TilePath.Cells.Count > 4 && pin.IsEngaged &&
+            fixture.Wire.TilePath.Cells[3] == new Vector3Int(3, 0, 0),
+            "Touching a protected earlier cell must not erase the pinned prefix.");
+        Require(CountOverlays(fixture.Wire, true) >= 2, "Both visits inside the repeated tile must be highlighted.");
+        AssertRenderedPath(fixture);
+        Require(pin.TryReclaim(new InteractionDetails(fixture.Player, pin.gameObject)), "Reclaim releases the prefix.");
+        fixture.Tick();
+        AssertCells(fixture.Wire, Vector3Int.zero, Vector3Int.right);
+        Require(CountOverlays(fixture.Wire, false) == 0,
+            "Released loop removal must clear obsolete highlights and restore the base wire.");
+        fixture.Move(3, 0);
+        Anchor first = fixture.AddAnchor(3, 0);
+        first.Interact(new InteractionDetails(fixture.Player, first.gameObject));
+        fixture.Move(5, 0);
+        Anchor second = fixture.AddAnchor(5, 0);
+        second.Interact(new InteractionDetails(fixture.Player, second.gameObject));
+        fixture.Move(1, 0);
+        int protectedCount = fixture.Wire.TilePath.Cells.Count;
+        second.TryReclaim(new InteractionDetails(fixture.Player, second.gameObject));
+        fixture.Tick();
+        Require(first.IsEngaged && fixture.Wire.TilePath.Cells.Count == protectedCount,
+            "Releasing the newest Anchor must still protect the older Anchor's prefix.");
+        fixture.Move(3, 0);
+        Require(fixture.Wire.TilePath.Cells.Count == 4, "Contact with the remaining Anchor truncates only its tail.");
+        first.TryReclaim(new InteractionDetails(fixture.Player, first.gameObject));
+        fixture.Move(0, 0);
+        AssertCells(fixture.Wire, Vector3Int.zero);
+    }
+
+    public static void CheckSharedOverlapColor()
+    {
+        BeginChecks();
+        Fixture fixture = new Fixture(true);
+        fixture.Move(3, 0);
+        fixture.Move(3, 2);
+        Require(CountOverlays(fixture.Wire, false) == 0, "A single non-repeated path keeps its original color.");
+        fixture.Dual.Interact(new InteractionDetails(fixture.Player, fixture.Dual.gameObject));
+        fixture.Tick();
+        Require(CountOverlays(fixture.Wire, true) == 6 && CountOverlays(fixture.SecondWire, true) == 6,
+            "Independent wires sharing six tiles must highlight all six tiles on both paths.");
+        var pool = (List<LineRenderer>)typeof(Wire).GetField("overlapLines", PrivateInstance).GetValue(fixture.Wire);
+        UnityEngine.Object.DestroyImmediate(pool[0].gameObject);
+        fixture.Tick();
+        Require(CountOverlays(fixture.Wire, true) == 6,
+            "A missing pooled renderer must be recreated, including null references restored after saving a scene.");
+        UnityEngine.Object.DestroyImmediate(pool[pool.Count - 1].gameObject);
+        fixture.Move(3, 0);
+        fixture.Move(0, 0);
+        Require(CountOverlays(fixture.Wire, false) == 0 && CountOverlays(fixture.SecondWire, false) == 0,
+            "Retracting one wire to zero length must remove cross-wire highlights from both wires.");
+        fixture.Restart();
+        Require(CountOverlays(fixture.Wire, false) == 0 && CountOverlays(fixture.SecondWire, false) == 0,
+            "Restart must leave no stale overlap rendering.");
+    }
+
+    private static int CountOverlays(Wire wire, bool verifyColor)
+    {
+        int count = 0;
+        LineRenderer original = wire.GetComponent<LineRenderer>();
+        Color expected = (Color)typeof(Wire).GetField("overlapColor", PrivateInstance).GetValue(wire);
+        foreach (LineRenderer line in wire.GetComponentsInChildren<LineRenderer>())
+        {
+            if (line == original || !line.enabled || line.positionCount < 2)
+            {
+                continue;
+            }
+            count++;
+            if (verifyColor)
+            {
+                Require(Vector4.Distance(line.startColor, expected) <= 1f / 255f &&
+                    Vector4.Distance(line.endColor, expected) <= 1f / 255f &&
+                    line.sortingOrder > original.sortingOrder && line.sharedMaterial == original.sharedMaterial,
+                    "The overlay must use the distinct overlap color and render in front of the original wire.");
+                Require(line.GetComponent<Collider2D>() == null, "Visual overlays must not add physics shapes.");
+                for (int i = 1; i < line.positionCount; i++)
+                {
+                    Require(Vector3.Distance(line.GetPosition(i - 1), line.GetPosition(i)) <= 0.501f,
+                        "Highlight segments must stay within their tile's half-edges.");
+                }
+            }
+        }
+        return count;
+    }
+
     public static void CheckPathAndLength()
     {
         BeginChecks();
@@ -312,9 +425,6 @@ public static class TilemapIntegrationChecks
             Player = Create("Player", Center(0, 0));
             Player.tag = "Player";
             PlayerInventory inventory = Player.AddComponent<PlayerInventory>();
-            GameObject attach = Create("WireAttach", Player.transform.position);
-            attach.tag = "WireAttach";
-            attach.transform.SetParent(Player.transform, true);
             GameObject outlet = Create("Outlet", Center(0, 0));
             outlet.AddComponent<BoxCollider2D>().isTrigger = true;
             Outlet = outlet.AddComponent<PowerSocket>();

@@ -51,12 +51,8 @@ public class EnvironmentFacade : MonoBehaviour
     public event Action LevelCleared;
 
     [SerializeField, BoxGroup("Player")]
-    [Tooltip("Tag of the player object, used to check that the attach point really belongs to the player.")]
+    [Tooltip("Tag of the player whose tile movement builds the held wire path.")]
     private string playerTag = "Player";
-
-    [SerializeField, BoxGroup("Player")]
-    [Tooltip("Tag of the Transform the carried wire's free end follows. It must sit under the tagged player.")]
-    private string attachPointTag = "WireAttach";
 
     [SerializeField, BoxGroup("Win condition")]
     [Tooltip("Whether this level also contains a broken ground line that must be connected.")]
@@ -71,13 +67,12 @@ public class EnvironmentFacade : MonoBehaviour
     private readonly List<Anchor> anchors = new();
     private readonly Dictionary<PolaritySocket, WirePolarity> occupied = new();
     private readonly List<Vector3> renderBuffer = new();
+    private readonly Dictionary<Vector3Int, int> tileUseCounts = new();
 
-    private Transform attachPoint;
     private PowerSocket socket;
     private Wire heldWire;
     private int swapCount;
     private bool isCircuitClosed;
-    private bool reportedMissingAttachPoint;
     private Transform playerTransform;
     private Vector3 previousPlayerPosition;
     private bool hasPlayerSample;
@@ -87,7 +82,7 @@ public class EnvironmentFacade : MonoBehaviour
         Current = this;
 
         RefreshNodes();
-        ResolveAttachPoint();
+        ResolvePlayer();
         BeginRun();
     }
 
@@ -122,12 +117,25 @@ public class EnvironmentFacade : MonoBehaviour
         {
             return;
         }
+        tileUseCounts.Clear();
+        foreach (Wire wire in wires)
+        {
+            if (!wire || wire.TilePath.Cells.Count < 2)
+            {
+                continue;
+            }
+            foreach (Vector3Int cell in wire.TilePath.Cells)
+            {
+                tileUseCounts.TryGetValue(cell, out int count);
+                tileUseCounts[cell] = count + 1;
+            }
+        }
         foreach (Wire wire in wires)
         {
             if (wire)
             {
                 wire.TilePath.CopyWorldPath(routingTilemap, renderBuffer);
-                wire.RenderPath(renderBuffer);
+                wire.RenderPath(renderBuffer, tileUseCounts);
             }
         }
     }
@@ -325,11 +333,6 @@ public class EnvironmentFacade : MonoBehaviour
 
         for (int i = 0; i < wires.Count; i++)
         {
-            if (attachPoint)
-            {
-                wires[i].SetAttachPoint(attachPoint);
-            }
-
             Transform target = wires[i].PlugTarget;
             PolaritySocket polaritySocket = target ? target.GetComponent<PolaritySocket>() : null;
             if (polaritySocket)
@@ -690,43 +693,10 @@ public class EnvironmentFacade : MonoBehaviour
         heldWire = null;
     }
 
-    private void ResolveAttachPoint()
+    private void ResolvePlayer()
     {
-        GameObject point = FindTaggedObject(attachPointTag);
-        attachPoint = point ? point.transform : null;
-
-        if (attachPoint)
-        {
-            for (int i = 0; i < wires.Count; i++)
-            {
-                wires[i].SetAttachPoint(attachPoint);
-            }
-        }
-        else if (!reportedMissingAttachPoint)
-        {
-            reportedMissingAttachPoint = true;
-
-            GameLog.Warning(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.CannotFind($"tag {attachPointTag}", "scene"))
-                .Action(LogAction.Specify("The carried wire will not follow a hand until that tag exists. "))
-                .Write();
-        }
-
         GameObject player = FindTaggedObject(playerTag);
         playerTransform = player ? player.transform : null;
-        if (player && attachPoint && !HasTaggedAncestor(attachPoint, playerTag))
-        {
-            GameLog.Warning(this)
-                .Subsystem("Environment")
-                .Name(LogName.Class)
-                .Issue(LogIssue.Specify(
-                    $"The object tagged {attachPointTag} ({attachPoint.name}) has no ancestor tagged {playerTag} " +
-                    $"(the player found was {player.name}). "))
-                .Action(LogAction.Specify("Check the hierarchy: the attach point must belong to the player. "))
-                .Write();
-        }
     }
 
     private void BeginRun()
@@ -905,22 +875,6 @@ public class EnvironmentFacade : MonoBehaviour
         return result.ToArray();
     }
 
-    private bool HasTaggedAncestor(Transform point, string tag)
-    {
-        Transform current = point;
-        while (current)
-        {
-            if (current.CompareTag(tag))
-            {
-                return true;
-            }
-
-            current = current.parent;
-        }
-
-        return false;
-    }
-
     private void OnDrawGizmos()
     {
         for (int i = 0; i < wires.Count; i++)
@@ -944,7 +898,10 @@ public class EnvironmentFacade : MonoBehaviour
                 Gizmos.DrawLine(renderBuffer[p - 1], renderBuffer[p]);
             }
 
-            Gizmos.DrawWireSphere(wire.FreeEndPosition, 0.12f);
+            if (renderBuffer.Count > 0)
+            {
+                Gizmos.DrawWireSphere(renderBuffer[renderBuffer.Count - 1], 0.12f);
+            }
         }
     }
 
@@ -1061,7 +1018,7 @@ public class EnvironmentFacade : MonoBehaviour
     private void DebugRefreshAndEvaluate()
     {
         RefreshNodes();
-        ResolveAttachPoint();
+        ResolvePlayer();
         RenderWires();
         EvaluateCircuit();
     }
@@ -1081,7 +1038,7 @@ public class EnvironmentFacade : MonoBehaviour
     private void DebugRestartRun()
     {
         RefreshNodes();
-        ResolveAttachPoint();
+        ResolvePlayer();
         BeginRun();
     }
 

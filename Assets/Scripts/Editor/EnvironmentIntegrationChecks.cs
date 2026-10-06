@@ -53,7 +53,6 @@ public static class EnvironmentIntegrationChecks
             Invoke(interaction, "Awake");
             player.GetComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
 
-            GameObject hand = Create(preview, "CheckHand", Vector3.zero, player.transform);
             PowerSocket outlet = AddSocket(preview, "CheckOutlet", new Vector3(-10f, 0f));
             Wire live = Create(preview, "CheckLiveWire", Vector3.zero).AddComponent<Wire>();
             Wire neutral = Create(preview, "CheckNeutralWire", Vector3.zero).AddComponent<Wire>();
@@ -68,7 +67,6 @@ public static class EnvironmentIntegrationChecks
             EnvironmentFacade environment = Create(preview, "CheckEnvironment", Vector3.zero)
                 .AddComponent<EnvironmentFacade>();
             Set(inventory, "environment", environment);
-            Set(environment, "attachPoint", hand.transform);
             Set(environment, "playerTransform", player.transform);
             Set(environment, "routingTilemap", map);
             environment.RefreshNodes();
@@ -114,19 +112,17 @@ public static class EnvironmentIntegrationChecks
                 "Strictly exceeding tile path length returns the death sentinel", ref checks);
             player.transform.position = Vector3.zero;
             Set(live, "maxLength", 1f);
-            Set(live, "pullStrength", 0f);
             Check(IsDeathResistance(environment.GetResistance(player.transform.position)),
-                "A pinned route remains lethal regardless of legacy pull strength", ref checks);
+                "A pinned route remains lethal while its earlier route is protected", ref checks);
             Set(live, "maxLength", 0f);
             Check(environment.GetResistance(player.transform.position) == Vector2.zero,
                 "Unrestricted wires apply no resistance", ref checks);
-            int retainedCells = live.TilePath.Cells.Count;
             Check(anchor.TryReclaim(new InteractionDetails(player, anchor.gameObject)) && anchor == null &&
                 environment.HeldWire == live,
                 "Reclaim destroys an Anchor without losing the held wire", ref checks);
             Invoke(environment, "LateUpdate");
-            Check(live.TilePath.Cells.Count == retainedCells,
-                "Reclaim releases a pin without deleting the recorded movement history", ref checks);
+            Check(live.TilePath.Cells.Count == 11 && Mathf.Approximately(live.TilePath.GetLength(map), 10f),
+                "After reclaim, contact with the earlier current tile removes the newly unprotected loop", ref checks);
             const int placementCount = 16;
             for (int i = 0; i < placementCount; i++)
             {

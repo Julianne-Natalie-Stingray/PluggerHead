@@ -21,51 +21,27 @@ public class Wire : MonoBehaviour
     public PowerSocket Socket => socket;
     public Transform PlugTarget => plugTarget;
     public TileWirePath TilePath { get; } = new TileWirePath();
-    public Vector3 FixedEndPosition => socket ? socket.PlugPosition : fixedEnd ? fixedEnd.position : transform.position;
+    public Vector3 FixedEndPosition => socket ? socket.PlugPosition : transform.position;
     public float MaxLength => maxLength;
-    public float PullStrength => pullStrength;
     public EdgeCollider2D PathCollider => pathCollider;
-
-    /// <summary>
-    /// Where this wire's free end currently is: the carrying player's attach point while held, otherwise the place
-    /// it is plugged into, otherwise the wire's own transform.
-    /// 本线自由端当前所在: 被持有时是携带者的挂点, 否则是它插入的位置, 再否则是线自身的变换.
-    /// </summary>
-    public Vector3 FreeEndPosition
-    {
-        get
-        {
-            if (isHeld)
-            {
-                return attachPoint ? attachPoint.position : transform.position;
-            }
-
-            return plugTarget ? plugTarget.position : transform.position;
-        }
-    }
 
     [SerializeField, BoxGroup("Wire")]
     [Tooltip("Electrical property of this wire. It must match the polarity of every interface it is plugged into.")]
     private WirePolarity polarity = WirePolarity.Live;
 
-    [SerializeField, BoxGroup("Wire")]
-    [Tooltip("Where the wire leaves its outlet. Left empty, the wire's own transform is used.")]
-    private Transform fixedEnd;
-
     [SerializeField, Min(0f), BoxGroup("Wire")]
     [Tooltip("Maximum routed length of the carried wire. Exceeding it kills the player; zero leaves its length unrestricted.")]
     private float maxLength;
 
-    [SerializeField, Min(0f), BoxGroup("Wire")]
-    [Tooltip("Legacy pull-force setting retained for asset compatibility. Exceeding Max Length now kills the player regardless of this value.")]
-    private float pullStrength = 10f;
+    [SerializeField, BoxGroup("Wire")]
+    [Tooltip("Color for portions inside tiles currently visited more than once, by this wire or another wire.")]
+    private Color overlapColor = new Color(1f, 0.2f, 0.75f, 1f);
 
-
+    [SerializeField, HideInInspector] private List<LineRenderer> overlapLines = new();
     private LineRenderer line;
     private EdgeCollider2D pathCollider;
     private readonly List<Vector2> colliderPoints = new();
     private readonly List<Vector2> previousColliderPoints = new();
-    private Transform attachPoint;
     private PowerSocket socket;
     private Transform plugTarget;
     private Vector3[] buffer = new Vector3[0];
@@ -108,13 +84,6 @@ public class Wire : MonoBehaviour
         => socket = owner;
 
     /// <summary>
-    /// Hand this wire the Transform its free end should follow while it is held.
-    /// 把"被持有时自由端应跟随的 Transform"交给本线的单一入口.
-    /// </summary>
-    public void SetAttachPoint(Transform point)
-        => attachPoint = point;
-
-    /// <summary>
     /// Single entry point for the state "a player carries this wire's free end".
     /// 状态"某玩家携带本线的自由端"的单一入口.
     /// </summary>
@@ -146,7 +115,7 @@ public class Wire : MonoBehaviour
     /// 绘制门面算出的折线的单一入口.
     /// 实现思路: 点数相同时复用缓冲区，点数变化时重新分配；自由端逐帧移动不必改变点数。
     /// </summary>
-    public void RenderPath(IReadOnlyList<Vector3> positions)
+    public void RenderPath(IReadOnlyList<Vector3> positions, IReadOnlyDictionary<Vector3Int, int> tileUseCounts)
     {
         if (!line || positions == null)
         {
@@ -167,6 +136,93 @@ public class Wire : MonoBehaviour
         line.useWorldSpace = true;
         line.SetPositions(buffer);
         UpdatePathCollider(positions);
+        RenderOverlaps(positions, tileUseCounts);
+    }
+
+    // Each overlay covers only the half-edges belonging to a repeated tile. Pool renderers so
+    // arbitrary long alternating paths do not depend on Gradient's limited number of keys.
+    // 覆盖重复格子内的半段电线；复用渲染器，不受 Gradient 关键点数量上限影响。
+    private void RenderOverlaps(IReadOnlyList<Vector3> positions, IReadOnlyDictionary<Vector3Int, int> tileUseCounts)
+    {
+        int used = 0;
+        if (positions.Count >= 2)
+        {
+            for (int i = 0; i < TilePath.Cells.Count; i++)
+            {
+                if (!tileUseCounts.TryGetValue(TilePath.Cells[i], out int count) || count < 2)
+                {
+                    continue;
+                }
+                if (used == overlapLines.Count)
+                {
+                    overlapLines.Add(null);
+                }
+                LineRenderer renderer = overlapLines[used];
+                if (!renderer)
+                {
+                    GameObject overlay = new GameObject("Repeated Tile " + used);
+                    overlay.hideFlags = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild;
+                    overlay.layer = gameObject.layer;
+                    overlay.transform.SetParent(transform, false);
+                    renderer = overlay.AddComponent<LineRenderer>();
+                    overlapLines[used] = renderer;
+                }
+                used++;
+                renderer.enabled = line.enabled;
+                renderer.useWorldSpace = true;
+                renderer.sharedMaterial = line.sharedMaterial;
+                renderer.widthMultiplier = line.widthMultiplier;
+                renderer.widthCurve = line.widthCurve;
+                renderer.startColor = overlapColor;
+                renderer.endColor = overlapColor;
+                renderer.sortingLayerID = line.sortingLayerID;
+                renderer.sortingOrder = line.sortingOrder + 1;
+                renderer.alignment = line.alignment;
+                renderer.numCapVertices = line.numCapVertices;
+                renderer.numCornerVertices = line.numCornerVertices;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                int points = 1 + (i > 0 ? 1 : 0) + (i + 1 < positions.Count ? 1 : 0);
+                renderer.positionCount = points;
+                int index = 0;
+                if (i > 0)
+                {
+                    renderer.SetPosition(index++, Vector3.Lerp(positions[i - 1], positions[i], 0.5f));
+                }
+                renderer.SetPosition(index++, positions[i]);
+                if (i + 1 < positions.Count)
+                {
+                    renderer.SetPosition(index, Vector3.Lerp(positions[i], positions[i + 1], 0.5f));
+                }
+            }
+        }
+        for (int i = used; i < overlapLines.Count; i++)
+        {
+            if (overlapLines[i])
+            {
+                overlapLines[i].enabled = false;
+                overlapLines[i].positionCount = 0;
+            }
+        }
+    }
+
+    private void OnDestroy()
+    {
+        foreach (LineRenderer renderer in overlapLines)
+        {
+            if (!renderer)
+            {
+                continue;
+            }
+            if (Application.isPlaying)
+            {
+                Destroy(renderer.gameObject);
+            }
+            else
+            {
+                DestroyImmediate(renderer.gameObject);
+            }
+        }
     }
 
     // The collider follows the same world-space polyline, converted to local coordinates.

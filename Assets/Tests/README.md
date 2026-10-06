@@ -1,5 +1,7 @@
 # 整合集成测试
 
+Wire 行为更新：EditMode 22/22（job `3e2227f67e3f4dd58a41013bac8301f3`）、PlayMode 74/74（job `6ca8189c3df64c8c95ce6c9c82fbacd3`）终态通过。TilemapTests 现有 10 项，新增跨格接触旧路径截断、Anchor 固定与解除后的接触截断、同线/跨线重叠颜色及提示清除。以下 71 项结果为历史版本。
+
 2026-10-06 Tilemap 改造验证：EditMode 22/22（job `812b828e3ce84ea889c26457cc594fda`）、PlayMode 71/71（job `c12304087033435ebdf260a2b5541579`）均终态通过；以下较早 job 为历史记录。原 Corner 用例已替换为 TilemapTests，覆盖近角非格心往返、调试验收同格操作，并新增真实场景 Tilemap 落地及两个关卡的格心资源检查。
 
 Unity 2022.3.43f1c1 / Unity Test Framework 1.1.33。

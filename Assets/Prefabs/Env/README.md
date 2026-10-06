@@ -6,14 +6,14 @@
 | --- | --- |
 | `Anchor.prefab` | Anchor、SpriteRenderer、Trigger CircleCollider2D；canInteract=true，局部半径0.3、缩放0.5。用于在当前 tile 手动放置并固定路径，不是背包物品。 |
 | `MockPlayer.prefab` | SpriteRenderer 与 WireAttach 子挂点；根 Tag=Player、缩放0.2，子 Tag=WireAttach、缩放5。没有 Player 脚本、刚体或碰撞体；图片引用 NaughtyAttributes 示例中的 icon-github.png。 |
-| `SceneRoot.prefab` | EnvironmentFacade，Player/WireAttach Tag，不要求地线、maxSwaps=1；不包含 Core、玩家或完整关卡。 |
+| `SceneRoot.prefab` | EnvironmentFacade，Player Tag，不要求地线、maxSwaps=1；不包含 Core、玩家或完整关卡。 |
 | `Sockets/PowerSocket.prefab` | PowerSocket、SpriteRenderer、非 Trigger PolygonCollider2D，缩放(0.5,7,1)，canInteract=true、isGroundTerminal=false，**wires 为空**，需场景实例配置。 |
 | `Sockets/DualSocket.prefab` | PolaritySocket、SpriteRenderer、非 Trigger CircleCollider2D，accepted=3（Live/Neutral）、canInteract=true；半径0.5、缩放3，独立实例世界半径1.5。 |
 | `Wires/Wire.prefab` | Live 电性的基础线，功能配置与 LiveWire 基本相同；当前未发现场景引用。 |
 | `Wires/LiveWire.prefab` | Live=1，橙红渐变。 |
 | `Wires/NeutralWire.prefab` | Neutral=2，蓝色渐变。 |
 
-三个 Wire 均含 Wire、LineRenderer 和初始禁用的 Trigger EdgeCollider2D；共用 `Visual/Env/Wire.mat`，线宽0.045、世界坐标、不闭合。fixedEnd 为空、maxLength=0（不限）、pullStrength=10（兼容字段），没有 WirePoint 子物体。保存的线段是占位数据，环境重绘实际路径后更新碰撞体；颜色不会随 polarity 自动改变。
+三个 Wire 均含 Wire、LineRenderer 和初始禁用的 Trigger EdgeCollider2D；共用 `Visual/Env/Wire.mat`，线宽0.045、世界坐标、不闭合。maxLength=0（不限），重复 tile 通过 Wire 的 overlapColor 显示，没有 WirePoint 子物体；固定端取所属 PowerSocket 的格子位置。保存的线段是占位数据，环境重绘实际路径后更新碰撞体；颜色不会随 polarity 自动改变。
 
 CircuitDiagnostics 使用 SceneRoot、MockPlayer、插口、Live/Neutral 与 Anchor，并以场景覆盖填写电线列表和绑定路由 Tilemap。GameplayIntegration 使用 Anchor prefab，但其环境、插口和线直接写在场景内；修改这些 prefab 不会自动同步那些场景对象。
 

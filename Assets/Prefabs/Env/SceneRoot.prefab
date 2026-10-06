@@ -45,6 +45,5 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   playerTag: Player
-  attachPointTag: WireAttach
   requireGround: 0
   maxSwaps: 1

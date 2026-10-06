@@ -238,9 +238,6 @@ public static class GroundPolarityIntegrationChecks
 
             GameObject playerObject = Create("Player", Vector2.zero);
             playerObject.tag = "Player";
-            GameObject attachPoint = Create("WireAttach", Vector2.zero);
-            attachPoint.tag = "WireAttach";
-            attachPoint.transform.SetParent(playerObject.transform, true);
             PlayerInventory inventory = playerObject.AddComponent<PlayerInventory>();
             Player = playerObject.AddComponent<PlayerMove>();
             // Drive only the physics logic explicitly; no Core, input bindings or automatic Start is needed.

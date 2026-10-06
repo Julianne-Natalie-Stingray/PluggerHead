@@ -10,6 +10,24 @@ namespace PluggerHead.Tests
     public sealed class TilemapTests
     {
         [Test]
+        public void RevisitAnyTailCell_TruncatesLoopAndContinuesAcrossCells()
+        {
+            IntegrationCheckBridge.Invoke("TilemapIntegrationChecks", "CheckLoopTruncation");
+        }
+
+        [Test]
+        public void PinnedPrefix_RepeatedTilesChangeColor_ReleaseClearsOverlay()
+        {
+            IntegrationCheckBridge.Invoke("TilemapIntegrationChecks", "CheckPinnedOverlapColor");
+        }
+
+        [Test]
+        public void DifferentWires_SharedTilesChangeColor_ResetClearsOverlay()
+        {
+            IntegrationCheckBridge.Invoke("TilemapIntegrationChecks", "CheckSharedOverlapColor");
+        }
+
+        [Test]
         public void TilePath_TracksLengthAndRetractsByCell()
         {
             IntegrationCheckBridge.Invoke("TilemapIntegrationChecks", "CheckPathAndLength");
