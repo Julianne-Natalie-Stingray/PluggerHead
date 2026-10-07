@@ -107,8 +107,8 @@ public static class WireVisualIntegrationChecks
                 ? outlet.GetWireAnchor((WirePolarity)polarity)
                 : socket.GetComponent<PolaritySocket>().GetWireAnchor((WirePolarity)polarity);
             Require(anchor && anchor.IsChildOf(socket.transform), "Each polarity must reference its own socket anchor.");
-            Vector3 expected = new Vector3(anchor.position.x, anchor.position.y - 1f, anchor.position.z);
-            Vector3[] path = { anchor.position + Vector3.right * 3f, anchor.position, expected, anchor.position };
+            Vector3[] path = { anchor.position + Vector3.right * 0.1f, anchor.position + Vector3.left * 4f,
+                anchor.position + Vector3.up * 3f, anchor.position };
             typeof(Wire).GetMethod("BeginConnection", PrivateInstance)
                 .Invoke(wire, new object[] { socket.transform, null });
             wire.PlugInto(socket.transform, false);
@@ -127,9 +127,9 @@ public static class WireVisualIntegrationChecks
                     Require(child, "Both electrical endpoints must create a connection renderer.");
                     LineRenderer connection = child.GetComponent<LineRenderer>();
                     Require(connection.enabled && connection.positionCount == 2 &&
-                        Vector3.Distance(connection.GetPosition(0), expected) < 0.00001f &&
+                        connection.GetPosition(0) == (name == "StartConnection" ? path[1] : path[2]) &&
                         connection.GetPosition(1) == anchor.position,
-                        "Connection must join the second nearest distinct collision vertex to the matching anchor.");
+                        "Terminal connections must use the second vertex from their own path end, regardless of distance.");
                     int connectionLayer = SortingLayer.GetLayerValueFromID(connection.sortingLayerID);
                     int socketLayer = SortingLayer.GetLayerValueFromID(socketRenderer.sortingLayerID);
                     Require(connectionLayer > socketLayer ||
@@ -137,18 +137,57 @@ public static class WireVisualIntegrationChecks
                         "Socket artwork must not cover the terminal connection.");
                 }
                 Require(line.sortingLayerID == authoredLine.sortingLayerID &&
-                    line.sortingOrder == authoredLine.sortingOrder && line.positionCount == path.Length &&
-                    line.GetPosition(0) == path[0] && line.GetPosition(1) == path[1],
-                    "Terminal sorting must preserve the main wire route and its authored sorting.");
+                    line.sortingOrder == authoredLine.sortingOrder && line.positionCount == path.Length - 2 &&
+                    line.GetPosition(0) == path[1] && line.GetPosition(1) == path[2],
+                    "The main renderer must omit both replaced terminal edges and preserve its sorting.");
                 Require(wire.PathCollider.pointCount == path.Length, "Rendering must preserve collision vertices.");
                 Vector2[] collision = wire.PathCollider.points;
                 for (int i = 0; i < path.Length; i++)
                 {
-                    Require(line.GetPosition(i) == path[i] &&
+                    Require(
                         Vector2.Distance(wire.transform.TransformPoint(collision[i] + wire.PathCollider.offset), path[i]) < 0.00001f,
-                        "Socket connections must not move the routed line or its collider.");
+                        "Replacing rendered terminal edges must not move collision vertices.");
                 }
             }
+            TileWirePath previous = new TileWirePath();
+            previous.Reset(Vector3Int.zero);
+            previous.Visit(Vector3Int.right);
+            wire.TilePath.CopyFrom(previous);
+            wire.Hold();
+            wire.RenderPath(path);
+            LineRenderer startLine = wire.transform.Find("StartConnection").GetComponent<LineRenderer>();
+            LineRenderer endLine = wire.transform.Find("EndConnection").GetComponent<LineRenderer>();
+            Require(startLine.GetPosition(0) == path[2] && !endLine.enabled &&
+                line.positionCount == 2 && line.GetPosition(0) == path[2] && line.GetPosition(1) == path[3],
+                "A continuation must count from its inherited boundary and only replace its own outgoing edge.");
+
+            wire.TilePath.Reset(Vector3Int.zero);
+            typeof(Wire).GetMethod("BeginConnection", PrivateInstance)
+                .Invoke(wire, new object[] { null, null });
+            wire.PlugInto(socket.transform, false);
+            wire.RenderPath(path);
+            Require(!startLine.enabled && endLine.GetPosition(0) == path[2] && line.positionCount == 3 &&
+                line.GetPosition(0) == path[0] && line.GetPosition(2) == path[2],
+                "Without a starting anchor only the incoming final edge is replaced.");
+
+            typeof(Wire).GetMethod("BeginConnection", PrivateInstance)
+                .Invoke(wire, new object[] { socket.transform, null });
+            GameObject otherSocket = (GameObject)PrefabUtility.InstantiatePrefab(socketAsset, wire.gameObject.scene);
+            otherSocket.transform.position += Vector3.right * 2f;
+            Transform otherAnchor = otherSocket.TryGetComponent(out PowerSocket otherOutlet)
+                ? otherOutlet.GetWireAnchor((WirePolarity)polarity)
+                : otherSocket.GetComponent<PolaritySocket>().GetWireAnchor((WirePolarity)polarity);
+            wire.PlugInto(otherSocket.transform, false);
+            wire.RenderPath(new[] { path[0], path[1] });
+            Require(line.positionCount == 0 && startLine.enabled && !endLine.enabled &&
+                startLine.GetPosition(0) == otherAnchor.position && startLine.GetPosition(1) == anchor.position,
+                "A single edge with two socket endpoints must be replaced by a direct anchor connection.");
+            wire.RenderPath(new[] { path[0] });
+            Require(startLine.GetPosition(0) == path[0] && endLine.GetPosition(0) == path[0],
+                "A one-point route must use its only point without indexing outside the list.");
+            wire.RenderPath(Array.Empty<Vector3>());
+            Require(line.positionCount == 0 && !startLine.enabled && !endLine.enabled && !wire.PathCollider.enabled,
+                "An empty route must clear all rendered connections and disable collision.");
         }
     }
 

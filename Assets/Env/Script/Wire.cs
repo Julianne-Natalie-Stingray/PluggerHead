@@ -183,10 +183,10 @@ public class Wire : MonoBehaviour
     /// <summary>
     /// Single entry point for drawing the polyline the facade computed.
     /// Reuses the buffer while point count stays unchanged; count changes allocate a new array.
-    /// Only the new suffix is drawn: inherited edges remain visible on the previous wire.
+    /// Draw the new suffix, replacing its socket-adjacent edges with terminal lines; inherited edges stay on the previous wire.
     /// Collision still follows the entire logical path.
     /// 绘制门面算出的折线的单一入口.
-    /// 实现思路: 复用缓冲区，只绘制本线新增尾段，复制段由原线保留原色；碰撞仍使用完整路径。
+    /// 实现思路: 复用缓冲区，新增尾段的插座邻边改由接头线绘制；复制段由原线保留原色，碰撞仍使用完整路径。
     /// </summary>
     public void RenderPath(IReadOnlyList<Vector3> positions)
     {
@@ -196,53 +196,74 @@ public class Wire : MonoBehaviour
         }
 
         int firstPoint = Mathf.Min(TilePath.InheritedEdgeCount, positions.Count);
-        int visibleCount = positions.Count - firstPoint;
+        int lastPoint = positions.Count - 1;
+        Transform startAnchor = GetSocketAnchor(CircuitStart);
+        Transform endAnchor = GetSocketAnchor(plugTarget);
+        int drawFirst = firstPoint;
+        int drawLast = lastPoint;
+        HideConnectionLines();
+        if (firstPoint <= lastPoint)
+        {
+            if (startAnchor)
+            {
+                drawFirst = Mathf.Min(firstPoint + 1, lastPoint);
+                RenderSocketConnection(ref startConnectionLine, CircuitStart, startAnchor,
+                    positions[drawFirst], "StartConnection");
+            }
+            if (endAnchor)
+            {
+                drawLast = Mathf.Max(firstPoint, lastPoint - 1);
+                RenderSocketConnection(ref endConnectionLine, plugTarget, endAnchor,
+                    positions[drawLast], "EndConnection");
+            }
+            // With just one edge, replacing both ends leaves no interior vertex: join the anchors directly.
+            // 仅一条边且两端均接插座时，没有中间顶点，直接连接两个锚点，避免交叉或断线。
+            if (startAnchor && endAnchor && lastPoint - firstPoint == 1)
+            {
+                startConnectionLine.SetPosition(0, endAnchor.position);
+                PromoteConnectionAboveSocket(startConnectionLine, plugTarget);
+                endConnectionLine.enabled = false;
+            }
+        }
+
+        int visibleCount = Mathf.Max(0, drawLast - drawFirst + 1);
         if (buffer.Length != visibleCount)
         {
             buffer = new Vector3[visibleCount];
         }
-
         for (int i = 0; i < visibleCount; i++)
         {
-            buffer[i] = positions[firstPoint + i];
+            buffer[i] = positions[drawFirst + i];
         }
-
         line.positionCount = visibleCount;
         line.useWorldSpace = true;
         line.SetPositions(buffer);
         UpdatePathCollider(positions);
-        RenderSocketConnection(ref startConnectionLine, CircuitStart, positions, "StartConnection");
-        RenderSocketConnection(ref endConnectionLine, plugTarget, positions, "EndConnection");
     }
 
-    // Separate two-point lines keep branches out of the routed path and its inherited prefix.
-    // 两点支线只负责外观，避免改动格心路线、继承段、碰撞与线长。
-    private void RenderSocketConnection(ref LineRenderer connection, Transform endpoint,
-        IReadOnlyList<Vector3> positions, string objectName)
+    private Transform GetSocketAnchor(Transform endpoint)
     {
+        if (!isActiveAndEnabled || !line.enabled || !endpoint || endpoint.gameObject.scene != gameObject.scene)
+        {
+            return null;
+        }
         Transform anchor = null;
-        if (endpoint && endpoint.gameObject.scene == gameObject.scene)
+        if (endpoint.TryGetComponent(out PowerSocket outlet))
         {
-            if (endpoint.TryGetComponent(out PowerSocket outlet))
-            {
-                anchor = outlet.GetWireAnchor(polarity);
-            }
-            else if (endpoint.TryGetComponent(out PolaritySocket target))
-            {
-                anchor = target.GetWireAnchor(polarity);
-            }
+            anchor = outlet.GetWireAnchor(polarity);
         }
-
-        if (!anchor || anchor.gameObject.scene != gameObject.scene || positions.Count == 0 ||
-            !isActiveAndEnabled || !line.enabled)
+        else if (endpoint.TryGetComponent(out PolaritySocket target))
         {
-            if (connection)
-            {
-                connection.enabled = false;
-            }
-            return;
+            anchor = target.GetWireAnchor(polarity);
         }
+        return anchor && anchor.gameObject.scene == gameObject.scene ? anchor : null;
+    }
 
+    // The terminal lines replace the omitted first/last visible edge without changing collision or length.
+    // 接头线替换本线可见尾段的首/末边；路径点顺序、继承段、碰撞与线长不变。
+    private void RenderSocketConnection(ref LineRenderer connection, Transform endpoint,
+        Transform anchor, Vector3 pathPoint, string objectName)
+    {
         if (!connection)
         {
             GameObject root = new GameObject(objectName);
@@ -264,57 +285,29 @@ public class Wire : MonoBehaviour
         connection.numCornerVertices = line.numCornerVertices;
         connection.sortingLayerID = line.sortingLayerID;
         connection.sortingOrder = line.sortingOrder;
-        // The routed wire may sit behind world geometry, but the terminal branch must reach the visible socket.
-        // 主线路可位于场景后方，接头支线必须显示在插座图片前方，才能看见锚点连接。
-        SpriteRenderer socketRenderer = endpoint.GetComponent<SpriteRenderer>();
-        if (socketRenderer)
-        {
-            int wireLayer = SortingLayer.GetLayerValueFromID(line.sortingLayerID);
-            int socketLayer = SortingLayer.GetLayerValueFromID(socketRenderer.sortingLayerID);
-            if (socketLayer >= wireLayer)
-            {
-                connection.sortingLayerID = socketRenderer.sortingLayerID;
-                connection.sortingOrder = socketLayer == wireLayer
-                    ? Mathf.Max(line.sortingOrder, socketRenderer.sortingOrder + 1)
-                    : socketRenderer.sortingOrder + 1;
-            }
-        }
-        connection.SetPosition(0, SecondClosestPathPoint(positions, anchor.position));
+        PromoteConnectionAboveSocket(connection, endpoint);
+        connection.SetPosition(0, pathPoint);
         connection.SetPosition(1, anchor.position);
         connection.enabled = true;
     }
 
-    // Rank distinct collision vertices in XY; ties retain path order. Rendering never modifies the route.
-    // 按 XY 距离选择第二近的不同碰撞顶点；等距按路径顺序，只有一个点时回退到该点。
-    private static Vector3 SecondClosestPathPoint(IReadOnlyList<Vector3> positions, Vector3 target)
+    // Keep the replacement terminal edge visible over socket artwork, preserving the main wire's layer.
+    // 接头替换边显示在插座图片前方；主线路保持原排序。
+    private static void PromoteConnectionAboveSocket(LineRenderer connection, Transform endpoint)
     {
-        Vector3 closest = positions[0];
-        Vector3 second = closest;
-        float closestDistance = ((Vector2)(closest - target)).sqrMagnitude;
-        float secondDistance = float.PositiveInfinity;
-        for (int i = 1; i < positions.Count; i++)
+        SpriteRenderer socketRenderer = endpoint.GetComponent<SpriteRenderer>();
+        if (socketRenderer)
         {
-            Vector3 point = positions[i];
-            if ((Vector2)point == (Vector2)closest ||
-                (secondDistance < float.PositiveInfinity && (Vector2)point == (Vector2)second))
+            int connectionLayer = SortingLayer.GetLayerValueFromID(connection.sortingLayerID);
+            int socketLayer = SortingLayer.GetLayerValueFromID(socketRenderer.sortingLayerID);
+            if (socketLayer >= connectionLayer)
             {
-                continue;
-            }
-            float distance = ((Vector2)(point - target)).sqrMagnitude;
-            if (distance < closestDistance)
-            {
-                second = closest;
-                secondDistance = closestDistance;
-                closest = point;
-                closestDistance = distance;
-            }
-            else if (distance < secondDistance)
-            {
-                second = point;
-                secondDistance = distance;
+                connection.sortingOrder = socketLayer == connectionLayer
+                    ? Mathf.Max(connection.sortingOrder, socketRenderer.sortingOrder + 1)
+                    : socketRenderer.sortingOrder + 1;
+                connection.sortingLayerID = socketRenderer.sortingLayerID;
             }
         }
-        return second;
     }
 
     private void HideConnectionLines()
