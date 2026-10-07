@@ -9,6 +9,12 @@ namespace PluggerHead.Tests
     public sealed class PlayerAnimationAudioPlaybackTests
     {
         [Test]
+        public void UIAudio_HandlesPointerSubmitPauseAndSliderLifecycle()
+        {
+            IntegrationCheckBridge.Invoke("PlayerAnimationAudioChecks", "RunScenario", "UI");
+        }
+
+        [Test]
         public void Footsteps_UseActualSupportAndPreserveSequenceOnRejectedEvents()
         {
             IntegrationCheckBridge.Invoke("PlayerAnimationAudioChecks", "RunScenario", "Footsteps");

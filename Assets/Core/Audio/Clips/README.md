@@ -1,15 +1,28 @@
-# 开发音频文件
+# 音频素材与接入
 
-逐文件核查日期：2026-10-06。用途约定及授权证据边界见 [DISCLAIMER](DISCLAIMER.md)。本轮保留原素材与 GUID。
+2026-10-07 核查：下列 16 个新音效均可由 ffmpeg 完整解码，48 kHz、双声道、非循环，保留源文件与 GUID。时长由 ffprobe 读取；峰值与静音检测不等同于人工听感验收。
 
-| 文件 | 源文件信息（ffprobe） | 当前引用 |
+| 素材 | 时长（秒） | 播放用途 |
 | --- | --- | --- |
-| `上海アリス幻樂団 - 運命のダークサイド.mp3` | MP3，44.1 kHz，双声道，约 228.623 秒；标签记录同名标题与作者，并带封面图流。标签不构成授权证明。 | `Audios/SO/GenericOst.asset` |
-| `Default_SFX.mp3` | MP3，48 kHz，单声道，约 1.248 秒。 | `Audios/SO/GenericSfx.asset` |
-| `click.mp3` | MP3，44.1 kHz，双声道，约 0.392 秒。 | `Audios/SO/MouseClick.asset` |
-| `GameMainMenu.wav` | 新增主菜单音乐素材，保留原导入配置与 GUID。 | `Audios/SO/GameMainMenu.asset`，`AudioId.GameMainMenu` |
-| `DISCLAIMER.md` | 记录学习/开发用途约定；已区分用途承诺与当前引用事实。 | 人工阅读，不参与构建过滤。 |
+| `插入（实录版）.mp3` | 0.216 | PlugIn 主片段 |
+| `插入1.mp3` | 0.264 | PlugIn 随机变体 |
+| `插入2.mp3` | 0.240 | PlugIn 随机变体 |
+| `拔出（实录版）.mp3` | 0.408 | PlugOut 主片段 |
+| `拔出.mp3` | 0.144 | PlugOut 随机变体 |
+| `挂点激活（或者某种机械机关）.mp3` | 0.504 | Activated：挂点放置、降压器成功激活 |
+| `按键或启动（像素）.mp3` | 1.008 | GameStart：成功开始游戏 |
+| `跑步-近脚.mp3` | 0.144 | GroundStepFront：普通地面前脚 |
+| `跑步-远脚.mp3` | 0.120 | GroundStepBack：普通地面后脚 |
+| `近脚（金属地面）.mp3` | 0.120 | MetalStepFront：金属地面前脚 |
+| `远脚（金属地面）.mp3` | 0.144 | MetalStepBack：金属地面后脚 |
+| `按钮按下（开）.mp3` | 0.144 | ButtonPressOpen：一般按钮按下 |
+| `按钮弹回（开）.mp3` | 0.120 | ButtonReleaseOpen：一般按钮释放/提交 |
+| `按钮按下（关）.mp3` | 0.072 | ButtonPressClose：继续、返回、退出按钮按下 |
+| `按钮回弹（关）.mp3` | 0.120 | ButtonReleaseClose：继续、返回、退出按钮释放/提交 |
+| `开关.mp3` | 0.432 | Switch：音量滑块变化 |
 
-三个 AudioImporter 的 meta 设置相同：无平台覆盖、未强制单声道、未后台加载、关闭 preloadAudioData；源采样率不同，不应将 `sampleRateOverride: 44100` 字段单独解释为所有素材已被强制重采样。实际播放参数由 AudioClipData 与请求决定，见[音频资源总览](../README.md)。
+这些片段通过 `../SO/DefaultAudioManagerConfigs.asset` 注册到 SFX 混音组。UI 声音允许暂停时播放，脚步和交互沿用原有成功条件与冻结规则。插拔变体每次请求只选择一个片段，不叠加播放。
 
-本轮检查文件格式、时长、导入配置及引用，不评价听感，不证明所有平台导入或发布包内容。仅更新文档，无需重跑 Unity 测试。
+启动片段约有 0.28 秒前导静音，机关片段约有 0.08 秒前导静音，开关片段中间约有 0.145 秒静音；保留作者原素材，不擅自裁剪。最大检测峰值中机关片段接近 0 dBFS，不额外放大素材。
+
+原 `click.mp3`、`Default_SFX.mp3`、`GameMainMenu.wav` 和背景音乐保持既有用途与配置；音频用途约定见 [DISCLAIMER](DISCLAIMER.md)。

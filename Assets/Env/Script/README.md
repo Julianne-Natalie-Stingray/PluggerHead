@@ -21,7 +21,7 @@
 
 `Env/Wire/SO/WireVisualConfigs.asset` 集中配置 Live / Neutral / Ground 三个共享材质。预设 Wire 初始化及运行时续线均按自身精确极性取材质；续线继承该配置，不继承前一根线的材质，也不由代码写入红、蓝、绿颜色。换线的 Sorting Layer / Sorting Order 规则保持不变，宽度、UV、端点与转角样式仍继承原线。
 
-当前三种独立材质共用 `Env/Wire/Sprite/WireSprite.png` 红色贴图，并保持材质白色，不额外染色。用户确认三张专用图片尚未制作；就绪后分别替换 `Env/Wire/Material/LiveWire.mat`、`NeutralWire.mat`、`GroundWire.mat` 的主贴图即可。`WireSprite.alt.png` 仍未使用。LineRenderer 使用纹理而非 SpriteRenderer，不应再逐个修改 Wire 的 Rendering 或 Gradient。现有 Wire 的 Gradient 已统一白色，避免与贴图二次相乘；贴图导入与 UV 参数本次不变。
+当前三种独立材质共用 `Env/Wire/Sprite/WireSprite.alt.png`，保持白色且不额外染色。WireSprite.png 保留为源资源；后续专用图片可分别配置到 LiveWire、NeutralWire、GroundWire 材质。LineRenderer 参数及极性选择机制保持不变。
 
 无视觉配置的临时 Wire 保留原材质；已绑定配置但对应槽为空，或极性不是单独 Live / Neutral / Ground 时，材质清空，避免悄悄沿用其他种类外观。生产 Wire 必须绑定完整配置。
 

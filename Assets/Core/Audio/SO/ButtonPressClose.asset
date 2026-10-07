@@ -10,15 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4790efb8cde0df54db4113b5a72f3215, type: 3}
-  m_Name: plugout
+  m_Name: ButtonPressClose
   m_EditorClassIdentifier: 
-  audioId: 5
-  clip: {fileID: 8300000, guid: 4d3d851757aae34498b40a9f834d60f4, type: 3}
-  variants:
-  - {fileID: 8300000, guid: 37d89c8646d64ca4090181200d319e00, type: 3}
+  audioId: 14
+  clip: {fileID: 8300000, guid: 37d287f4bd4145042a06e78d1939d586, type: 3}
+  variants: []
   mixerGroup: {fileID: 5747262707835034664, guid: a6b573f691acdc44a9421d10d0de8b7a, type: 2}
   loop: 0
-  defaultSurviveFreeze: 0
+  defaultSurviveFreeze: 1
   maxInstances: 10
   volume: 1
   pitch: 1

@@ -25,6 +25,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 708a2139033b46f42b21628fc8efe4d6, type: 2}
   - {fileID: 11400000, guid: 76ea02fcbc231f54b95eb5c82a74e1bf, type: 2}
   - {fileID: 11400000, guid: b88d419c0cd3de542a0904ea329cf096, type: 2}
+  - {fileID: 11400000, guid: 0b2c30d69e4680346b18ea0945551209, type: 2}
+  - {fileID: 11400000, guid: 4eeb322277d439b49af7117215759cbf, type: 2}
+  - {fileID: 11400000, guid: 86231c116a9251f40aefe84c64e6d6ef, type: 2}
+  - {fileID: 11400000, guid: 3dc401157c428bd45b7e667b22dd6d53, type: 2}
+  - {fileID: 11400000, guid: 59bd8953b7b897642af67a7fe4d23b2f, type: 2}
   mixer: {fileID: 24100000, guid: a6b573f691acdc44a9421d10d0de8b7a, type: 2}
   masterVolumeParameter: MasterVolume
   ostVolumeParameter: OstVolume

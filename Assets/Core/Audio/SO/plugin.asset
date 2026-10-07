@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   audioId: 4
   clip: {fileID: 8300000, guid: 943915d2e7ed43146a1a97fe1f0c477c, type: 3}
+  variants:
+  - {fileID: 8300000, guid: add1515dfe6f9c44286ecd125a5cb247, type: 3}
+  - {fileID: 8300000, guid: f3f0c882346a05149a764008506e6292, type: 3}
   mixerGroup: {fileID: 5747262707835034664, guid: a6b573f691acdc44a9421d10d0de8b7a, type: 2}
   loop: 0
   defaultSurviveFreeze: 0

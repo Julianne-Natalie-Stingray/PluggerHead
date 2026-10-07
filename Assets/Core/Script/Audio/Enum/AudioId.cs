@@ -20,6 +20,11 @@ public enum AudioId
     GroundStepBack = 9,
     MetalStepFront = 10,
     MetalStepBack = 11,
+    ButtonPressOpen = 12,
+    ButtonReleaseOpen = 13,
+    ButtonPressClose = 14,
+    ButtonReleaseClose = 15,
+    Switch = 16,
 
     // Optional audio hooks use None without submitting a playback request.
     None = -1

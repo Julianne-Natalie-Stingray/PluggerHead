@@ -235,7 +235,7 @@ public class AudioEmitter : MonoBehaviour
             return;
         }
 
-        source.clip = data.Clip;
+        source.clip = data.SelectClip();
         source.loop = data.Loop;
         source.outputAudioMixerGroup = data.MixerGroup;
 

@@ -6,21 +6,24 @@
 
 | 枚举 | 当前整数值 | 默认配置引用的 AudioClipData |
 | --- | --- | --- |
-| DefaultSfx | 0 | `Assets/Audios/SO/GenericSfx.asset` |
-| DefaultOst | 1 | `Assets/Audios/SO/GenericOst.asset` |
-| MouseClick | 2 | `Assets/Audios/SO/MouseClick.asset` |
-| GameMainMenu | 3 | `Assets/Audios/SO/GameMainMenu.asset` |
+| DefaultSfx | 0 | `Assets/Core/Audio/SO/GenericSfx.asset` |
+| DefaultOst | 1 | `Assets/Core/Audio/SO/GenericOst.asset` |
+| MouseClick | 2 | `Assets/Core/Audio/SO/MouseClick.asset` |
+| GameMainMenu | 3 | `Assets/Core/Audio/SO/GameMainMenu.asset` |
 | PlugIn / PlugOut | 4 / 5 | `Core/Audio/SO/plugin.asset` / `plugout.asset` |
 | GameStart / Activated | 6 / 7 | `Core/Audio/SO/gamestart.asset` / `activated.asset` |
 | GroundStepFront / GroundStepBack | 8 / 9 | 普通地面前后脚 SO |
 | MetalStepFront / MetalStepBack | 10 / 11 | 金属地面前后脚 SO |
+| ButtonPressOpen / ButtonReleaseOpen | 12 / 13 | 一般按钮按下/释放 SO |
+| ButtonPressClose / ButtonReleaseClose | 14 / 15 | 关闭按钮按下/释放 SO |
+| Switch | 16 | 音量滑块变化 SO |
 | None | -1 | 可选动画音效的空配置；由 PlayerAnimationAudio 拦截，不提交播放请求。 |
 
-源码显式固定整数值，保护已序列化的 AudioId。新增标识应保留已有数值，并同步 AudioClipData 和 `Assets/SO/Audio/DefaultAudioManagerConfigs.asset` 的 audios 列表。源码中的自定义 Identifier 包 TODO 只是未来设想，当前不存在这套实现。
+源码显式固定整数值，保护已序列化的 AudioId。新增标识应保留已有数值，并同步 AudioClipData 和 `Assets/Core/Audio/SO/DefaultAudioManagerConfigs.asset` 的 audios 列表。源码中的自定义 Identifier 包 TODO 只是未来设想，当前不存在这套实现。
 
 ## 查询边界
 
-上述十二个非 None 标识均已注册于 `Assets/Core/Audio/SO/DefaultAudioManagerConfigs.asset`，资源按功能迁移到 `Assets/Core/Audio/`。真实主/地线接入播放 PlugIn，独立拾起地线和收回 Anchor 播放 PlugOut；放置 Anchor、降压器首次接入播放 Activated，重复接入包括跨线不重复发声，重开后可再次激活。主菜单成功请求进入大厅时播放 GameStart，失败或重复请求不播放。成功交互音在通关冻结前发出并允许该声部继续；暂停中的请求不发声。
+上述十七个非 None 标识均已注册于 `Assets/Core/Audio/SO/DefaultAudioManagerConfigs.asset`，资源按功能迁移到 `Assets/Core/Audio/`。真实主/地线接入播放 PlugIn，独立拾起地线和收回 Anchor 播放 PlugOut；放置 Anchor、降压器首次接入播放 Activated，重复接入包括跨线不重复发声，重开后可再次激活。主菜单成功请求进入大厅时播放 GameStart，失败或重复请求不播放。成功交互音在通关冻结前发出并允许该声部继续；上述玩法交互请求在暂停中不发声；UI 按钮和滑块反馈允许在暂停中播放。
 
 AudioBuilder.Play 把标识交给 AudioManager，经 AudioManagerConfigs.TryGetClip 查找首个非空且 AudioId 匹配的条目。多个资产可以填同一个枚举值，编译器不会检测该冲突；配置的 Remove Duplicates 按钮才会手动移除空项及重复 ID，保留首项。
 

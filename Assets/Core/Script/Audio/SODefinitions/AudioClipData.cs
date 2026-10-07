@@ -27,6 +27,7 @@ public class AudioClipData : ScriptableObject
 
     [SerializeField] private AudioId audioId;
     [SerializeField] private AudioClip clip;
+    [SerializeField] private AudioClip[] variants = new AudioClip[0];
     [SerializeField] private AudioMixerGroup mixerGroup;
     [SerializeField] private bool loop = false;
     // Listener-pause behavior is independent of looping: either kind of sound may opt out of the pause.
@@ -63,6 +64,39 @@ public class AudioClipData : ScriptableObject
     [SerializeField, Min(0f), BoxGroup("Spatial")]
     [Tooltip("Value copied to AudioSource.maxDistance. This field does not implement a hard mute beyond that distance.")]
     private float maxDistance = 20f;
+
+    /// <summary>Select one clip per playback; empty variant slots are ignored.</summary>
+    public AudioClip SelectClip()
+    {
+        int count = 1;
+        if (variants != null)
+        {
+            foreach (AudioClip variant in variants)
+            {
+                if (variant != null)
+                {
+                    count++;
+                }
+            }
+        }
+        if (count == 1)
+        {
+            return clip;
+        }
+        int choice = Random.Range(0, count);
+        if (choice == 0)
+        {
+            return clip;
+        }
+        foreach (AudioClip variant in variants)
+        {
+            if (variant != null && --choice == 0)
+            {
+                return variant;
+            }
+        }
+        return clip;
+    }
 
 #if UNITY_EDITOR
     private void OnValidate()

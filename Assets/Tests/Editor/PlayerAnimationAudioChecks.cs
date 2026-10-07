@@ -96,6 +96,12 @@ public static class PlayerAnimationAudioChecks
             Set(core, "audios", manager);
             instance.SetValue(null, core);
 
+            if (scenario == "UI")
+            {
+                SelectableAudioChecks.CheckUI(manager, fixture.transform);
+                return;
+            }
+
             if (scenario == "Footsteps")
             {
                 GroundPolarityIntegrationChecks.CheckFootstepAudio(manager);

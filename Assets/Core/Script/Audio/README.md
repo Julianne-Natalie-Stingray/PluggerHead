@@ -15,6 +15,10 @@
 
 子目录分别说明 [音频标识](Enum/README.md)、[玩家音量](Setting/README.md) 和 [开发者配置](SODefinitions/README.md)。Timer 的运行依赖 TimerRunner；正常 Core 预制体提供它。
 
+## 音效变体
+
+AudioClipData 保留必填主 clip，可选 variants 提供同用途音效。AudioEmitter 每次 Configure 调用 SelectClip，从主片段与非空变体中等概率选择一个；同次播放不会切换片段，计数、混音器与音量仍属于同一 AudioId。未配置变体时沿用主片段。
+
 ## Builder 值语义
 
 每次请求使用新的 CreateBuilder。Play 在 manager 有效时先设置当前副本 isUsed，再调用管理器，因此即使请求被拒绝，此副本也已消费；无 manager 的默认结构体返回 null 而不消费。已消费副本忽略 With，重复 Play 返回 null。
