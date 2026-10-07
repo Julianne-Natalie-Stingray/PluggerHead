@@ -31,10 +31,10 @@ public static class SceneIntegrationChecks
         SceneSwitchConfigs configs = AssetDatabase.LoadAssetAtPath<SceneSwitchConfigs>(
             "Assets/SO/SceneSwitch/DefaultSceneSwitchConfigs.asset");
         Require(configs != null, "Default scene switch configuration must exist.");
-        string[] scenePaths = AssetDatabase.FindAssets("t:Scene", new[] { "Assets/Scenes", "Assets/Tests/Scenes" })
-            .Select(AssetDatabase.GUIDToAssetPath).ToArray();
+        string[] scenePaths = EditorBuildSettings.scenes.Where(scene => scene.enabled)
+            .Select(scene => scene.path).ToArray();
         SceneId[] ids = (SceneId[])Enum.GetValues(typeof(SceneId));
-        Require(scenePaths.Length == ids.Length, "Every project scene must have a functional SceneId.");
+        Require(scenePaths.Length == ids.Length, "Every enabled build scene must have a functional SceneId.");
         SerializedProperty entries = new SerializedObject(configs).FindProperty("scenes");
         Require(entries.arraySize == ids.Length, "Scene configuration must contain exactly one entry per SceneId.");
         HashSet<string> mappedPaths = new HashSet<string>();
@@ -42,7 +42,7 @@ public static class SceneIntegrationChecks
         {
             Require(configs.TryGetSceneName(id, out string name), $"Missing mapping for {id}.");
             string path = scenePaths.SingleOrDefault(candidate => System.IO.Path.GetFileNameWithoutExtension(candidate) == name);
-            Require(mappedPaths.Add(path) && scenePaths.Contains(path), $"Invalid or duplicate scene mapping: {id}.");
+            Require(path != null && mappedPaths.Add(path), $"Invalid or duplicate scene mapping: {id}.");
             Require(EditorBuildSettings.scenes.Count(scene => scene.enabled && scene.path == path) == 1,
                 $"Build Settings must enable {path} exactly once.");
         }

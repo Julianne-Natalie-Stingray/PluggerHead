@@ -11,4 +11,4 @@
 
 Interact 状态的标签为 `PlayerInteract`，与 PlayerAnimationCallbacks 的锁判断一致；锁依据标签而不是状态名。GameplayIntegration 引用此控制器，使用普通时间更新、始终更新模式并关闭 Root Motion。实际持续时间受 timeScale、Animator speed 和启用状态影响，不能承诺一秒真实时间后解锁。
 
-meta、片段与控制器、场景引用已核对。角色物理运动由脚本控制，详见 [Player 行为](../../Scripts/Player/README.md)。现有测试覆盖部分动作锁与帧推进，不证明动画视觉效果或完整运动输入。
+meta、片段与控制器、场景引用已核对。角色物理运动由脚本控制，详见 [Player 行为](../../../Scripts/Player/README.md)。现有测试覆盖部分动作锁与帧推进，不证明动画视觉效果或完整运动输入。

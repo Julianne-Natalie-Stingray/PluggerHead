@@ -66,7 +66,7 @@ public static class PlayerAnimationAudioChecks
             visual.AddComponent<SpriteRenderer>();
             Animator animator = visual.AddComponent<Animator>();
             animator.runtimeAnimatorController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(
-                "Assets/Visual/Player/PlayerAC.controller");
+                "Assets/Visual/Anim/Player/PlayerAC.controller");
             PlayerAnimationAudio receiver = visual.AddComponent<PlayerAnimationAudio>();
             Set(receiver, "deathAudio", AudioId.DefaultSfx);
             Set(receiver, "moveAudio", AudioId.DefaultSfx);

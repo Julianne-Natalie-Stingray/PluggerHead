@@ -10,7 +10,7 @@
 
 Gameplay 的 Player 初始位置 `(0,0,0)`，J 操作/收回、K 在当前 tile 放 Anchor。PowerSocket 为 `(-5.5,-3,0)`，Anchor 为 `(-0.5,-3,0)`，DualSocket 为 `(5.5,-3,0)`。线序保持 Neutral、Live，初始持 Neutral；两根线的长度上限均为 64 世界单位。路径按玩家经过的四连通格子记录，原路回退逐格收线，Anchor 固定此前路径。按全部插座端口接线及电压达标判定通关，不限制换线次数。默认地面没有 GroundPolarity。
 
-CircuitDiagnostics 已改用 `Assets/Prefabs/Player.prefab`，出生位置 `(-2.5,0.25,-0.05)`，沿用移动、跳跃和 J/K 操作。新增 Ground Tiles 覆盖 x=-9..8、y=-1，并带 TilemapCollider2D，避免真实玩家落出关卡。线序与长度上限同上。调试按钮会修改当前回路，不能把缺少节点时允许跳过的脚本化验收当作完整测试。
+CircuitDiagnostics 已改用 `Assets/Prefabs/Player/Player.prefab`，出生位置 `(-2.5,0.25,-0.05)`，沿用移动、跳跃和 J/K 操作。新增 Ground Tiles 覆盖 x=-9..8、y=-1，并带 TilemapCollider2D，避免真实玩家落出关卡。线序与长度上限同上。调试按钮会修改当前回路，不能把缺少节点时允许跳过的脚本化验收当作完整测试。
 
 本次场景结构、真实玩家 Tilemap 落地、J/K、回退、换线、重开及死亡检查已通过。完整记录见 [测试说明](../README.md)，画面见 [TilemapEnvironment](../../Docs/Development/TilemapEnvironment.png)。真实键盘输入和发布构建未在本次验证。
 

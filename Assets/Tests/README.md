@@ -2,7 +2,7 @@
 
 ## 目录组织
 
-测试脚本集中在本目录；三个功能测试场景位于 `Tests/Scenes/`。`Levels/Scene/TestLevel.unity` 保留在关卡目录。
+测试脚本集中在本目录；三个功能测试场景位于 `Tests/Scenes/`。未注册的开发关卡 `Scenes/TestLevel.unity` 与其他关卡场景保存在 `Scenes/`。
 
 | 目录 | 用途与编译归属 |
 | --- | --- |

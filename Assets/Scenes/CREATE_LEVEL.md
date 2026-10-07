@@ -4,14 +4,14 @@
 
 ## 1. 创建场景与基础对象
 
-1. 在 Unity 中新建空的 2D Scene，保存到 `Assets/Levels/Scene/Level1.unity`。每一关使用不同场景资产及其 GUID；复制场景时让 Unity 管理 `.meta`。
+1. 在 Unity 中新建空的 2D Scene，保存到 `Assets/Scenes/Level1.unity`。每一关使用不同场景资产及其 GUID；复制场景时让 Unity 管理 `.meta`。
 2. 保留一个启用的正交 Main Camera，Tag 为 `MainCamera`，并配置一个 AudioListener。GameplayIntegration 的相机位于 `(0, 0, -10)`、orthographic size 为 `5`；按实际关卡范围调整相机视野。一个运行中的场景只需要一个有效 AudioListener。
 3. 将以下六个资源作为**场景实例**放在根层级，保持启用：
 
    | 资源 | 提供的功能 |
    | --- | --- |
    | [`Prefabs/Core/Core.prefab`](../Prefabs/Core/Core.prefab) | Input、Audio、SceneSwitch、TimerRunner、关卡进度记录；跨场景保活。 |
-   | [`Prefabs/Player.prefab`](../Prefabs/Player.prefab) | 带 `Player` Tag 的真实玩家、Dynamic Rigidbody2D、非 Trigger 碰撞体、移动/交互脚本及视觉。 |
+   | [`Prefabs/Player/Player.prefab`](../Prefabs/Player/Player.prefab) | 带 `Player` Tag 的真实玩家、Dynamic Rigidbody2D、非 Trigger 碰撞体、移动/交互脚本及视觉。 |
    | [`Prefabs/Env/ScenePrefab/Env.prefab`](../Prefabs/Env/ScenePrefab/Env.prefab) | EnvironmentFacade、PowerSocket、DualSocket、两根线与初始 Anchor。 |
    | [`Prefabs/Env/ScenePrefab/Environment Grid.prefab`](<../Prefabs/Env/ScenePrefab/Environment Grid.prefab>) | Rectangle Grid、Routing Tiles、带 TilemapCollider2D 的 Ground Tiles。 |
    | [`Prefabs/Env/ScenePrefab/GlobalUI.prefab`](../Prefabs/Env/ScenePrefab/GlobalUI.prefab) | 设置、线长 HUD、死亡重开及通关面板。 |
@@ -56,7 +56,7 @@
 2. 在 [`DefaultSceneSwitchConfigs.asset`](../SO/SceneSwitch/DefaultSceneSwitchConfigs.asset) 增加该 SceneId 到**不带 `.unity` 后缀的准确场景名**的映射，并为正式玩法关勾选 `isGameplayLevel`。Core 的 SceneSwitchManager 和 LevelProgressTracker 共用这份配置；该标记决定菜单能否加载、进入后是否记录进度。
 3. 在 **File > Build Settings** 中加入并启用该 `.unity` 场景。保持 `MainMenuScene` 为索引 0；Build Settings 索引与 SceneId 整数是不同概念。SceneSwitch 会拒绝未在构建列表中的目标。
 
-`Continue` 只重新加载最近进入的玩法关卡的**场景默认状态**，不会恢复角色位置或绕线。新增关卡后，更新 [`SceneIntegrationChecks.CheckSceneRegistry`](../Tests/Editor/SceneIntegrationChecks.cs)：它目前搜索 `Assets/Scenes` 和 `Assets/Tests/Scenes`，还按“找到的场景数等于 SceneId 数”逐一检查映射。当前 `Assets/Levels/Scene` 同时有 `Level0.unity` 和 `Level1.unity`，**不能直接把整个目录加入搜索**，否则未注册的场景也会被要求加入 SceneId、配置和 Build Settings。可以让检查只纳入明确要发布的关卡，或把该目录中的所有关卡都完整注册；两种方式都要保持场景、SceneId、配置与构建列表一致。在 [`SceneAssetTests`](../Tests/EditMode/SceneAssetTests.cs) 加入新关的场景用例。若更改主菜单首关，同步调整 [`MainMenuIntegrationChecks`](../Tests/Editor/MainMenuIntegrationChecks.cs) 里对 GameplayIntegration 的固定预期及相应流程测试；原 GameplayIntegration 的独立回归仍应保留。
+`Continue` 只重新加载最近进入的玩法关卡的**场景默认状态**，不会恢复角色位置或绕线。新增正式关卡后，同步注册 SceneId、配置和 Build Settings；[`SceneIntegrationChecks.CheckSceneRegistry`](../Tests/Editor/SceneIntegrationChecks.cs) 只检查已启用的构建场景，不会将同目录下未注册的 Level0、Level1、TestLevel 当成已发布关卡。在 [`SceneAssetTests`](../Tests/EditMode/SceneAssetTests.cs) 加入新关的场景用例。若更改主菜单首关，同步调整 [`MainMenuIntegrationChecks`](../Tests/Editor/MainMenuIntegrationChecks.cs) 里对 GameplayIntegration 的固定预期及相应流程测试；原 GameplayIntegration 的独立回归仍应保留。
 
 ## 6. 验收顺序
 

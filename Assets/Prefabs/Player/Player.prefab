@@ -151,8 +151,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e2a44b10074b8fd4aa5d2fc1d90f678c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   moveSpeed: 5
   jumpSpeed: 11.0292
   groundLayers:
@@ -310,6 +310,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   spriteFacesRight: 1
   facingMarker: {fileID: 4344929702717023574}
+--- !u!114 &8142400011112222333
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3301562982743628800}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4c866b4be324fc792cfa7b0a83777ba, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  deathAudio: -1
+  moveAudio: -1
+  interactAudio: -1
 --- !u!1 &8893088839053441966
 GameObject:
   m_ObjectHideFlags: 0
@@ -394,19 +409,3 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
-
---- !u!114 &8142400011112222333
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3301562982743628800}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a4c866b4be324fc792cfa7b0a83777ba, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  deathAudio: -1
-  moveAudio: -1
-  interactAudio: -1
