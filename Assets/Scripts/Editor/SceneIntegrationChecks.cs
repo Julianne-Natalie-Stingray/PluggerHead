@@ -268,6 +268,7 @@ public static class SceneIntegrationChecks
         SceneManager.sceneLoaded += configureWireLimits;
         try
         {
+            GameStateManager.EnterLoading();
             pendingLoad = SceneManager.LoadSceneAsync(GameplayScenePath, LoadSceneMode.Additive);
             yield return WaitForOperation(pendingLoad, "loading the gameplay scene");
         }
@@ -283,6 +284,9 @@ public static class SceneIntegrationChecks
         int initialFrame = Time.frameCount;
         yield return null;
         yield return null;
+        EnvironmentFacade loadingEnvironment = FindComponents<EnvironmentFacade>(ownedScene).Single();
+        Require(GetMusicHandle(loadingEnvironment) == null, "Level BGM must wait for Loading to finish.");
+        GameStateManager.ExitLoading();
         Require(Time.frameCount > initialFrame, "Gameplay frames must advance.");
         PlayerInteraction interaction = FindComponents<PlayerInteraction>(ownedScene).Single();
         PlayerMove movement = interaction.GetComponent<PlayerMove>();
@@ -314,6 +318,33 @@ public static class SceneIntegrationChecks
             !movement.IsDead && EnvironmentFacade.ForScene(movement.gameObject.scene) == environment,
             "Player startup must bind to its real environment and keep both controllers enabled.");
         Wire initialWire = environment.HeldWire;
+        ISoundHandle music = GetMusicHandle(environment);
+        Require(music != null && music.IsPlaying && music.AudioId == environment.BackgroundMusic,
+            "A loaded level must play its configured BGM.");
+        AudioEmitter musicEmitter = (AudioEmitter)typeof(SoundHandle)
+            .GetField("emitter", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(music);
+        AudioSource musicSource = musicEmitter.GetComponent<AudioSource>();
+        Require(musicSource.loop && !musicSource.ignoreListenerPause,
+            "Level BGM must loop and obey settings pause even when the clip ignores pause by default.");
+        SettingsScreen settings = FindComponents<SettingsScreen>(ownedScene).Single();
+        yield return new WaitForSecondsRealtime(0.1f);
+        settings.Open();
+        Require(AudioListener.pause, "Opening settings must pause level audio.");
+        int pausedSample = musicSource.timeSamples;
+        yield return new WaitForSecondsRealtime(0.1f);
+        Require(musicSource.timeSamples == pausedSample && ReferenceEquals(music, GetMusicHandle(environment)),
+            "Settings must preserve the BGM playback position and handle.");
+        settings.ContinueGame();
+        yield return new WaitForSecondsRealtime(0.1f);
+        Require(music.IsPlaying && musicSource.timeSamples != pausedSample &&
+            ReferenceEquals(music, GetMusicHandle(environment)), "Closing settings must resume the same playback.");
+        environment.enabled = false;
+        Require(!music.IsPlaying && GetMusicHandle(environment) == null, "Disabled Env must release its BGM.");
+        environment.enabled = true;
+        yield return null;
+        yield return null;
+        music = GetMusicHandle(environment);
+        Require(music != null && music.IsPlaying, "Re-enabled live Env must start one new playback.");
         yield return CheckVisualFacing(movement);
         Require(initialWire != null && initialWire.IsHeld && !environment.IsCircuitClosed,
             "The environment must start with an open circuit and a held wire.");
@@ -402,6 +433,8 @@ public static class SceneIntegrationChecks
             outlet.Interact(new InteractionDetails(interaction.gameObject, outlet.gameObject));
             Require(environment.IsCircuitClosed && !environment.HeldWire && clearedCount == 1,
                 "Returning the second wire to its outlet must clear the scene once.");
+            Require(GetMusicHandle(environment) == null && !music.IsPlaying,
+                "Victory must stop and release the BGM immediately.");
             Require(nextPanel.gameObject.activeInHierarchy &&
                 nextPanel.GetComponentInChildren<UnityEngine.UI.Button>().interactable &&
                 nextPanel.GetComponentInChildren<TMPro.TMP_Text>().text.Contains("恭喜通关"),
@@ -419,6 +452,9 @@ public static class SceneIntegrationChecks
                 "Restart must reset the authored circuit, held wire and routing.");
             yield return null;
             Require(!nextPanel.gameObject.activeSelf, "An environment debug restart must clear the completion prompt.");
+            yield return null;
+            music = GetMusicHandle(environment);
+            Require(music != null && music.IsPlaying, "Restarting a living player's run must restart the BGM.");
         }
         finally
         {
@@ -464,6 +500,8 @@ public static class SceneIntegrationChecks
             yield return new WaitForFixedUpdate();
             Require(movement.IsDead && movement.IsInputLocked && movement.gameObject.activeSelf && !body.simulated && diedCount == 1,
                 "Exceeding the real wire limit must kill the player and notify death in a physics frame.");
+            Require(GetMusicHandle(environment) == null && !music.IsPlaying,
+                "Player death must stop the BGM before the next frame.");
             Require(restartPanel.gameObject.activeInHierarchy &&
                 restartPanel.GetComponentInChildren<UnityEngine.UI.Button>().interactable,
                 "Player death must show an actionable restart prompt.");
@@ -473,6 +511,7 @@ public static class SceneIntegrationChecks
             Require(!restartPanel.gameObject.activeSelf, "Disabling the restart screen must hide its prompt.");
             Require(GameStateManager.Current == GameState.Playing && Time.timeScale > 0f,
                 "Hiding the only visible prompt must release its freeze request.");
+            Require(GetMusicHandle(environment) == null, "Unpausing after death must not restart the BGM.");
             typeof(RestartLevelScreen).GetField("player", BindingFlags.Instance | BindingFlags.NonPublic)
                 .SetValue(restartScreen, null);
             restartScreen.enabled = true;
@@ -488,6 +527,12 @@ public static class SceneIntegrationChecks
         {
             movement.Died -= onDied;
         }
+    }
+
+    private static ISoundHandle GetMusicHandle(EnvironmentFacade environment)
+    {
+        return (ISoundHandle)typeof(EnvironmentFacade)
+            .GetField("musicHandle", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(environment);
     }
 
     private static IEnumerator CheckVisualFacing(PlayerMove movement)

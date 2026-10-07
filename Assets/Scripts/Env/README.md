@@ -6,6 +6,10 @@
 
 ## 场景配置
 
+- 每关在 `EnvironmentFacade` 的 **Background Music** 中选择 BGM 的 `AudioId`，默认 `DefaultOst`。对应 `AudioClipData` 须加入 Core 的 `AudioManagerConfigs`，配置循环播放、2D 和 OST 混音组；玩家设置中的音乐音量沿用 OST 总线。
+- BGM 在 Env 的 Start 已执行且关卡结束 Loading 后播放。设置页通过监听器暂停并从原位置续播；Env 强制本次 BGM 服从暂停，不受音频资源的 DefaultSurviveFreeze 影响。通关、死亡、Env 禁用/卸载或开始切场景时立即停止。通关/死亡后解除暂停不会重播；调试重开仍存活玩家的关卡会重新播放。没有 Core 时等待其可用；音频请求被拒绝时不逐帧重试。
+- 2026-10-07 BGM 验证：编译无错误，独立审查未发现问题；EditMode **69/69**（`e482d8e14b6440f881f7808fd270d2ec`）后 PlayMode **79/79**（`7b0c9e3c704d43d7bc31333f941fe4e9`）顺序终态通过，无失败或跳过。真实 GameplayIntegration 用例覆盖加载门控、设置暂停位置保持及续播、禁用释放与启用重播、通关停止、重开、死亡停止及解除冻结不重播。未做人工听感验收。
+
 - 关卡配置一个 Grid 和已绘制的路由 Tilemap，将其赋给 `EnvironmentFacade.routingTilemap`。目前支持 Rectangle / XYZ；必须属于同一场景。场景仅有一个 Tilemap 时可自动查找，多个 Tilemap 时须显式绑定。
 - PowerSocket、PolaritySocket 和 Anchor 放在已绘制 tile 的中心；`RefreshNodes()` 对有效节点执行格心对齐。路由层不需要 Collider，实体地面使用独立 TilemapCollider2D。
 - PowerSocket 的 `wires` 配置本插座的电线，首个有效火线或零线引用是开局持线。所属 Wire 的固定端取插座位置；未绑定插座时使用自身 Transform。

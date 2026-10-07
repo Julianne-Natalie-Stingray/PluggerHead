@@ -29,6 +29,10 @@ public class EnvironmentFacade : MonoBehaviour
 
     [SerializeField, Min(0f), Tooltip("通关所需的累计降压量。")]
     private float neededVoltage = 30f;
+    [SerializeField, Tooltip("本关 BGM；在 AudioManager 配置中映射到循环、2D、OST 混音组的音频。")]
+    private AudioId backgroundMusic = AudioId.DefaultOst;
+    public AudioId BackgroundMusic => backgroundMusic;
+
     public bool IsCircuitClosed => isCircuitClosed;
     public int SwapCount => swapCount;
     public Tilemap RoutingTilemap => routingTilemap;
@@ -81,6 +85,80 @@ public class EnvironmentFacade : MonoBehaviour
     private bool hasPlayerSample;
     private int nextWireRenderOrder;
     private int wireSortingLayerId;
+    private PlayerMove musicPlayer;
+    private ISoundHandle musicHandle;
+    private bool musicStarted;
+    private bool musicEnded;
+    private bool hasStarted;
+
+    private void OnEnable()
+    {
+        GameStateManager.Changed += HandleMusicStateChanged;
+        ResolvePlayer();
+    }
+
+    private void Start()
+    {
+        hasStarted = true;
+        TryStartMusic();
+    }
+
+    private void OnDisable()
+    {
+        GameStateManager.Changed -= HandleMusicStateChanged;
+        if (musicPlayer)
+        {
+            musicPlayer.Died -= EndMusic;
+        }
+        musicPlayer = null;
+        StopMusic();
+    }
+
+    private void HandleMusicStateChanged(GameState state)
+    {
+        if (state == GameState.Loading)
+        {
+            StopMusic();
+        }
+        else
+        {
+            TryStartMusic();
+        }
+    }
+
+    private void TryStartMusic()
+    {
+        // Wait for both Unity Start and the scene switch completion. Paused music retains its handle.
+        // 等待 Start 与场景切换完成；暂停时保留句柄，不根据 IsPlaying 重新播放。
+        if (!Application.isPlaying || !hasStarted || !isActiveAndEnabled || musicStarted || musicEnded ||
+            isCircuitClosed || (musicPlayer && musicPlayer.IsDead) ||
+            GameStateManager.Current != GameState.Playing || !gameObject.scene.isLoaded)
+        {
+            return;
+        }
+        CoreFacade core = CoreFacade.Instance;
+        if (!core || !core.Audio)
+        {
+            return;
+        }
+        // A rejected request is not retried every frame (missing mapping / exhausted pool).
+        musicStarted = true;
+        musicHandle = core.Audio.CreateBuilder().WithSurviveFreeze(false).WithFade(0f, 0f).Play(backgroundMusic);
+    }
+
+    private void EndMusic()
+    {
+        musicEnded = true;
+        StopMusic();
+    }
+
+    private void StopMusic()
+    {
+        ISoundHandle previous = musicHandle;
+        musicHandle = null;
+        musicStarted = false;
+        previous?.Stop();
+    }
 
     private void Awake()
     {
@@ -109,6 +187,7 @@ public class EnvironmentFacade : MonoBehaviour
 
     private void LateUpdate()
     {
+        TryStartMusic();
         if (playerTransform && playerTransform.gameObject.activeInHierarchy && Time.timeScale > 0f)
         {
             SamplePlayerPath(playerTransform.position);
@@ -496,6 +575,7 @@ public class EnvironmentFacade : MonoBehaviour
 
         if (isCircuitClosed && !wasClosed)
         {
+            EndMusic();
             LevelCleared?.Invoke();
         }
 
@@ -741,10 +821,21 @@ public class EnvironmentFacade : MonoBehaviour
     {
         GameObject player = FindTaggedObject(playerTag);
         playerTransform = player ? player.transform : null;
+        if (musicPlayer)
+        {
+            musicPlayer.Died -= EndMusic;
+        }
+        musicPlayer = player ? player.GetComponent<PlayerMove>() : null;
+        if (musicPlayer && isActiveAndEnabled)
+        {
+            musicPlayer.Died += EndMusic;
+        }
     }
 
     private void BeginRun()
     {
+        StopMusic();
+        musicEnded = false;
         nextWireRenderOrder = 0;
         hasPlayerSample = false;
         swapCount = 0;
