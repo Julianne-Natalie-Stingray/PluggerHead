@@ -151,10 +151,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e2a44b10074b8fd4aa5d2fc1d90f678c, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  moveSpeed: 5
-  jumpSpeed: 11.0292
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveSpeed: 4
+  jumpSpeed: 11.4
   groundLayers:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -320,8 +320,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a4c866b4be324fc792cfa7b0a83777ba, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   deathAudio: -1
   moveAudio: -1
   interactAudio: -1
