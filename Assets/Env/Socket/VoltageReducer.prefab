@@ -75,8 +75,8 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 1882602391, guid: 45068eec119cc034c94cdf135f11949c, type: 3}
-  m_Color: {r: 1, g: 0.7, b: 0.2, a: 1}
+  m_Sprite: {fileID: 21300000, guid: 91194055fb09a3049818f0c67598cc41, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -115,7 +115,7 @@ PolygonCollider2D:
   m_CallbackLayers:
     serializedVersion: 2
     m_Bits: 4294967295
-  m_IsTrigger: 1
+  m_IsTrigger: 0
   m_UsedByEffector: 0
   m_UsedByComposite: 0
   m_Offset: {x: 0, y: 0}
@@ -130,10 +130,11 @@ PolygonCollider2D:
   m_AutoTiling: 0
   m_Points:
     m_Paths:
-    - - {x: -0.5, y: 0.5}
+    - - {x: -0.375, y: 0.4166667}
+      - {x: -0.5, y: 0.25}
       - {x: -0.5, y: -0.5}
-      - {x: 0.16666667, y: -0.5}
-      - {x: 0.16918437, y: 0.5}
+      - {x: 0.5, y: -0.5}
+      - {x: 0.5, y: 0.4166667}
   m_UseDelaunayMesh: 0
 --- !u!114 &9119979377575278317
 MonoBehaviour:
@@ -145,6 +146,6 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 48ce9c1820ab4724585137c44e87ff21, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   voltageDrop: 30
