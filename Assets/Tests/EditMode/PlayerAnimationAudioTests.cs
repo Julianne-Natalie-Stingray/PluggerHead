@@ -8,6 +8,11 @@ namespace PluggerHead.Tests
 {
     public sealed class PlayerAnimationAudioTests
     {
+        [Test]
+        public void ProductionAudio_HasRegisteredClipsAndSurfaceFootsteps()
+        {
+            IntegrationCheckBridge.Invoke("PlayerAnimationAudioChecks", "CheckProductionRegistration");
+        }
         [TestCase("Death")]
         [TestCase("Move")]
         [TestCase("Interact")]

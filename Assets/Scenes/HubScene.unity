@@ -2023,8 +2023,16 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 1202921982204158282, guid: fef1120efb9abae4799ee970e59473de, type: 3}
+      propertyPath: destination
+      value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 1202921982204158282, guid: fef1120efb9abae4799ee970e59473de, type: 3}
       propertyPath: levelNumber
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1202921982204158282, guid: fef1120efb9abae4799ee970e59473de, type: 3}
+      propertyPath: hasDestination
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 2091349484910075041, guid: fef1120efb9abae4799ee970e59473de, type: 3}
       propertyPath: m_SortingLayer
@@ -2449,8 +2457,16 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 1202921982204158282, guid: fef1120efb9abae4799ee970e59473de, type: 3}
+      propertyPath: destination
+      value: 9
+      objectReference: {fileID: 0}
+    - target: {fileID: 1202921982204158282, guid: fef1120efb9abae4799ee970e59473de, type: 3}
       propertyPath: levelNumber
       value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 1202921982204158282, guid: fef1120efb9abae4799ee970e59473de, type: 3}
+      propertyPath: hasDestination
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 2091349484910075041, guid: fef1120efb9abae4799ee970e59473de, type: 3}
       propertyPath: m_SortingLayer
@@ -3396,6 +3412,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 7800012345678901234}
   - component: {fileID: 1433773972}
   - component: {fileID: 1433773977}
   - component: {fileID: 1433773976}
@@ -6232,6 +6249,10 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 1202921982204158282, guid: fef1120efb9abae4799ee970e59473de, type: 3}
+      propertyPath: destination
+      value: 8
+      objectReference: {fileID: 0}
+    - target: {fileID: 1202921982204158282, guid: fef1120efb9abae4799ee970e59473de, type: 3}
       propertyPath: hasDestination
       value: 1
       objectReference: {fileID: 0}
@@ -6308,3 +6329,16 @@ SceneRoots:
   - {fileID: 1153216708}
   - {fileID: 914694379}
   - {fileID: 613780551}
+--- !u!114 &7800012345678901234
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1433773971}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 015b61aae49e56c41a59db788f7f73be, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  metal: 1

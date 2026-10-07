@@ -52,7 +52,11 @@ public sealed class MainMenuScreen : MonoBehaviour
         {
             return;
         }
-        if (CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.HubScene) == null && startStatus != null)
+        if (CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.HubScene) != null)
+        {
+            CoreFacade.Instance.Audio?.CreateBuilder().Play(AudioId.GameStart);
+        }
+        else if (startStatus != null)
         {
             startStatus.text = "关卡加载失败，请重试。";
         }

@@ -325,6 +325,7 @@ MonoBehaviour:
   deathAudio: -1
   moveAudio: -1
   interactAudio: -1
+  useSurfaceFootsteps: 1
 --- !u!1 &8893088839053441966
 GameObject:
   m_ObjectHideFlags: 0

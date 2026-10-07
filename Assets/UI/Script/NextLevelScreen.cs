@@ -27,6 +27,14 @@ public sealed class NextLevelScreen : MonoBehaviour
         }
         if (nextLevelButton != null)
         {
+            if (nextLevel == SceneId.HubScene)
+            {
+                TMPro.TMP_Text label = nextLevelButton.GetComponentInChildren<TMPro.TMP_Text>(true);
+                if (label != null)
+                {
+                    label.text = "返回大厅";
+                }
+            }
             nextLevelButton.onClick.AddListener(LoadNextLevel);
         }
     }
@@ -120,7 +128,7 @@ public sealed class NextLevelScreen : MonoBehaviour
         {
             if (congratulationsText != null)
             {
-                congratulationsText.text = "下一关加载失败，请重试。";
+                congratulationsText.text = nextLevel == SceneId.HubScene ? "返回大厅失败，请重试。" : "下一关加载失败，请重试。";
             }
             return;
         }

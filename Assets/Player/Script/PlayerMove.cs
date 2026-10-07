@@ -205,6 +205,17 @@ public class PlayerMove : MonoBehaviour
 
     private bool IsGrounded()
     {
+        return TryGetSupportingCollider(out _);
+    }
+
+    /// <summary>Returns a real upward support contact using the same layer, trigger and normal rules as jumping.</summary>
+    public bool TryGetSupportingCollider(out Collider2D surface)
+    {
+        surface = null;
+        if (body == null)
+        {
+            return false;
+        }
         if (body.velocity.y > GroundedUpwardSpeedThreshold)
         {
             return false;
@@ -216,6 +227,7 @@ public class PlayerMove : MonoBehaviour
             // 仅接受向上的支撑面，避免墙壁或天花板被判定为地面。
             if (contact.normal.y >= MinimumGroundNormalY)
             {
+                surface = contact.collider.attachedRigidbody == body ? contact.otherCollider : contact.collider;
                 return true;
             }
         }

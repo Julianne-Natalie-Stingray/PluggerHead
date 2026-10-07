@@ -31,5 +31,8 @@ public enum SceneId
     MainMenuScene = 4,
     FinalScene = 5,
     Level0 = 6,
-    HubScene = 7
+    HubScene = 7,
+    Level1 = 8,
+    Level2 = 9,
+    Level3 = 10
 }

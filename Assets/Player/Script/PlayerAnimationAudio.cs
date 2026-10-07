@@ -10,6 +10,8 @@ public sealed class PlayerAnimationAudio : MonoBehaviour
     [SerializeField] private AudioId deathAudio = AudioId.None;
     [SerializeField] private AudioId moveAudio = AudioId.None;
     [SerializeField] private AudioId interactAudio = AudioId.None;
+    [SerializeField] private bool useSurfaceFootsteps;
+    private bool backFoot;
 
     private ISoundHandle deathHandle;
     private ISoundHandle moveHandle;
@@ -24,6 +26,27 @@ public sealed class PlayerAnimationAudio : MonoBehaviour
     /// <summary>移动动画事件：可在每个落脚帧调用。</summary>
     public void PlayMoveAudio()
     {
+        if (useSurfaceFootsteps)
+        {
+            PlayerMove player = GetComponentInParent<PlayerMove>();
+            Rigidbody2D body = player != null ? player.GetComponent<Rigidbody2D>() : null;
+            if (!isActiveAndEnabled || player == null || !player.isActiveAndEnabled || player.IsDead ||
+                player.IsInputLocked || Time.timeScale <= 0f || body == null ||
+                Mathf.Abs(body.velocity.x) <= 0.01f || !player.TryGetSupportingCollider(out Collider2D surface))
+            {
+                return;
+            }
+            FootstepSurface marker = surface.GetComponentInParent<FootstepSurface>();
+            bool metal = marker != null && marker.isActiveAndEnabled && marker.IsMetal;
+            AudioId id = metal
+                ? (backFoot ? AudioId.MetalStepBack : AudioId.MetalStepFront)
+                : (backFoot ? AudioId.GroundStepBack : AudioId.GroundStepFront);
+            if (Play(id, false, ref moveHandle))
+            {
+                backFoot = !backFoot;
+            }
+            return;
+        }
         Play(moveAudio, false, ref moveHandle);
     }
 
@@ -33,23 +56,23 @@ public sealed class PlayerAnimationAudio : MonoBehaviour
         Play(interactAudio, false, ref interactHandle);
     }
 
-    private void Play(AudioId id, bool surviveFreeze, ref ISoundHandle handle)
+    private bool Play(AudioId id, bool surviveFreeze, ref ISoundHandle handle)
     {
         if (!isActiveAndEnabled || id == AudioId.None)
         {
-            return;
+            return false;
         }
 
         PlayerMove player = GetComponentInParent<PlayerMove>();
         if (!surviveFreeze && (Time.timeScale <= 0f || (player != null && player.IsDead)))
         {
-            return;
+            return false;
         }
 
         CoreFacade core = CoreFacade.Instance;
         if (core == null || core.Audio == null)
         {
-            return;
+            return false;
         }
 
         handle?.Stop();
@@ -59,6 +82,7 @@ public sealed class PlayerAnimationAudio : MonoBehaviour
             .WithSurviveFreeze(surviveFreeze)
             .WithAllowWhileFrozen(surviveFreeze)
             .Play(id);
+        return handle != null;
     }
 
     private void OnDisable()

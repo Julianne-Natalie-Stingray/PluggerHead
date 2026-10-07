@@ -665,7 +665,22 @@ public class EnvironmentFacade : MonoBehaviour
                 if (heldWire && heldWire.IsHeld && routingTilemap && reducer.CanInteract)
                 {
                     TraceToNode(heldWire, reducer.transform);
+                    bool alreadyConnected = false;
+                    foreach (Wire wire in wires)
+                    {
+                        if (wire != null)
+                        {
+                            foreach (VoltageReducer connected in wire.ConnectedReducers)
+                            {
+                                alreadyConnected |= connected == reducer;
+                            }
+                        }
+                    }
                     heldWire.ConnectReducer(reducer);
+                    if (!alreadyConnected)
+                    {
+                        PlayInteractionAudio(AudioId.Activated, reducer.transform.position);
+                    }
                 }
                 break;
         }
@@ -729,6 +744,7 @@ public class EnvironmentFacade : MonoBehaviour
             previous.ConnectInterface(incoming);
         }
         previous.PlugInto(target.transform, closesCircuit);
+        PlayInteractionAudio(AudioId.PlugIn, target.transform.position);
         heldWire = null;
         // An occupied outgoing endpoint cannot supply another wire (e.g. the starting outlet).
         // 异极端口已有出线时仅完成接入，不在已占用锚点再次出线。
@@ -797,6 +813,7 @@ public class EnvironmentFacade : MonoBehaviour
         {
             TraceToNode(heldGroundWire, target);
             heldGroundWire.PlugInto(target, false);
+            PlayInteractionAudio(AudioId.PlugIn, target.position);
             heldGroundWire = null;
         }
         else
@@ -807,8 +824,20 @@ public class EnvironmentFacade : MonoBehaviour
             heldGroundWire.TilePath.Reset(PathCell(target.position));
             heldGroundWire.SetRenderOrder(wireSortingLayerId, nextWireRenderOrder++);
             heldGroundWire.Hold();
+            PlayInteractionAudio(AudioId.PlugOut, target.position);
             previousGroundPosition = target.position;
         }
+    }
+
+    public static void PlayInteractionAudio(AudioId id, Vector3 position)
+    {
+        CoreFacade core = CoreFacade.Instance;
+        if (!Application.isPlaying || GameStateManager.Current != GameState.Playing || Time.timeScale <= 0f ||
+            core == null || core.Audio == null)
+        {
+            return;
+        }
+        core.Audio.CreateBuilder().WithPosition(position).WithSurviveFreeze(true).Play(id);
     }
 
     private void ApplyOutlet(PowerSocket outlet)

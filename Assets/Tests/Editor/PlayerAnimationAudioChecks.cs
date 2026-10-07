@@ -8,7 +8,36 @@ using Object = UnityEngine.Object;
 /// <summary>Isolated playback checks with synthetic audio; no scene or mixer assets are modified.</summary>
 public static class PlayerAnimationAudioChecks
 {
+    public static void CheckProductionRegistration()
+    {
+        var config = AssetDatabase.LoadAssetAtPath<AudioManagerConfigs>("Assets/Core/Audio/SO/DefaultAudioManagerConfigs.asset");
+        Require(config != null, "Production audio configuration must exist.");
+        var entries = new SerializedObject(config).FindProperty("audios");
+        var registered = new HashSet<AudioId>();
+        for (int i = 0; i < entries.arraySize; i++)
+        {
+            var data = entries.GetArrayElementAtIndex(i).objectReferenceValue as AudioClipData;
+            Require(data != null && data.Clip != null && data.MixerGroup != null && registered.Add(data.AudioId),
+                "Production audio entries must have clips, mixers and unique identifiers.");
+        }
+        foreach (AudioId id in Enum.GetValues(typeof(AudioId)))
+        {
+            Require(id == AudioId.None || registered.Contains(id), "Every production audio identifier must be registered.");
+        }
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Player/Player.prefab");
+        var audio = prefab.GetComponentInChildren<PlayerAnimationAudio>(true);
+        var serialized = new SerializedObject(audio);
+        Require(serialized.FindProperty("useSurfaceFootsteps").boolValue, "The production player must use surface footsteps.");
+        Require(serialized.FindProperty("interactAudio").intValue == (int)AudioId.None,
+            "The generic interaction animation must not duplicate successful gameplay audio.");
+    }
+
     public static void Run()
+    {
+        RunScenario("Animation");
+    }
+
+    public static void RunScenario(string scenario)
     {
         var state = new IntegrationSceneState();
         CoreFacade originalCore = CoreFacade.Instance;
@@ -16,7 +45,7 @@ public static class PlayerAnimationAudioChecks
         GameObject fixture = null;
         GameObject runner = null;
         AudioClip clip = null;
-        AudioClipData data = null;
+        var allData = new List<AudioClipData>();
         AudioManagerConfigs configs = null;
         try
         {
@@ -38,16 +67,22 @@ public static class PlayerAnimationAudioChecks
             template.SetActive(false);
             AudioEmitter emitter = template.AddComponent<AudioEmitter>();
             clip = AudioClip.Create("Animation test silence", 44100, 1, 44100, false);
-            data = ScriptableObject.CreateInstance<AudioClipData>();
-            Set(data, "audioId", AudioId.DefaultSfx);
-            Set(data, "clip", clip);
-            Set(data, "fadeIn", 0f);
-            Set(data, "fadeOut", 0f);
-            Set(data, "maxInstances", 8);
+            foreach (AudioId id in Enum.GetValues(typeof(AudioId)))
+            {
+                if (id == AudioId.None)
+                {
+                    continue;
+                }
+                var data = ScriptableObject.CreateInstance<AudioClipData>();
+                Set(data, "audioId", id);
+                Set(data, "clip", clip);
+                Set(data, "maxInstances", 32);
+                allData.Add(data);
+            }
             configs = ScriptableObject.CreateInstance<AudioManagerConfigs>();
-            Set(configs, "audios", new List<AudioClipData> { data });
-            Set(configs, "maxSoundInstance", 8);
-            Set(configs, "maxPoolSize", 8);
+            Set(configs, "audios", allData);
+            Set(configs, "maxSoundInstance", 64);
+            Set(configs, "maxPoolSize", 64);
             var coreHost = new GameObject("Inactive test Core");
             coreHost.transform.SetParent(fixture.transform);
             coreHost.SetActive(false);
@@ -60,6 +95,18 @@ public static class PlayerAnimationAudioChecks
                 .Invoke(manager, null);
             Set(core, "audios", manager);
             instance.SetValue(null, core);
+
+            if (scenario == "Footsteps")
+            {
+                GroundPolarityIntegrationChecks.CheckFootstepAudio(manager);
+                return;
+            }
+
+            if (scenario == "Circuit")
+            {
+                CircuitClosureIntegrationChecks.CheckAudio(manager);
+                return;
+            }
 
             var visual = new GameObject("Animated audio receiver");
             visual.transform.SetParent(fixture.transform);
@@ -107,7 +154,10 @@ public static class PlayerAnimationAudioChecks
                 Object.DestroyImmediate(fixture);
             }
             Object.DestroyImmediate(configs);
-            Object.DestroyImmediate(data);
+            foreach (AudioClipData data in allData)
+            {
+                Object.DestroyImmediate(data);
+            }
             Object.DestroyImmediate(clip);
             if (runner != null)
             {

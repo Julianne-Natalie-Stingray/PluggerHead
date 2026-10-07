@@ -806,6 +806,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+  - component: {fileID: 6918312892152838985}
   - component: {fileID: 6106379544127462318}
   - component: {fileID: 519496365912371689}
   - component: {fileID: 7346979282147389696}
@@ -2391,3 +2392,16 @@ CompositeCollider2D:
   m_OffsetDistance: 0.00005
   m_UseDelaunayMesh: 0
   m_CompositeGameObject: {fileID: 8627481105366453282}
+--- !u!114 &6918312892152838985
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8627481105366453282}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 015b61aae49e56c41a59db788f7f73be, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  metal: 1

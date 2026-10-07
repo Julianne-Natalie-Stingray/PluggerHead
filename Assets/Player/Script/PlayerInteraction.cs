@@ -97,6 +97,7 @@ public class PlayerInteraction : MonoBehaviour
         {
             anchor.Interact(new InteractionDetails(gameObject, anchor.gameObject));
         }
+        EnvironmentFacade.PlayInteractionAudio(AudioId.Activated, position);
         return true;
     }
 
@@ -153,7 +154,13 @@ public class PlayerInteraction : MonoBehaviour
     {
         if (target is Anchor anchor)
         {
-            return anchor.TryReclaim(new InteractionDetails(gameObject, anchor.gameObject));
+            Vector3 position = anchor.transform.position;
+            bool reclaimed = anchor.TryReclaim(new InteractionDetails(gameObject, anchor.gameObject));
+            if (reclaimed)
+            {
+                EnvironmentFacade.PlayInteractionAudio(AudioId.PlugOut, position);
+            }
+            return reclaimed;
         }
 
         IEnvironmentInteractable interactable = target as IEnvironmentInteractable;
