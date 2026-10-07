@@ -731,6 +731,7 @@ public class EnvironmentFacade : MonoBehaviour
             return;
         }
         ApplyPoweredSocket(target, false);
+        target.PlayInteractionEffect();
     }
 
     private void ApplyPoweredSocket(Component target, bool closesCircuit)

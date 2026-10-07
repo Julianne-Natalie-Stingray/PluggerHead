@@ -29,7 +29,7 @@
 
 地图图片统一归入 `Env/Map/Sprite/`，原 levelSheet 图片保留 GUID、切片和导入配置；角色 Idle/Walk 图片归入 `Player/Sprite/`。`Env/Map/Tile/Ground/LiveGround.asset`、`NeutralGround.asset` 保留原 `L 1`、`N 1` Tile GUID，使用现有 2D Tilemap Extras 的 AnimatedTile 播放红/蓝 Ground 四帧，默认以每秒 8 帧的速度配合当前 Tilemap 帧率。Level2/3 每关分别使用 6 格 Live 和 5 格 Neutral，位置、极性和物理组件保持不变。Grid 碰撞保持原满格矩形；四个生产 CompositeCollider 的全部路径顶点在接入前后完全相同。
 
-PowerSocket 成功交互后在插座位置生成 `Env/Socket/Fire.prefab`，按顺序播放 Fire 四帧一次并销毁；拒绝或重复交互不生成，特效随插座场景卸载清理。仅做静态检查，未进行运行时或视觉验证。
+PowerSocket 和 DualSocket（PolaritySocket 双极配置）成功交互后在插座位置生成 `Env/Socket/Fire.prefab`，按顺序播放 Fire 四帧一次并销毁；拒绝或重复交互不生成，特效随插座场景卸载清理。GroundSocket 不播放此特效。仅做静态检查，未进行运行时或视觉验证。
 
 Ground1 继续供现有地形使用。Red/BluePlatform、Left/RightWall1 和 Test 保留为资源；尚无明确需替换的生产对象，不新增布局或把整格地面替换为薄平台。Wire 三种专用图片及 Portal 新美术尚未制作，本次不接入。
 

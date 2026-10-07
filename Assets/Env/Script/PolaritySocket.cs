@@ -48,7 +48,30 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
     [SerializeField, BoxGroup("Polarity")]
     [Tooltip("Whether any wire may be plugged in here at all.")]
     private bool canInteract = true;
+
+    [SerializeField, BoxGroup("Polarity")]
+    private SocketFireEffect firePrefab;
+
     private bool initializationErrorReported;
+
+    /// <summary>Play one Fire burst after the environment accepts a dual socket interaction.
+    /// 环境确认双极插座交互成功后，在插座位置播放一次 Fire。</summary>
+    internal void PlayInteractionEffect()
+    {
+        if (!Application.isPlaying || !IsDual || !firePrefab)
+        {
+            return;
+        }
+
+        SocketFireEffect effect = Instantiate(firePrefab, transform.position, Quaternion.identity, transform);
+        SpriteRenderer socketRenderer = GetComponent<SpriteRenderer>();
+        if (socketRenderer)
+        {
+            SpriteRenderer effectRenderer = effect.GetComponent<SpriteRenderer>();
+            effectRenderer.sortingLayerID = socketRenderer.sortingLayerID;
+            effectRenderer.sortingOrder = socketRenderer.sortingOrder + 1;
+        }
+    }
 
     private void Awake()
     {

@@ -149,3 +149,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   accepted: 3
   canInteract: 1
+  firePrefab: {fileID: 3443888433943991114, guid: 8e1346e882884a9f93fcf7dca53e5e23, type: 3}
