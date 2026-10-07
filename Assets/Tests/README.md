@@ -1,5 +1,7 @@
 # 整合集成测试
 
+2026-10-07 电压 HUD：PlayMode 精确运行 `VoltageDisplayTests.VoltageDisplay_TracksRealReductionAndRestart`、`VoltageDisplay_HandlesVisibilityAndSceneIsolation` 和 `SceneGameplayTests.AuthoredGameplayScene_PickupRouteSwapCloseAndRestart`，**3/3** 终态通过（`60164bb5c58c4e738b8bd142aec8f6e6`）。覆盖真实降压交互、重复去重、超额、重开归零、零需求隐藏/恢复、无环境与跨场景隔离、生产 Prefab 引用、中文字体和文本溢出。Level1 原需求为零时隐藏；仅运行时临时设需求 12.5，确认显示 `电压: 0/12.5` 且线长正常，退出后恢复。Console 无 error，EditorSettings 保持基线 0/3；字体保留 GUID 和旧字形并补充“压”。[运行截图](../Docs/Development/VoltageDisplay.png)仅作视觉冒烟，不作为像素验收；未覆盖所有屏幕比例及独立 Player 构建。
+
 2026-10-07 主菜单音乐接入：仅运行 PlayMode `MenuMusicTests.RegisteredMenuMusic_UsesAudioApiAndResumesWithoutRestart` 和 `MainMenuTests.MainMenu_LoadsHubMenuAndPortalsPreserveSessionProgress`，**2/2** 终态通过（`7620b77f7ab9474f9bedae03c60f4400`）。覆盖新增 WAV 的独立 AudioId/配置与 OST 引用、真实播放及同 ID 复用、暂停位置保持/恢复、停止清理，以及主菜单自动播放、设置暂停、拒绝开始保持、大厅换曲和返回主菜单重新播放。Console 无 error，EditorSettings 恢复 0/3，Level1 用户修改保留且排除提交。未做人工听感或独立 Player 构建验证。
 
 2026-10-07 Wire 类型材质：`WireVisualTests` 九项覆盖三种类型选材质、续线继承视觉配置而不继承源材质、不覆盖源及目标 Gradient、缺配置/空槽、继承段与排序、全部关卡和 Env 预制体的有效材质引用。加上 `CircuitClosureTests.GroundWire_CanRouteAndConnectAfterPoweredWireIsReleased` 和 `Outlet_HandoverPinsInheritedRoute`，EditMode **11/11** 终态通过（`4b32b83623fb458687dbbd62d7ca28c2`）；随后仅运行 `TilemapTests.WireSwap_PreservesIndependentPaths_RestartResetsPins`、`SceneGameplayTests.DiagnosticScene_RealPlayerPlacesAnchorAndSwapsWire`，PlayMode **2/2** 通过（`f76682c1699f498eab2d103fb7590e5f`），无失败或跳过。Console 无 error，EditorSettings 恢复本轮基线 0/3，Level1 恢复为用户授权保存后的编辑状态。

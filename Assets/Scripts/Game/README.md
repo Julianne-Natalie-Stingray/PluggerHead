@@ -13,7 +13,9 @@
 | `RestartLevelScreen.cs` | RestartLevelScreen | 监听 PlayerMove.Died，显示死亡提示，并通过 SceneSwitch 重载当前关卡场景。 |
 | `NextLevelScreen.cs` | NextLevelScreen | 监听同场景 EnvironmentFacade.LevelCleared，显示祝贺提示，通过 SceneSwitch 进入配置的下一关。 |
 
-根目录直接包含 `RestartLevelScreen.cs`、`NextLevelScreen.cs`、`WireLengthDisplay.cs` 和本 README/meta；其余实现与逐文件检查结果位于上表链接中。
+根目录直接包含 `RestartLevelScreen.cs`、`NextLevelScreen.cs`、`WireLengthDisplay.cs`、`VoltageDisplay.cs` 和本 README/meta；其余实现与逐文件检查结果位于上表链接中。
+
+`VoltageDisplay` 在 LateUpdate 查询同场景环境。当 `NeededVoltage > 0` 时，在线长下方显示 `电压: <ReducedVoltage>/<NeededVoltage>`，最多保留两位小数，允许显示超额降压。无环境或需求不大于零时清空并隐藏文本，需求恢复后自动显示。控制器挂在保持启用的 GameplayHUD 上，只切换子文本；复用项目内 NotoSansSC UI 中文字体。
 
 `WireLengthDisplay` 在环境更新路径后的 LateUpdate 查询同场景当前持线，以世界单位显示长度上限减实际绕线路径长度，保留一位小数，超限归零。不限长显示 `剩余线长：不限`，未持线或缺少必要环境引用显示 `剩余线长：--`。GlobalUI 左上角 GameplayHUD 的右侧预留空白 ScoreText，尚未接入计分。
 

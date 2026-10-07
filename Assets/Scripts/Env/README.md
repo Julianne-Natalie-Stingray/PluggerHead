@@ -57,6 +57,8 @@
 
 `VoltageReducer` 是带一个锚点及 `voltageDrop` 的交互组件。交互将主线接入并固定当前路径，但保留主线极性与携带状态。所需降压量 `neededVoltage` 配置在 EnvironmentFacade，通过 `NeededVoltage` 查询，默认 30；非负有限数才有效。原初始/目标电压合并为两者之差，SceneRoot 预制体当前配置为 0，场景可按关卡需要覆盖。`CurrentVoltage` 表示剩余所需降压量，为 `NeededVoltage` 减所有已连接降压器的降压数，每个降压器只计算一次；未连接的不参与，相加可使结果为负，不额外钳制。连接记录随 Wire 保存，刷新节点不会重复扣压，重开清除。
 
+`ReducedVoltage` 为 `NeededVoltage - CurrentVoltage`，提供已连接降压器的累计降压量供关卡 HUD 查询，不钳制超额数值；显示组件不参与电路判定。
+
 每次插座或降压器交互后检查成功，须同时满足：
 
 1. 所有已发现插座的全部端口有电线连接，包括初始 PowerSocket 的两个端口和地线插座。

@@ -26,6 +26,8 @@ public class EnvironmentFacade : MonoBehaviour
     public float NeededVoltage => neededVoltage;
     /// <summary>Remaining required drop; zero or less satisfies the voltage condition. 剩余所需降压量，可为负。</summary>
     public double CurrentVoltage { get; private set; }
+    /// <summary>Accumulated connected voltage drop, including excess. 已连接降压器的累计降压量，允许超过需求。</summary>
+    public double ReducedVoltage => NeededVoltage - CurrentVoltage;
 
     [SerializeField, Min(0f), Tooltip("通关所需的累计降压量。")]
     private float neededVoltage = 30f;
