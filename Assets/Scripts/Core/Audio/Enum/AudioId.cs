@@ -8,12 +8,34 @@ using UnityEngine;
 /// </summary>
 public enum AudioId
 {
-    DefaultSfx = 0,
-    DefaultOst = 1,
+    DefaultSfx,
+    DefaultOst,
 
-    MouseClick = 2,
-    GameMainMenu = 3,
+    MouseClick,
+    
+    plugin,
 
+    plugout,
+
+    gamestart,
+
+    activated,
+
+    groundstepfront,
+
+    groundstepback,
+
+    metalstepfront,
+
+    metalstepback,
+
+    
+
+
+
+    GameMainMenu,
+
+    
     // Optional audio hooks use None without submitting a playback request.
     None = -1
 }

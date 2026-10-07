@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0eba6b78ffc85814fa5be4588d0120f4, type: 3}
   m_Name: DefaultAudioManagerConfigs
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   audios:
   - {fileID: 11400000, guid: d15e0c703738ee1458c373bc0c8be955, type: 2}
   - {fileID: 11400000, guid: 35d9bb617c495a540b8dea30430efd7c, type: 2}
