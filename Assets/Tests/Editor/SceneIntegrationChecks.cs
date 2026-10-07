@@ -100,6 +100,15 @@ public static class SceneIntegrationChecks
             Require(FindComponents<Camera>(scene).Count == 1 && FindComponents<AudioListener>(scene).Count == 1,
                 $"{path}: each scene must provide one camera and listener.");
             bool switchTarget = path.EndsWith("/SceneSwitchTarget.unity", StringComparison.Ordinal);
+            if (path.EndsWith("/MainMenuScene.unity", StringComparison.Ordinal))
+            {
+                PlayerMove hubPlayer = FindComponents<PlayerMove>(scene).Single();
+                Physics2D.SyncTransforms();
+                var hits = Physics2D.RaycastAll(hubPlayer.transform.position, Vector2.down);
+                Require(hits.Any(hit => hit.collider != null && !hit.collider.isTrigger &&
+                    hit.collider.gameObject.scene == scene && !hit.collider.transform.IsChildOf(hubPlayer.transform)),
+                    "The hub must have a solid floor below the player; stale Tilemap geometry must not allow falling through.");
+            }
             Require(FindComponents<CoreFacade>(scene).Count == (switchTarget ? 0 : 1),
                 $"{path}: content scenes need one Core; the switch target must rely on the persistent Core.");
             if (path.EndsWith("/CircuitDiagnostics.unity", StringComparison.Ordinal))

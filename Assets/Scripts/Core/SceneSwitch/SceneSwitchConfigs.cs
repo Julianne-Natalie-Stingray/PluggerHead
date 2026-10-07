@@ -5,7 +5,7 @@ using UnityEngine;
 /// <summary>
 /// The whitelist of switchable scenes: which SceneId resolves to which scene name.
 /// Subsystem: Core (SceneSwitch).
-/// Where it lives: an asset read by SceneSwitchManager, MainMenuScreen and LevelProgressTracker.
+/// Where it lives: an asset read by SceneSwitchManager and the hub Portal components.
 /// Responsibility: hold scene mappings and gameplay flags, answer lookups, warn about blank names on validation,
 /// and offer a manual button to remove duplicate IDs. Runtime queries do not sanitize the list.
 /// Does NOT own: whether the named scene is registered for loading. That is Unity's Build Settings, and
@@ -17,7 +17,7 @@ using UnityEngine;
 /// Paradigms: none. It is a data lookup.
 /// 可切换场景的白名单: 哪个 SceneId 解析到哪个场景名.
 /// Subsystem 归属: Core (SceneSwitch).
-/// 存在位置: 由 SceneSwitchManager、MainMenuScreen 和 LevelProgressTracker 读取的资产.
+/// 存在位置: 由 SceneSwitchManager 和大厅 Portal 组件读取的资产.
 /// 职能: 持有场景映射与玩法标记、提供查找、校验时警告空名, 并提供手动按键移除重复 ID.
 /// 运行时查询不会清理列表.
 /// 不负责: 被命名的场景是否已注册可加载. 那属于 Unity 的 Build Settings, 由 SceneSwitchManager 另行检查,

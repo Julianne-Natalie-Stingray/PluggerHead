@@ -16,7 +16,7 @@ namespace PluggerHead.Tests
         }
 
         [UnityTest]
-        public IEnumerator MainMenu_NewGameSettingsReturnAndContinueFromDefaultState()
+        public IEnumerator MainMenu_StartUnlocksHubAndPortalsPreserveSessionProgress()
         {
             yield return (IEnumerator)IntegrationCheckBridge.Invoke("MainMenuIntegrationChecks", "CheckMenuFlow");
         }

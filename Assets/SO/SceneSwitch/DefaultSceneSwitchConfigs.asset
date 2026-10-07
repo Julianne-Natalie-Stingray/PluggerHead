@@ -25,3 +25,6 @@ MonoBehaviour:
   - id: 5
     sceneName: FinalScene
     isGameplayLevel: 0
+  - id: 6
+    sceneName: Level0
+    isGameplayLevel: 1

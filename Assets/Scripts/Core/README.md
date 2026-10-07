@@ -28,7 +28,7 @@ Core 必须由场景或调用方创建，Instance 访问不会自动生成它。
 
 ## 已装配资源与场景
 
-Assets/Prefabs/Core/Core.prefab 包含上述四个依赖组件、CoreFacade 和 LevelProgressTracker，AudioRoot 是其子物体。AudioManager 引用 AudioEmitter prefab 与 DefaultAudioManagerConfigs；SceneSwitchManager 和 LevelProgressTracker 使用同一默认场景配置。
+Assets/Prefabs/Core/Core.prefab 包含上述四个依赖组件和 CoreFacade，AudioRoot 是其子物体。AudioManager 引用 AudioEmitter prefab 与 DefaultAudioManagerConfigs；SceneSwitchManager 使用默认场景配置。LevelProgressTracker 位于实际关卡的环境对象，按通关事件记录内存进度。
 
 MainMenuScene、GameplayIntegration、CircuitDiagnostics、FinalScene 含 Core 实例；SceneSwitchTarget 不含 Core，依赖切换后保留的实例。直接运行不含 Core 的场景不会由门面自动补齐服务。构建入口和场景映射需与 [场景切换说明](SceneSwitch/README.md) 保持一致。
 

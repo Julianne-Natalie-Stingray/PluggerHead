@@ -29,5 +29,6 @@ public enum SceneId
     CircuitDiagnostics = 2,
     GameplayIntegration = 3,
     MainMenuScene = 4,
-    FinalScene = 5
+    FinalScene = 5,
+    Level0 = 6
 }
