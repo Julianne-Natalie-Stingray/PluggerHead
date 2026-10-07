@@ -849,9 +849,12 @@ public class EnvironmentFacade : MonoBehaviour
         if (outlet.IsGroundTerminal)
         {
             ApplyGround(outlet.transform);
-            return;
         }
-        ApplyPoweredSocket(outlet, true);
+        else
+        {
+            ApplyPoweredSocket(outlet, true);
+        }
+        outlet.PlayInteractionEffect();
     }
 
     private void ResolvePlayer()

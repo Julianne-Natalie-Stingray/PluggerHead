@@ -1770,6 +1770,7 @@ MonoBehaviour:
   wires:
   - {fileID: 7959890360744107298}
   - {fileID: 4298032079174195656}
+  firePrefab: {fileID: 3443888433943991114, guid: 8e1346e882884a9f93fcf7dca53e5e23, type: 3}
 --- !u!1001 &4295431725418559272
 PrefabInstance:
   m_ObjectHideFlags: 0

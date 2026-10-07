@@ -57,6 +57,28 @@ public class PowerSocket : MonoBehaviour, IEnvironmentInteractable
     [Tooltip("The wires that leave this outlet. Each one's fixed end is here; their free ends are carried one at a time.")]
     private List<Wire> wires = new();
 
+    [SerializeField, BoxGroup("Socket")]
+    private SocketFireEffect firePrefab;
+
+    /// <summary>Play one Fire burst after the environment accepts the interaction.
+    /// 环境确认交互成功后，在插座位置播放一次 Fire。</summary>
+    internal void PlayInteractionEffect()
+    {
+        if (!Application.isPlaying || !firePrefab)
+        {
+            return;
+        }
+
+        SocketFireEffect effect = Instantiate(firePrefab, PlugPosition, Quaternion.identity, transform);
+        SpriteRenderer socketRenderer = GetComponent<SpriteRenderer>();
+        if (socketRenderer)
+        {
+            SpriteRenderer effectRenderer = effect.GetComponent<SpriteRenderer>();
+            effectRenderer.sortingLayerID = socketRenderer.sortingLayerID;
+            effectRenderer.sortingOrder = socketRenderer.sortingOrder + 1;
+        }
+    }
+
     private void Awake()
         => LinkWires();
 
