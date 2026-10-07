@@ -30,6 +30,12 @@ public enum AudioId
     metalstepback,
 
     
+
+
+
+    GameMainMenu,
+
+    
     // Optional audio hooks use None without submitting a playback request.
     None = -1
 }
