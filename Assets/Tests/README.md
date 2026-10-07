@@ -1,5 +1,7 @@
 # 整合集成测试
 
+2026-10-07 主菜单音乐接入：仅运行 PlayMode `MenuMusicTests.RegisteredMenuMusic_UsesAudioApiAndResumesWithoutRestart` 和 `MainMenuTests.MainMenu_LoadsHubMenuAndPortalsPreserveSessionProgress`，**2/2** 终态通过（`7620b77f7ab9474f9bedae03c60f4400`）。覆盖新增 WAV 的独立 AudioId/配置与 OST 引用、真实播放及同 ID 复用、暂停位置保持/恢复、停止清理，以及主菜单自动播放、设置暂停、拒绝开始保持、大厅换曲和返回主菜单重新播放。Console 无 error，EditorSettings 恢复 0/3，Level1 用户修改保留且排除提交。未做人工听感或独立 Player 构建验证。
+
 2026-10-07 Wire 类型材质：`WireVisualTests` 九项覆盖三种类型选材质、续线继承视觉配置而不继承源材质、不覆盖源及目标 Gradient、缺配置/空槽、继承段与排序、全部关卡和 Env 预制体的有效材质引用。加上 `CircuitClosureTests.GroundWire_CanRouteAndConnectAfterPoweredWireIsReleased` 和 `Outlet_HandoverPinsInheritedRoute`，EditMode **11/11** 终态通过（`4b32b83623fb458687dbbd62d7ca28c2`）；随后仅运行 `TilemapTests.WireSwap_PreservesIndependentPaths_RestartResetsPins`、`SceneGameplayTests.DiagnosticScene_RealPlayerPlacesAnchorAndSwapsWire`，PlayMode **2/2** 通过（`f76682c1699f498eab2d103fb7590e5f`），无失败或跳过。Console 无 error，EditorSettings 恢复本轮基线 0/3，Level1 恢复为用户授权保存后的编辑状态。
 
 独立 review 检查 [三类型材质折线预览](../Docs/Development/WireTypeMaterials.png)：自有预览场景使用生产 Wire prefab 的宽度/UV 与三类型真实材质，由上到下 Live / Neutral / Ground；现阶段共用现有贴图，三线外观相同，待三张独立贴图交付后替换对应材质。该图只作人工渲染冒烟，不作像素验收，不代表所有关卡、显示比例或未来贴图已验证；临时相机、RenderTexture、Texture2D 与预览场景均已清理。

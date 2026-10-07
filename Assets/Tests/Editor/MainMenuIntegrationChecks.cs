@@ -113,6 +113,8 @@ public static class MainMenuIntegrationChecks
         yield return null;
         var menu = UnityEngine.Object.FindObjectOfType<MainMenuScreen>();
         Require(menu != null, "MainMenuScene must contain its controller.");
+        ISoundHandle menuMusic = CheckBackgroundMusic(AudioId.GameMainMenu);
+        AudioSource menuSource = Field<AudioEmitter>(menuMusic, "emitter").GetComponent<AudioSource>();
         PlayerMove player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
         Require(player == null && UnityEngine.Object.FindObjectOfType<Portal>() == null &&
             UnityEngine.Object.FindObjectOfType<EnvironmentFacade>() == null, "Main menu must contain no gameplay objects.");
@@ -129,10 +131,20 @@ public static class MainMenuIntegrationChecks
         var settings = Field<SettingsScreen>(menu, "settingsScreen");
         Require(settings.gameObject.activeSelf && GameStateManager.Current == GameState.Freezed,
             "Settings button must open the existing settings panel.");
+        yield return null;
+        int pausedMenuSample = menuSource.timeSamples;
+        yield return null;
+        yield return null;
+        Require(menuSource.timeSamples == pausedMenuSample && ReferenceEquals(menuMusic, CheckBackgroundMusic(AudioId.GameMainMenu)),
+            "Menu settings must pause the same BGM voice without resetting its position.");
         CheckSettingsSave(settings);
         menu.NewGame();
         Require(menu.gameObject.activeSelf && !CoreFacade.Instance.SceneSwitch.IsSwitching, "Settings must block starting.");
         settings.ContinueGame();
+        yield return IntegrationSceneWait.Until(() => menuSource.timeSamples != pausedMenuSample,
+            "resuming the menu music after settings", 5f);
+        Require(ReferenceEquals(menuMusic, CheckBackgroundMusic(AudioId.GameMainMenu)),
+            "Continuing must preserve the same music handle.");
         GameStateManager.Freeze();
         menu.NewGame();
         Require(!CoreFacade.Instance.SceneSwitch.IsSwitching, "Manual pause must block starting.");
@@ -144,6 +156,8 @@ public static class MainMenuIntegrationChecks
             Require(menu.gameObject.activeSelf && !CoreFacade.Instance.SceneSwitch.IsSwitching &&
                 Field<TMPro.TMP_Text>(menu, "startStatus").text == "关卡加载失败，请重试。",
                 "Rejected start must show a Chinese error and retain the menu for retry.");
+            Require(ReferenceEquals(menuMusic, CheckBackgroundMusic(AudioId.GameMainMenu)),
+                "Rejected start must preserve menu music.");
         }
         finally
         {
@@ -152,6 +166,9 @@ public static class MainMenuIntegrationChecks
         Field<UnityEngine.UI.Button>(menu, "newGameButton").onClick.Invoke();
         menu.NewGame();
         yield return WaitForSwitch("HubScene");
+        CheckBackgroundMusic(EnvironmentFacade.Current.BackgroundMusic);
+        Require(CoreFacade.Instance.Audio.Registry.CountOf(AudioId.GameMainMenu) == 0,
+            "The hub music must replace the menu track.");
         player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
         Require(player != null && !player.IsInputLocked && UnityEngine.Object.FindObjectOfType<MainMenuScreen>() == null,
             "Starting must load an independently playable hub without the main menu overlay.");
@@ -237,11 +254,18 @@ public static class MainMenuIntegrationChecks
         UnityEngine.Object.FindObjectsOfType<UnityEngine.UI.Button>().Single(b => b.name == "MenuBtn").onClick.Invoke();
         Field<UnityEngine.UI.Button>(settings, "exitButton").onClick.Invoke();
         yield return WaitForSwitch("MainMenuScene");
+        yield return null;
+        CheckBackgroundMusic(AudioId.GameMainMenu);
+        Require(CoreFacade.Instance.Audio.Registry.CountOf(AudioId.DefaultOst) == 0,
+            "Returning to the menu must replace the hub track.");
         Require(GameProgress.Store.IsUnlocked(2) && GameStateManager.Current == GameState.Playing,
             "Returning to main menu must release the hub pause and preserve session progress.");
         menu = UnityEngine.Object.FindObjectOfType<MainMenuScreen>();
         menu.NewGame();
         yield return WaitForSwitch("HubScene");
+        CheckBackgroundMusic(EnvironmentFacade.Current.BackgroundMusic);
+        Require(CoreFacade.Instance.Audio.Registry.CountOf(AudioId.GameMainMenu) == 0,
+            "Starting again must replace menu music with the hub track.");
         player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
         Require(GameProgress.Store.IsUnlocked(2), "Starting again must retain session progress.");
         portals = UnityEngine.Object.FindObjectsOfType<Portal>().OrderBy(p => p.LevelNumber).ToArray();
@@ -589,6 +613,19 @@ public static class MainMenuIntegrationChecks
             }
             UnityEngine.Object.DestroyImmediate(fixtureClip);
         }
+    }
+
+    private static ISoundHandle CheckBackgroundMusic(AudioId expected)
+    {
+        AudioManager audio = CoreFacade.Instance.Audio;
+        ISoundHandle music = Field<ISoundHandle>(audio, "backgroundMusic");
+        Require(music != null && music.AudioId == expected && audio.Registry.CountOf(expected) == 1,
+            "The scene must automatically select exactly one expected BGM voice.");
+        var configs = Field<AudioManagerConfigs>(audio, "configs");
+        Require(configs.TryGetClip(expected, out AudioClipData data) &&
+            Field<AudioEmitter>(music, "emitter").GetComponent<AudioSource>().clip == data.Clip,
+            "Automatic BGM must use the registered scene music clip.");
+        return music;
     }
 
     private static IEnumerator WaitForSwitch(string name)

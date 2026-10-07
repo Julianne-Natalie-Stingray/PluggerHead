@@ -8,10 +8,11 @@ using UnityEngine;
 /// </summary>
 public enum AudioId
 {
-    DefaultSfx,
-    DefaultOst,
+    DefaultSfx = 0,
+    DefaultOst = 1,
 
-    MouseClick,
+    MouseClick = 2,
+    GameMainMenu = 3,
 
     // Optional audio hooks use None without submitting a playback request.
     None = -1

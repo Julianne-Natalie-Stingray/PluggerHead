@@ -10,8 +10,11 @@ public sealed class MainMenuScreen : MonoBehaviour
     [SerializeField] private SettingsScreen settingsScreen;
     [SerializeField] private TMPro.TMP_Text startStatus;
 
+    private bool musicRequested;
+
     private void OnEnable()
     {
+        musicRequested = false;
         if (startStatus != null)
         {
             startStatus.text = string.Empty;
@@ -20,10 +23,23 @@ public sealed class MainMenuScreen : MonoBehaviour
 
     private void Update()
     {
+        TryStartMusic();
         bool ready = CanStart;
         newGameButton.interactable = ready;
         settingsButton.interactable = ready;
         exitButton.interactable = ready;
+    }
+
+    private void TryStartMusic()
+    {
+        CoreFacade core = CoreFacade.Instance;
+        if (musicRequested || !core || !core.Audio || GameStateManager.Current != GameState.Playing)
+        {
+            return;
+        }
+
+        musicRequested = true;
+        core.Audio.PlayBackgroundMusic(AudioId.GameMainMenu);
     }
 
     private bool CanStart => CoreFacade.Instance != null && CoreFacade.Instance.SceneSwitch != null &&

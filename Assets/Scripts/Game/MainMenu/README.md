@@ -4,6 +4,8 @@
 
 Inspector 配置开始/设置/退出三个 Button、SettingsScreen 和 startStatus 文本。按钮持久事件分别调用 NewGame、OpenSettings、ExitGame；不引用 Player，也不提供存档续关按钮。退出在 Editor 停止播放，在 Player 退出程序。
 
+主菜单启用后等待 Core 音频服务可用且游戏处于 Playing，再通过 `PlayBackgroundMusic(AudioId.GameMainMenu)` 请求菜单音乐；每次启用只尝试一次，拒绝时不逐帧重试。设置暂停后从原位置续播，重新启用时同 ID 复用已有声部。菜单关闭或卸载不主动停止音乐，后续环境按既有跨场景 BGM 规则接管。
+
 HubScene 保留原大厅的 Player、环境、地板和传送门布局，配置 Core 以支持独立播放。右上角 `MenuBtn` 显示“菜单”，持久事件调用同场景 SettingsScreen.Open，打开暂停面板，可继续游戏或返回主菜单。设置面板位于 MenuBtn 上层。返回主菜单后再次开始不会重置本次运行进度。
 
 Portal 实现 IEnvironmentInteractable，复用 Player 的 J 交互路径。从左到右为第一、二、三关。第一关进入 Level0；第二、三关尚未制作，显示“尚未开放”，即使进度解锁也不能进入。传送门要求目的关卡已配置、已解锁、构建注册有效、服务可用，且交互角色存活、未锁定并属于同一场景。失败请求保留重试。

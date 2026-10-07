@@ -9,9 +9,10 @@
 | DefaultSfx | 0 | `Assets/Audios/SO/GenericSfx.asset` |
 | DefaultOst | 1 | `Assets/Audios/SO/GenericOst.asset` |
 | MouseClick | 2 | `Assets/Audios/SO/MouseClick.asset` |
+| GameMainMenu | 3 | `Assets/Audios/SO/GameMainMenu.asset` |
 | None | -1 | 可选动画音效的空配置；由 PlayerAnimationAudio 拦截，不提交播放请求。 |
 
-源码使用隐式递增值。上述资产序列化的是整数；重排枚举或在中间插入成员会改变已有值的含义。新增标识应保留已有数值，并同步 AudioClipData 和 `Assets/SO/Audio/DefaultAudioManagerConfigs.asset` 的 audios 列表。源码中的自定义 Identifier 包 TODO 只是未来设想，当前不存在这套实现。
+源码显式固定整数值，保护已序列化的 AudioId。新增标识应保留已有数值，并同步 AudioClipData 和 `Assets/SO/Audio/DefaultAudioManagerConfigs.asset` 的 audios 列表。源码中的自定义 Identifier 包 TODO 只是未来设想，当前不存在这套实现。
 
 ## 查询边界
 
