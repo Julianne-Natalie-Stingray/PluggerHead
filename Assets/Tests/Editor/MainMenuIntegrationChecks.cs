@@ -99,7 +99,7 @@ public static class MainMenuIntegrationChecks
     {
         Require(CoreFacade.Instance == null, "Run in a fresh Test Runner session.");
         Require(!ownsScenes, "Previous menu scene cleanup remains pending.");
-        foreach (string sceneName in new[] { "MainMenuScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
+        foreach (string sceneName in new[] { "MainMenuScene", "HubScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
         {
             Require(!SceneManager.GetSceneByName(sceneName).isLoaded,
                 "Refusing to modify a pre-existing menu flow scene: " + sceneName);
@@ -114,7 +114,8 @@ public static class MainMenuIntegrationChecks
         var menu = UnityEngine.Object.FindObjectOfType<MainMenuScreen>();
         Require(menu != null, "MainMenuScene must contain its controller.");
         PlayerMove player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
-        Require(player != null && player.IsInputLocked, "Visible start menu must lock player operations.");
+        Require(player == null && UnityEngine.Object.FindObjectOfType<Portal>() == null &&
+            UnityEngine.Object.FindObjectOfType<EnvironmentFacade>() == null, "Main menu must contain no gameplay objects.");
         Require(UnityEngine.Object.FindObjectsOfType<UnityEngine.EventSystems.EventSystem>().Length == 1,
             "Menu must have one EventSystem.");
         Require(menu.GetComponent<UnityEngine.UI.GraphicRaycaster>() != null, "Menu canvas must receive pointer input.");
@@ -124,22 +125,58 @@ public static class MainMenuIntegrationChecks
             Require(button.onClick.GetPersistentEventCount() == 1 && button.onClick.GetPersistentTarget(0) == menu,
                 field + " must target the authored menu controller.");
         }
-        Portal[] portals = UnityEngine.Object.FindObjectsOfType<Portal>().OrderBy(p => p.transform.position.x).ToArray();
-        Require(portals.Length == 3 && portals.Select(p => p.LevelNumber).SequenceEqual(new[] { 1, 2, 3 }),
-            "Authored portals must represent levels one to three from left to right.");
-        portals[0].Interact(new InteractionDetails(player.gameObject, portals[0].gameObject));
-        Require(!CoreFacade.Instance.SceneSwitch.IsSwitching, "A locked player cannot enter a portal.");
         Field<UnityEngine.UI.Button>(menu, "settingsButton").onClick.Invoke();
         var settings = Field<SettingsScreen>(menu, "settingsScreen");
         Require(settings.gameObject.activeSelf && GameStateManager.Current == GameState.Freezed,
             "Settings button must open the existing settings panel.");
         CheckSettingsSave(settings);
         menu.NewGame();
-        Require(menu.gameObject.activeSelf && player.IsInputLocked, "Settings must block starting.");
+        Require(menu.gameObject.activeSelf && !CoreFacade.Instance.SceneSwitch.IsSwitching, "Settings must block starting.");
         settings.ContinueGame();
+        GameStateManager.Freeze();
+        menu.NewGame();
+        Require(!CoreFacade.Instance.SceneSwitch.IsSwitching, "Manual pause must block starting.");
+        GameStateManager.Resume();
+        CoreFacade.Instance.SceneSwitch.enabled = false;
+        try
+        {
+            menu.NewGame();
+            Require(menu.gameObject.activeSelf && !CoreFacade.Instance.SceneSwitch.IsSwitching &&
+                Field<TMPro.TMP_Text>(menu, "startStatus").text == "关卡加载失败，请重试。",
+                "Rejected start must show a Chinese error and retain the menu for retry.");
+        }
+        finally
+        {
+            CoreFacade.Instance.SceneSwitch.enabled = true;
+        }
         Field<UnityEngine.UI.Button>(menu, "newGameButton").onClick.Invoke();
-        Require(!menu.gameObject.activeSelf && !player.IsInputLocked && SceneManager.GetActiveScene().name == "MainMenuScene",
-            "Starting must hide the menu and unlock the same hub player without loading a level.");
+        menu.NewGame();
+        yield return WaitForSwitch("HubScene");
+        player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+        Require(player != null && !player.IsInputLocked && UnityEngine.Object.FindObjectOfType<MainMenuScreen>() == null,
+            "Starting must load an independently playable hub without the main menu overlay.");
+        Portal[] portals = UnityEngine.Object.FindObjectsOfType<Portal>().OrderBy(p => p.transform.position.x).ToArray();
+        Require(portals.Length == 3 && portals.Select(p => p.LevelNumber).SequenceEqual(new[] { 1, 2, 3 }),
+            "Authored portals must represent levels one to three from left to right.");
+        var hubScene = SceneManager.GetActiveScene();
+        settings = Resources.FindObjectsOfTypeAll<SettingsScreen>().Single(s => s.gameObject.scene == hubScene);
+        var menuButton = UnityEngine.Object.FindObjectsOfType<UnityEngine.UI.Button>().Single(b => b.name == "MenuBtn");
+        Require(menuButton.onClick.GetPersistentEventCount() == 1 &&
+            menuButton.onClick.GetPersistentTarget(0) == settings &&
+            menuButton.onClick.GetPersistentMethodName(0) == nameof(SettingsScreen.Open) &&
+            menuButton.GetComponentInChildren<TMPro.TMP_Text>().text == "菜单",
+            "Hub MenuBtn must open its own settings panel and display Chinese text.");
+        menuButton.onClick.Invoke();
+        Require(settings.gameObject.activeInHierarchy && GameStateManager.Current == GameState.Freezed && Time.timeScale == 0f,
+            "Hub MenuBtn must pause gameplay.");
+        Require(Field<UnityEngine.UI.Button>(settings, "exitButton").gameObject.activeInHierarchy &&
+            Field<UnityEngine.UI.Button>(settings, "exitButton").interactable,
+            "Hub settings must show an interactive return-to-main-menu button.");
+        portals[0].Interact(new InteractionDetails(player.gameObject, portals[0].gameObject));
+        Require(!CoreFacade.Instance.SceneSwitch.IsSwitching, "Paused hub must reject portal entry.");
+        settings.ContinueGame();
+        Require(GameStateManager.Current == GameState.Playing && !settings.gameObject.activeSelf,
+            "Continue must resume the hub.");
         Require(portals[0].CanInteract && !portals[1].CanInteract && !portals[2].CanInteract,
             "Only the implemented first portal can be used.");
         var destinationField = typeof(Portal).GetField("hasDestination", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -193,11 +230,20 @@ public static class MainMenuIntegrationChecks
         var levelPrompt = UnityEngine.Object.FindObjectOfType<NextLevelScreen>();
         Require(levelPrompt != null, "Level0 must offer a completion action.");
         levelPrompt.LoadNextLevel();
-        yield return WaitForSwitch("MainMenuScene");
-        menu = UnityEngine.Object.FindObjectOfType<MainMenuScreen>();
+        yield return WaitForSwitch("HubScene");
         player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
-        Require(player.IsInputLocked && GameProgress.Store.IsUnlocked(2), "Returning must preserve progress and show the start menu.");
+        Require(!player.IsInputLocked && GameProgress.Store.IsUnlocked(2), "Returning to the hub must preserve progress.");
+        settings = Resources.FindObjectsOfTypeAll<SettingsScreen>().Single(s => s.gameObject.scene == SceneManager.GetActiveScene());
+        UnityEngine.Object.FindObjectsOfType<UnityEngine.UI.Button>().Single(b => b.name == "MenuBtn").onClick.Invoke();
+        Field<UnityEngine.UI.Button>(settings, "exitButton").onClick.Invoke();
+        yield return WaitForSwitch("MainMenuScene");
+        Require(GameProgress.Store.IsUnlocked(2) && GameStateManager.Current == GameState.Playing,
+            "Returning to main menu must release the hub pause and preserve session progress.");
+        menu = UnityEngine.Object.FindObjectOfType<MainMenuScreen>();
         menu.NewGame();
+        yield return WaitForSwitch("HubScene");
+        player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+        Require(GameProgress.Store.IsUnlocked(2), "Starting again must retain session progress.");
         portals = UnityEngine.Object.FindObjectsOfType<Portal>().OrderBy(p => p.LevelNumber).ToArray();
         Require(!portals[1].CanInteract && !portals[1].HasDestination,
             "Unlocked but unimplemented levels must remain unavailable.");
@@ -275,7 +321,7 @@ public static class MainMenuIntegrationChecks
     public static IEnumerator CheckMenuRestart()
     {
         Require(CoreFacade.Instance == null && !ownsScenes, "Run restart checks in a fresh Runner session.");
-        foreach (string sceneName in new[] { "MainMenuScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
+        foreach (string sceneName in new[] { "MainMenuScene", "HubScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
         {
             Require(!SceneManager.GetSceneByName(sceneName).isLoaded,
                 "Refusing to modify a pre-existing scene: " + sceneName);
@@ -427,7 +473,7 @@ public static class MainMenuIntegrationChecks
 
     private static bool IsMenuFlowScene(Scene scene)
     {
-        return scene.name == "MainMenuScene" || scene.name == "GameplayIntegration" ||
+        return scene.name == "MainMenuScene" || scene.name == "HubScene" || scene.name == "GameplayIntegration" ||
             scene.name == "SceneSwitchTarget" || scene.name == "Level0";
     }
 

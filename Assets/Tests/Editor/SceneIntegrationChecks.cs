@@ -102,6 +102,12 @@ public static class SceneIntegrationChecks
             bool switchTarget = path.EndsWith("/SceneSwitchTarget.unity", StringComparison.Ordinal);
             if (path.EndsWith("/MainMenuScene.unity", StringComparison.Ordinal))
             {
+                Require(FindComponents<PlayerMove>(scene).Count == 0 && FindComponents<Portal>(scene).Count == 0 &&
+                    FindComponents<EnvironmentFacade>(scene).Count == 0,
+                    "Main menu must not retain the migrated hall gameplay objects.");
+            }
+            if (path.EndsWith("/HubScene.unity", StringComparison.Ordinal))
+            {
                 PlayerMove hubPlayer = FindComponents<PlayerMove>(scene).Single();
                 Physics2D.SyncTransforms();
                 var hits = Physics2D.RaycastAll(hubPlayer.transform.position, Vector2.down);

@@ -1,20 +1,20 @@
 using UnityEngine;
 
-/// <summary>大厅开始界面：显示时锁定角色，开始后留在大厅选择关卡。</summary>
+/// <summary>主菜单：通过场景切换服务进入独立大厅，提供设置和退出入口。</summary>
 [DisallowMultipleComponent]
 public sealed class MainMenuScreen : MonoBehaviour
 {
-    [SerializeField] private PlayerMove player;
     [SerializeField] private UnityEngine.UI.Button newGameButton;
     [SerializeField] private UnityEngine.UI.Button settingsButton;
     [SerializeField] private UnityEngine.UI.Button exitButton;
     [SerializeField] private SettingsScreen settingsScreen;
+    [SerializeField] private TMPro.TMP_Text startStatus;
 
     private void OnEnable()
     {
-        if (player != null)
+        if (startStatus != null)
         {
-            player.LockInput();
+            startStatus.text = string.Empty;
         }
     }
 
@@ -26,8 +26,9 @@ public sealed class MainMenuScreen : MonoBehaviour
         exitButton.interactable = ready;
     }
 
-    private bool CanStart => player != null && CoreFacade.Instance != null &&
-        !CoreFacade.Instance.SceneSwitch.IsSwitching && !settingsScreen.gameObject.activeSelf;
+    private bool CanStart => CoreFacade.Instance != null && CoreFacade.Instance.SceneSwitch != null &&
+        !CoreFacade.Instance.SceneSwitch.IsSwitching && GameStateManager.Current == GameState.Playing &&
+        settingsScreen != null && !settingsScreen.gameObject.activeSelf;
 
     public void NewGame()
     {
@@ -35,8 +36,10 @@ public sealed class MainMenuScreen : MonoBehaviour
         {
             return;
         }
-        player.UnlockInput();
-        gameObject.SetActive(false);
+        if (CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.HubScene) == null && startStatus != null)
+        {
+            startStatus.text = "关卡加载失败，请重试。";
+        }
     }
 
     public void OpenSettings()

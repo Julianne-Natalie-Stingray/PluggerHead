@@ -28,3 +28,6 @@ MonoBehaviour:
   - id: 6
     sceneName: Level0
     isGameplayLevel: 1
+  - id: 7
+    sceneName: HubScene
+    isGameplayLevel: 0

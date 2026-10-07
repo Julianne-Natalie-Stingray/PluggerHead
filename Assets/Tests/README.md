@@ -1,5 +1,10 @@
 # 整合集成测试
 
+2026-10-07 独立大厅：MainMenuScene 仅保留主菜单，开始加载 HubScene；大厅 MenuBtn 打开暂停设置，支持继续/返回主菜单，Level0 通关返回大厅。独立 review 选择 `SceneAssetTests` 和 `MainMenuTests`，最终顺序终态通过 EditMode **8/8**（`ee05ab3d506b46b889bef4c0def6c604`）与 PlayMode **2/2**（`d762aba6b49540808e9b4e4656b19dc6`），失败/跳过均为 0。覆盖七场景引用与注册、纯主菜单隔离、真实大厅加载、拒绝重试、暂停继续、通关返回/主菜单再开始保留进度、关卡重开及 BGM 连续播放。
+
+运行冒烟发现复制来的返回主菜单按钮默认隐藏，已在 HubScene 激活并补充可见/可交互断言，上述结果为修复后复测。独立播放大厅，MenuBtn 与返回主菜单按钮中心 UI Raycast 均首命中本人，派发 pointerClick 后分别暂停以及真实返回 MainMenuScene（Playing、timeScale=1）；中文 TMP 字形覆盖且无溢出。Console 无 error，存在原大厅无 PowerSocket 和跨场景 Core/Timer 去重 warning。EditorSettings 已恢复开始时 0/3，恢复 Level1 编辑状态且无未保存修改，保留其他外部资产修改。画面：[大厅](../Docs/Development/HubScene.png)、[暂停设置](../Docs/Development/HubScene-Settings.png)、[主菜单](../Docs/Development/MainMenuScene.png)、[加载失败提示](../Docs/Development/MainMenuScene-StartFailure.png)。未构建独立 Player，未覆盖所有屏幕比例或真实物理鼠标硬件事件；pointerClick 为 EventSystem 派发。
+
+
 2026-10-07 BGM 跨场景续播：编译无错误，独立复审通过；顺序运行 EditMode **74/74**（`fd7ea61bbcd44e2fa8988c35305412da`）、PlayMode **86/86**（`558817d3fbe54acd9f70a65eea396621`），终态通过且无失败或跳过。菜单集成用例实际执行 Level0 → SceneSwitchTarget → GameplayIntegration，使用测试自建音频验证 Loading 不停播、卸载后继续推进、同曲复用同一句柄/音源且不叠加，以及暂停位置保持和拒绝切换不影响 BGM；复用现有 Gameplay 用例验证死亡、通关和普通禁用仍停止。音频隔离夹具新增同曲复用、换曲、停止后重播、失败恢复及 Finished 重入保护。未做人工听感验收。测试后恢复 EditorSettings 的 Enter Play Mode 开关，MainMenuScene 已恢复且未标脏。
 
 2026-10-07 大厅选关与音频销毁修复：EditMode **74/74**（`0f6575ae18474c68a4d9e75a259dcc94`）后 PlayMode **84/84**（`c31852e92fa34410bce9a58f5e282a94`）顺序终态通过，无失败或跳过。覆盖菜单角色锁与设置门控、开始后留在大厅、正常 Player 交互进入 Level0、未开放门拒绝与相邻门误触、顺序解锁/重玩/运行重置、通关返回，以及音频发射器销毁后的 Stop/环境清理。新增大厅地板碰撞存在检查。

@@ -537,7 +537,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 54069958054524475, guid: 6032cca32c57d054092f25e738d4b75e, type: 3}
       propertyPath: nextLevel
-      value: 4
+      value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 1938944838438524803, guid: 6032cca32c57d054092f25e738d4b75e, type: 3}
       propertyPath: m_Pivot.x

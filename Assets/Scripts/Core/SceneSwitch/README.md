@@ -21,8 +21,10 @@
 | 3 | GameplayIntegration | Tests/Scenes/GameplayIntegration.unity | 是 |
 | 4 | MainMenuScene | Scenes/MainMenuScene.unity | 否 |
 | 5 | FinalScene | Scenes/FinalScene.unity | 否 |
+| 6 | Level0 | Scenes/Level0.unity | 是 |
+| 7 | HubScene | Scenes/HubScene.unity | 否 |
 
-默认配置为 SO/SceneSwitch/DefaultSceneSwitchConfigs.asset；Core 的 Manager 与大厅 Portal 共用它。Build Settings 顺序为 MainMenuScene、GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget、FinalScene、Level0，全部启用；Level0 的 SceneId 为 6，标记为玩法关卡。构建索引与枚举整数不是同一概念，退役枚举值 0 不复用。新增关卡须一起维护枚举、资源、配置和构建注册；进度由关卡环境的通关事件独立记录。
+默认配置为 SO/SceneSwitch/DefaultSceneSwitchConfigs.asset；Core 的 Manager 与大厅 Portal 共用它。Build Settings 顺序为 MainMenuScene、GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget、FinalScene、Level0、HubScene，全部启用；Level0 的 SceneId 为 6，标记为玩法关卡。构建索引与枚举整数不是同一概念，退役枚举值 0 不复用。新增关卡须一起维护枚举、资源、配置和构建注册；进度由关卡环境的通关事件独立记录。
 
 ## 查询与配置校验
 

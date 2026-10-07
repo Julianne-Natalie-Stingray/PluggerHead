@@ -30,5 +30,6 @@ public enum SceneId
     GameplayIntegration = 3,
     MainMenuScene = 4,
     FinalScene = 5,
-    Level0 = 6
+    Level0 = 6,
+    HubScene = 7
 }
