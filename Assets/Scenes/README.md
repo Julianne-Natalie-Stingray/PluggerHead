@@ -1,6 +1,6 @@
 # 场景总览
 
-逐文件核查日期：2026-10-06。当前 Build Settings 启用五场景，顺序如下；同目录的 Level0、Level1、TestLevel 为未注册开发关卡。SceneId 数值与构建索引是不同概念。
+逐文件核查日期：2026-10-06。当前 Build Settings 启用五场景，顺序如下；同目录的 Level0、TestLevel 为未注册开发关卡。SceneId 数值与构建索引是不同概念。
 
 | 构建索引 | 文件 | SceneId 数值 |
 | --- | --- | --- |
