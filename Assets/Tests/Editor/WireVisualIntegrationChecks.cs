@@ -108,7 +108,7 @@ public static class WireVisualIntegrationChecks
                 : socket.GetComponent<PolaritySocket>().GetWireAnchor((WirePolarity)polarity);
             Require(anchor && anchor.IsChildOf(socket.transform), "Each polarity must reference its own socket anchor.");
             Vector3 expected = new Vector3(anchor.position.x, anchor.position.y - 1f, anchor.position.z);
-            Vector3[] path = { expected + Vector3.left * 2f, expected + Vector3.right * 2f };
+            Vector3[] path = { anchor.position + Vector3.right * 3f, anchor.position, expected, anchor.position };
             typeof(Wire).GetMethod("BeginConnection", PrivateInstance)
                 .Invoke(wire, new object[] { socket.transform, null });
             wire.PlugInto(socket.transform, false);
@@ -129,7 +129,7 @@ public static class WireVisualIntegrationChecks
                     Require(connection.enabled && connection.positionCount == 2 &&
                         Vector3.Distance(connection.GetPosition(0), expected) < 0.00001f &&
                         connection.GetPosition(1) == anchor.position,
-                        "Connection must join the nearest segment point to the matching anchor.");
+                        "Connection must join the second nearest distinct collision vertex to the matching anchor.");
                     int connectionLayer = SortingLayer.GetLayerValueFromID(connection.sortingLayerID);
                     int socketLayer = SortingLayer.GetLayerValueFromID(socketRenderer.sortingLayerID);
                     Require(connectionLayer > socketLayer ||
@@ -140,6 +140,14 @@ public static class WireVisualIntegrationChecks
                     line.sortingOrder == authoredLine.sortingOrder && line.positionCount == path.Length &&
                     line.GetPosition(0) == path[0] && line.GetPosition(1) == path[1],
                     "Terminal sorting must preserve the main wire route and its authored sorting.");
+                Require(wire.PathCollider.pointCount == path.Length, "Rendering must preserve collision vertices.");
+                Vector2[] collision = wire.PathCollider.points;
+                for (int i = 0; i < path.Length; i++)
+                {
+                    Require(line.GetPosition(i) == path[i] &&
+                        Vector2.Distance(wire.transform.TransformPoint(collision[i] + wire.PathCollider.offset), path[i]) < 0.00001f,
+                        "Socket connections must not move the routed line or its collider.");
+                }
             }
         }
     }

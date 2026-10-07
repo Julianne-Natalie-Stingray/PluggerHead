@@ -279,34 +279,42 @@ public class Wire : MonoBehaviour
                     : socketRenderer.sortingOrder + 1;
             }
         }
-        connection.SetPosition(0, ClosestPathPoint(positions, anchor.position));
+        connection.SetPosition(0, SecondClosestPathPoint(positions, anchor.position));
         connection.SetPosition(1, anchor.position);
         connection.enabled = true;
     }
 
-    // Project onto the same world-space segments used by EdgeCollider2D, without waiting for a physics sync.
-    // 直接投影到碰撞体所用的世界空间折线，不依赖物理同步；单格路径退化为唯一格心。
-    private static Vector3 ClosestPathPoint(IReadOnlyList<Vector3> positions, Vector3 target)
+    // Rank distinct collision vertices in XY; ties retain path order. Rendering never modifies the route.
+    // 按 XY 距离选择第二近的不同碰撞顶点；等距按路径顺序，只有一个点时回退到该点。
+    private static Vector3 SecondClosestPathPoint(IReadOnlyList<Vector3> positions, Vector3 target)
     {
         Vector3 closest = positions[0];
-        float bestDistance = ((Vector2)(closest - target)).sqrMagnitude;
+        Vector3 second = closest;
+        float closestDistance = ((Vector2)(closest - target)).sqrMagnitude;
+        float secondDistance = float.PositiveInfinity;
         for (int i = 1; i < positions.Count; i++)
         {
-            Vector3 from = positions[i - 1];
-            Vector3 to = positions[i];
-            Vector2 edge = to - from;
-            float fraction = edge.sqrMagnitude > 0f
-                ? Mathf.Clamp01(Vector2.Dot((Vector2)(target - from), edge) / edge.sqrMagnitude)
-                : 0f;
-            Vector3 point = Vector3.Lerp(from, to, fraction);
-            float distance = ((Vector2)(point - target)).sqrMagnitude;
-            if (distance < bestDistance)
+            Vector3 point = positions[i];
+            if ((Vector2)point == (Vector2)closest ||
+                (secondDistance < float.PositiveInfinity && (Vector2)point == (Vector2)second))
             {
+                continue;
+            }
+            float distance = ((Vector2)(point - target)).sqrMagnitude;
+            if (distance < closestDistance)
+            {
+                second = closest;
+                secondDistance = closestDistance;
                 closest = point;
-                bestDistance = distance;
+                closestDistance = distance;
+            }
+            else if (distance < secondDistance)
+            {
+                second = point;
+                secondDistance = distance;
             }
         }
-        return closest;
+        return second;
     }
 
     private void HideConnectionLines()
