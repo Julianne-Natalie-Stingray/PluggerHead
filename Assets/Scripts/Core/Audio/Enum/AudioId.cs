@@ -12,7 +12,24 @@ public enum AudioId
     DefaultOst,
 
     MouseClick,
+    
+    plugin,
 
+    plugout,
+
+    gamestart,
+
+    activated,
+
+    groundstepfront,
+
+    groundstepback,
+
+    metalstepfront,
+
+    metalstepback,
+
+    
     // Optional audio hooks use None without submitting a playback request.
     None = -1
 }
