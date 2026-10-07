@@ -52,6 +52,21 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
     [SerializeField, BoxGroup("Polarity")]
     private SocketFireEffect firePrefab;
 
+    [SerializeField, BoxGroup("Polarity")] private Transform liveAnchor;
+    [SerializeField, BoxGroup("Polarity")] private Transform neutralAnchor;
+
+    /// <summary>Visual endpoint only; circuit occupancy still belongs to the socket.
+    /// 仅用于外观接线，电路占用仍以插座为单位。</summary>
+    public Transform GetWireAnchor(WirePolarity polarity)
+    {
+        if (!IsDual)
+        {
+            return null;
+        }
+        return polarity == WirePolarity.Live ? liveAnchor :
+            polarity == WirePolarity.Neutral ? neutralAnchor : null;
+    }
+
     private bool initializationErrorReported;
 
     /// <summary>Play one Fire burst after the environment accepts a dual socket interaction.

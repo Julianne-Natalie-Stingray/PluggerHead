@@ -60,6 +60,21 @@ public class PowerSocket : MonoBehaviour, IEnvironmentInteractable
     [SerializeField, BoxGroup("Socket")]
     private SocketFireEffect firePrefab;
 
+    [SerializeField, BoxGroup("Socket")] private Transform liveAnchor;
+    [SerializeField, BoxGroup("Socket")] private Transform neutralAnchor;
+
+    /// <summary>Visual endpoint only; circuit occupancy still belongs to the socket.
+    /// 仅用于外观接线，电路占用仍以插座为单位。</summary>
+    public Transform GetWireAnchor(WirePolarity polarity)
+    {
+        if (isGroundTerminal)
+        {
+            return null;
+        }
+        return polarity == WirePolarity.Live ? liveAnchor :
+            polarity == WirePolarity.Neutral ? neutralAnchor : null;
+    }
+
     /// <summary>Play one Fire burst after the environment accepts the interaction.
     /// 环境确认交互成功后，在插座位置播放一次 Fire。</summary>
     internal void PlayInteractionEffect()

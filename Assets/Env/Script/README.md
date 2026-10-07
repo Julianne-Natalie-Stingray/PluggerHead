@@ -25,6 +25,8 @@
 
 无视觉配置的临时 Wire 保留原材质；已绑定配置但对应槽为空，或极性不是单独 Live / Neutral / Ground 时，材质清空，避免悄悄沿用其他种类外观。生产 Wire 必须绑定完整配置。
 
+PowerSocket 开局持线以及 DualSocket / PowerSocket 成功交互后，Wire 从完整碰撞折线上距对应极性锚点最近的 XY 投影点绘制连接支线（单格路径使用唯一格心）。每条 Wire 的电气起点与插入终点各复用一个两点 LineRenderer，继承本线材质、宽度、颜色、纹理与排序；换线后的入线和出线分别连接各自极性的锚点。支线随路径重绘更新，不加入碰撞、格子路径、线长或占用判定；缺少锚点、跨场景引用、空路径、禁用时隐藏，重开清除旧连接，销毁 Wire 时一起清理。GroundSocket 保持原显示。此改动仅完成静态检查，未运行动态或视觉验证。
+
 ## 地图美术接入（2026-10-07）
 
 地图图片统一归入 `Env/Map/Sprite/`，原 levelSheet 图片保留 GUID、切片和导入配置；角色 Idle/Walk 图片归入 `Player/Sprite/`。`Env/Map/Tile/Ground/LiveGround.asset`、`NeutralGround.asset` 保留原 `L 1`、`N 1` Tile GUID，使用现有 2D Tilemap Extras 的 AnimatedTile 播放红/蓝 Ground 四帧，默认以每秒 8 帧的速度配合当前 Tilemap 帧率。Level2/3 每关分别使用 6 格 Live 和 5 格 Neutral，位置、极性和物理组件保持不变。Grid 碰撞保持原满格矩形；四个生产 CompositeCollider 的全部路径顶点在接入前后完全相同。
@@ -55,7 +57,7 @@ Ground1 继续供现有地形使用。Red/BluePlatform、Left/RightWall1 和 Tes
 
 按 `SUCCESS_RULE.md`：仅支持双极插座（Live | Neutral）和纯地线插座（Ground）。PolaritySocket 的其他位组合，包括 None、单极、双极加地线及未知位，均初始化失败并禁用；无效节点仍阻止通关。PowerSocket 通过 `isGroundTerminal` 选择这两种类型，默认双极；首个配置了有效火线/零线的双极 PowerSocket 作为开局出线点。`wires` 列表中的 Ground/None 不作为主线。关卡须配置路由 Tilemap 和至少一条火线或零线。
 
-两类组件都表示电气插座；锚点是按极性区分的逻辑端口，示例使用插座 Transform 作为连接位置，不复用用于路径固定的 `Anchor` 组件。双极插座的两个端口可以位于同一格。
+两类组件都表示电气插座；逻辑占用仍使用插座 Transform 与极性，不复用用于路径固定的 `Anchor` 组件。DualSocket 和 PowerSocket 的 `liveAnchor` / `neutralAnchor` 分别引用预制体内的 LiveAnchor / NeutralAnchor，作为外观接线端点，两个端口可以位于同一格。
 
 每个逻辑锚点（插座 + 极性）最多连接一条线，出线同样占用锚点。双极插座只接受接入空闲的同极端口；当前电线不能接回自己的 `CircuitStart` 插座，即使绕路或经过降压器也不能自身回环。接入成功后，异极端口空闲时交出异极线；异极端口已有线时仅完成接入并放下主线，不复用已占用端口。优先使用尚未使用的异极 Wire，不足时生成续线。重复操作被拒绝，不增加换线次数、不生成线、不改变端点。`CanInteract` 向 Player 返回当前占用和持线状态下是否可交互。
 

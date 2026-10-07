@@ -52,6 +52,8 @@ public class Wire : MonoBehaviour
     private Vector3[] buffer = new Vector3[0];
     private bool isHeld;
     private bool isClosed;
+    private LineRenderer startConnectionLine;
+    private LineRenderer endConnectionLine;
 
     private void Awake()
         => Initialize();
@@ -103,6 +105,7 @@ public class Wire : MonoBehaviour
         PreviousWire = previous;
         connectedInterfaces.Clear();
         connectedReducers.Clear();
+        HideConnectionLines();
     }
 
     internal void ConfigureContinuation(Wire source, WirePolarity value)
@@ -158,6 +161,10 @@ public class Wire : MonoBehaviour
         isHeld = true;
         isClosed = false;
         plugTarget = null;
+        if (endConnectionLine)
+        {
+            endConnectionLine.enabled = false;
+        }
     }
 
     /// <summary>
@@ -204,6 +211,126 @@ public class Wire : MonoBehaviour
         line.useWorldSpace = true;
         line.SetPositions(buffer);
         UpdatePathCollider(positions);
+        RenderSocketConnection(ref startConnectionLine, CircuitStart, positions, "StartConnection");
+        RenderSocketConnection(ref endConnectionLine, plugTarget, positions, "EndConnection");
+    }
+
+    // Separate two-point lines keep branches out of the routed path and its inherited prefix.
+    // 两点支线只负责外观，避免改动格心路线、继承段、碰撞与线长。
+    private void RenderSocketConnection(ref LineRenderer connection, Transform endpoint,
+        IReadOnlyList<Vector3> positions, string objectName)
+    {
+        Transform anchor = null;
+        if (endpoint && endpoint.gameObject.scene == gameObject.scene)
+        {
+            if (endpoint.TryGetComponent(out PowerSocket outlet))
+            {
+                anchor = outlet.GetWireAnchor(polarity);
+            }
+            else if (endpoint.TryGetComponent(out PolaritySocket target))
+            {
+                anchor = target.GetWireAnchor(polarity);
+            }
+        }
+
+        if (!anchor || anchor.gameObject.scene != gameObject.scene || positions.Count == 0 ||
+            !isActiveAndEnabled || !line.enabled)
+        {
+            if (connection)
+            {
+                connection.enabled = false;
+            }
+            return;
+        }
+
+        if (!connection)
+        {
+            GameObject root = new GameObject(objectName);
+            root.transform.SetParent(transform, false);
+            connection = root.AddComponent<LineRenderer>();
+            connection.useWorldSpace = true;
+            connection.positionCount = 2;
+        }
+
+        connection.gameObject.layer = gameObject.layer;
+        connection.sharedMaterial = line.sharedMaterial;
+        connection.widthCurve = line.widthCurve;
+        connection.widthMultiplier = line.widthMultiplier;
+        connection.colorGradient = line.colorGradient;
+        connection.textureMode = line.textureMode;
+        connection.textureScale = line.textureScale;
+        connection.alignment = line.alignment;
+        connection.numCapVertices = line.numCapVertices;
+        connection.numCornerVertices = line.numCornerVertices;
+        connection.sortingLayerID = line.sortingLayerID;
+        connection.sortingOrder = line.sortingOrder;
+        connection.SetPosition(0, ClosestPathPoint(positions, anchor.position));
+        connection.SetPosition(1, anchor.position);
+        connection.enabled = true;
+    }
+
+    // Project onto the same world-space segments used by EdgeCollider2D, without waiting for a physics sync.
+    // 直接投影到碰撞体所用的世界空间折线，不依赖物理同步；单格路径退化为唯一格心。
+    private static Vector3 ClosestPathPoint(IReadOnlyList<Vector3> positions, Vector3 target)
+    {
+        Vector3 closest = positions[0];
+        float bestDistance = ((Vector2)(closest - target)).sqrMagnitude;
+        for (int i = 1; i < positions.Count; i++)
+        {
+            Vector3 from = positions[i - 1];
+            Vector3 to = positions[i];
+            Vector2 edge = to - from;
+            float fraction = edge.sqrMagnitude > 0f
+                ? Mathf.Clamp01(Vector2.Dot((Vector2)(target - from), edge) / edge.sqrMagnitude)
+                : 0f;
+            Vector3 point = Vector3.Lerp(from, to, fraction);
+            float distance = ((Vector2)(point - target)).sqrMagnitude;
+            if (distance < bestDistance)
+            {
+                closest = point;
+                bestDistance = distance;
+            }
+        }
+        return closest;
+    }
+
+    private void HideConnectionLines()
+    {
+        if (startConnectionLine)
+        {
+            startConnectionLine.enabled = false;
+        }
+        if (endConnectionLine)
+        {
+            endConnectionLine.enabled = false;
+        }
+    }
+
+    private void OnDisable()
+    {
+        HideConnectionLines();
+    }
+
+    private void OnDestroy()
+    {
+        DestroyConnectionLine(startConnectionLine);
+        DestroyConnectionLine(endConnectionLine);
+    }
+
+    private static void DestroyConnectionLine(LineRenderer connection)
+    {
+        if (!connection)
+        {
+            return;
+        }
+        if (Application.isPlaying)
+        {
+            Destroy(connection.gameObject);
+        }
+        else
+        {
+            DestroyImmediate(connection.gameObject);
+        }
     }
 
     // The collider includes inherited edges as well as the visible suffix, converted to local coordinates.
