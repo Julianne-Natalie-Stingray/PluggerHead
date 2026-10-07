@@ -19,11 +19,17 @@
 
 ## Wire 外观
 
-`SO/Env/WireVisualConfigs.asset` 集中配置 Live / Neutral / Ground 三个共享材质。预设 Wire 初始化及运行时续线均按自身精确极性取材质；续线继承该配置，不继承前一根线的材质，也不由代码写入红、蓝、绿颜色。换线的 Sorting Layer / Sorting Order 规则保持不变，宽度、UV、端点与转角样式仍继承原线。
+`Env/Wire/SO/WireVisualConfigs.asset` 集中配置 Live / Neutral / Ground 三个共享材质。预设 Wire 初始化及运行时续线均按自身精确极性取材质；续线继承该配置，不继承前一根线的材质，也不由代码写入红、蓝、绿颜色。换线的 Sorting Layer / Sorting Order 规则保持不变，宽度、UV、端点与转角样式仍继承原线。
 
-当前三种独立材质共用现有 WireSprite 贴图，并保持材质白色，不额外染色。后续三张 Sprite 就绪时，分别替换 `Visual/Material/Wire.mat`、`NeutralWire.mat`、`GroundWire.mat` 的主贴图即可；LineRenderer 使用纹理而非 SpriteRenderer，不应再逐个修改 Wire 的 Rendering 或 Gradient。现有 Wire 的 Gradient 已统一白色，避免与贴图二次相乘；贴图导入与 UV 参数本次不变。
+当前三种独立材质共用 `Env/Wire/Sprite/WireSprite.png` 红色贴图，并保持材质白色，不额外染色。用户确认三张专用图片尚未制作；就绪后分别替换 `Env/Wire/Material/LiveWire.mat`、`NeutralWire.mat`、`GroundWire.mat` 的主贴图即可。`WireSprite.alt.png` 仍未使用。LineRenderer 使用纹理而非 SpriteRenderer，不应再逐个修改 Wire 的 Rendering 或 Gradient。现有 Wire 的 Gradient 已统一白色，避免与贴图二次相乘；贴图导入与 UV 参数本次不变。
 
 无视觉配置的临时 Wire 保留原材质；已绑定配置但对应槽为空，或极性不是单独 Live / Neutral / Ground 时，材质清空，避免悄悄沿用其他种类外观。生产 Wire 必须绑定完整配置。
+
+## 地图美术接入（2026-10-07）
+
+地图图片统一归入 `Env/Map/Sprite/`，原 levelSheet 图片保留 GUID、切片和导入配置；角色 Idle/Walk 图片归入 `Player/Sprite/`。`Env/Map/Tile/Ground/LiveGround.asset`、`NeutralGround.asset` 保留原 `L 1`、`N 1` Tile GUID，使用现有 2D Tilemap Extras 的 AnimatedTile 播放红/蓝 Ground 四帧，默认以每秒 8 帧的速度配合当前 Tilemap 帧率。Level2/3 每关分别使用 6 格 Live 和 5 格 Neutral，位置、极性和物理组件保持不变。Grid 碰撞保持原满格矩形；四个生产 CompositeCollider 的全部路径顶点在接入前后完全相同。
+
+Ground1 继续供现有地形使用。Red/BluePlatform、Left/RightWall1、Fire 和 Test 保留为资源；尚无明确需替换的生产对象，不新增布局或把整格地面替换为薄平台。Wire 三种专用图片及 Portal 新美术尚未制作，本次不接入。
 
 ## 路径、长度和 Anchor
 

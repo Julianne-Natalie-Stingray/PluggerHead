@@ -1,14 +1,15 @@
 # Player 动画状态资源
 
-逐文件核查日期：2026-10-06。三个动画片段均为 60 fps、0–1 秒范围，曲线与事件为空，是状态和时间占位资源，不是已制作好的角色视觉动画。
+核查日期：2026-10-07。Idle 和 Move 已接入 `Player/Sprite/pluggerIdle.png`、`pluggerWalk.png` 的序列帧；资源从地图目录迁移时保留 GUID。动画仅驱动 Visual 的 SpriteRenderer，不写角色位置或碰撞体。
 
 | 文件 | 当前用途 |
 | --- | --- |
-| `PlayerIdleAnim.anim` | 循环 Idle 占位，不改变外观或位置。 |
-| `PlayerMoveAnim.anim` | 循环 Move 占位，没有行走或位移曲线。 |
-| `PlayerInteractAnim.anim` | 非循环 Interact 占位，不直接执行交互。 |
-| `PlayerAC.controller` | 单 Base Layer、默认 Idle；bool `tryMoving` 控制 Idle/Move，trigger `Interact` 进入交互，交互 ExitTime=1 返回 Idle。过渡时长均为0，无 AnyState 过渡或 StateMachineBehaviour。 |
+| `PlayerIdleAnim.anim` | 6 帧待机，循环周期 1 秒。 |
+| `PlayerMoveAnim.anim` | 4 帧行走，保留 0.5 秒循环周期及 0、0.5 秒的 `PlayMoveAudio` 事件。 |
+| `PlayerInteractAnim.anim` | 非循环 1 秒，显式保持待机首帧；保留首帧 `PlayInteractAudio` 事件，不直接执行交互。 |
+| `PlayerDeathAnim.anim` | 保留原爆炸序列与 `PlayDeathAudio` 事件。 |
+| `PlayerAC.controller` | 单 Base Layer、默认 Idle；bool `tryMoving` 控制 Idle/Move，trigger `Interact` 进入交互，交互仅在 ExitTime=1 返回 Idle。trigger `Die` 从 Idle/Move 进入 Death，Death 无出过渡。过渡时长均为0，无 AnyState 过渡或 StateMachineBehaviour。 |
 
 Interact 状态的标签为 `PlayerInteract`，与 PlayerAnimationCallbacks 的锁判断一致；锁依据标签而不是状态名。GameplayIntegration 引用此控制器，使用普通时间更新、始终更新模式并关闭 Root Motion。实际持续时间受 timeScale、Animator speed 和启用状态影响，不能承诺一秒真实时间后解锁。
 
-meta、片段与控制器、场景引用已核对。角色物理运动由脚本控制，详见 [Player 行为](../../../Scripts/Player/README.md)。现有测试覆盖部分动作锁与帧推进，不证明动画视觉效果或完整运动输入。
+Player prefab 默认 Sprite 为待机首帧。角色物理运动由脚本控制，详见 [Player 行为](../Script/README.md)。动画采样与相关玩法测试的结果见本次美术接入记录。
