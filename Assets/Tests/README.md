@@ -1,5 +1,9 @@
 # 整合集成测试
 
+2026-10-07 Wire 类型材质：`WireVisualTests` 九项覆盖三种类型选材质、续线继承视觉配置而不继承源材质、不覆盖源及目标 Gradient、缺配置/空槽、继承段与排序、全部关卡和 Env 预制体的有效材质引用。加上 `CircuitClosureTests.GroundWire_CanRouteAndConnectAfterPoweredWireIsReleased` 和 `Outlet_HandoverPinsInheritedRoute`，EditMode **11/11** 终态通过（`4b32b83623fb458687dbbd62d7ca28c2`）；随后仅运行 `TilemapTests.WireSwap_PreservesIndependentPaths_RestartResetsPins`、`SceneGameplayTests.DiagnosticScene_RealPlayerPlacesAnchorAndSwapsWire`，PlayMode **2/2** 通过（`f76682c1699f498eab2d103fb7590e5f`），无失败或跳过。Console 无 error，EditorSettings 恢复本轮基线 0/3，Level1 恢复为用户授权保存后的编辑状态。
+
+独立 review 检查 [三类型材质折线预览](../Docs/Development/WireTypeMaterials.png)：自有预览场景使用生产 Wire prefab 的宽度/UV 与三类型真实材质，由上到下 Live / Neutral / Ground；现阶段共用现有贴图，三线外观相同，待三张独立贴图交付后替换对应材质。该图只作人工渲染冒烟，不作像素验收，不代表所有关卡、显示比例或未来贴图已验证；临时相机、RenderTexture、Texture2D 与预览场景均已清理。
+
 2026-10-07 独立大厅：MainMenuScene 仅保留主菜单，开始加载 HubScene；大厅 MenuBtn 打开暂停设置，支持继续/返回主菜单，Level0 通关返回大厅。独立 review 选择 `SceneAssetTests` 和 `MainMenuTests`，最终顺序终态通过 EditMode **8/8**（`ee05ab3d506b46b889bef4c0def6c604`）与 PlayMode **2/2**（`d762aba6b49540808e9b4e4656b19dc6`），失败/跳过均为 0。覆盖七场景引用与注册、纯主菜单隔离、真实大厅加载、拒绝重试、暂停继续、通关返回/主菜单再开始保留进度、关卡重开及 BGM 连续播放。
 
 运行冒烟发现复制来的返回主菜单按钮默认隐藏，已在 HubScene 激活并补充可见/可交互断言，上述结果为修复后复测。独立播放大厅，MenuBtn 与返回主菜单按钮中心 UI Raycast 均首命中本人，派发 pointerClick 后分别暂停以及真实返回 MainMenuScene（Playing、timeScale=1）；中文 TMP 字形覆盖且无溢出。Console 无 error，存在原大厅无 PowerSocket 和跨场景 Core/Timer 去重 warning。EditorSettings 已恢复开始时 0/3，恢复 Level1 编辑状态且无未保存修改，保留其他外部资产修改。画面：[大厅](../Docs/Development/HubScene.png)、[暂停设置](../Docs/Development/HubScene-Settings.png)、[主菜单](../Docs/Development/MainMenuScene.png)、[加载失败提示](../Docs/Development/MainMenuScene-StartFailure.png)。未构建独立 Player，未覆盖所有屏幕比例或真实物理鼠标硬件事件；pointerClick 为 EventSystem 派发。

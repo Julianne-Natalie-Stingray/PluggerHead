@@ -1304,8 +1304,8 @@ LineRenderer:
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 1, g: 0.3019608, b: 0.2, a: 1}
-      key1: {r: 1, g: 0.3019608, b: 0.2, a: 1}
+      key0: {r: 1, g: 1, b: 1, a: 1}
+      key1: {r: 1, g: 1, b: 1, a: 1}
       key2: {r: 0, g: 0, b: 0, a: 0}
       key3: {r: 0, g: 0, b: 0, a: 0}
       key4: {r: 0, g: 0, b: 0, a: 0}
@@ -1840,6 +1840,7 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   polarity: 1
+  visualConfigs: {fileID: 11400000, guid: 7aee678343fc40ba89865538c9b6425f, type: 2}
   maxLength: 64
 --- !u!68 &4343244783179241193
 EdgeCollider2D:
@@ -1922,7 +1923,7 @@ LineRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 69d9d6a0c44a672489d1916d37ad0ade, type: 2}
+  - {fileID: 2100000, guid: 43f9fd72b50d48528e68882cf7ae5e57, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1966,8 +1967,8 @@ LineRenderer:
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 0.2, g: 0.7490196, b: 1, a: 1}
-      key1: {r: 0.2, g: 0.7490196, b: 1, a: 1}
+      key0: {r: 1, g: 1, b: 1, a: 1}
+      key1: {r: 1, g: 1, b: 1, a: 1}
       key2: {r: 0, g: 0, b: 0, a: 0}
       key3: {r: 0, g: 0, b: 0, a: 0}
       key4: {r: 0, g: 0, b: 0, a: 0}
@@ -2349,6 +2350,7 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   polarity: 2
+  visualConfigs: {fileID: 11400000, guid: 7aee678343fc40ba89865538c9b6425f, type: 2}
   maxLength: 64
 --- !u!1 &8105877359096614388
 GameObject:

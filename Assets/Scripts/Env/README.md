@@ -17,6 +17,14 @@
 - 玩家使用 Player Tag。路径根据 Player 根位置采样，渲染、Gizmo 和长度均以格心路径为准，不再依赖 WireAttach。采样忽略 Z 深度，使用 XY 网格第 0 层。
 - Wire 的 LineRenderer 绘制本线新增的格心折线，复制的历史前缀继续由原线绘制，避免换线时改变已有路径颜色。Trigger EdgeCollider2D 保留完整逻辑路径（含复制段）；碰撞体仅供查询，零长度时关闭；Player 接地排除 Trigger，交互排除 Wire 碰撞体。
 
+## Wire 外观
+
+`SO/Env/WireVisualConfigs.asset` 集中配置 Live / Neutral / Ground 三个共享材质。预设 Wire 初始化及运行时续线均按自身精确极性取材质；续线继承该配置，不继承前一根线的材质，也不由代码写入红、蓝、绿颜色。换线的 Sorting Layer / Sorting Order 规则保持不变，宽度、UV、端点与转角样式仍继承原线。
+
+当前三种独立材质共用现有 WireSprite 贴图，并保持材质白色，不额外染色。后续三张 Sprite 就绪时，分别替换 `Visual/Material/Wire.mat`、`NeutralWire.mat`、`GroundWire.mat` 的主贴图即可；LineRenderer 使用纹理而非 SpriteRenderer，不应再逐个修改 Wire 的 Rendering 或 Gradient。现有 Wire 的 Gradient 已统一白色，避免与贴图二次相乘；贴图导入与 UV 参数本次不变。
+
+无视觉配置的临时 Wire 保留原材质；已绑定配置但对应槽为空，或极性不是单独 Live / Neutral / Ground 时，材质清空，避免悄悄沿用其他种类外观。生产 Wire 必须绑定完整配置。
+
 ## 路径、长度和 Anchor
 
 `SamplePlayerPath(worldPosition)` 记录玩家移动经过的格子。PlayerMove 在物理帧通过 `GetResistance` 采样；环境 LateUpdate 为无 PlayerMove 的 MockPlayer 补充采样并重绘。开局从插座到玩家初始格子补齐路径，同格移动不会增加长度。两次采样跨越多格时按边界相交顺序补齐四连通路径；精确经过格角时采用可逆的确定顺序。它不做最短路寻路，也不根据障碍自动拉直。
@@ -26,7 +34,7 @@
 - Anchor 固定此前路径；玩家从 Anchor 朝此前格子走时追加新的尾段。J 收回最近的有效 Anchor，释放固定约束，但不会立即剪掉已记录的路径；继续原路回退才收线。
 - 手动固定 Anchor 也要求 Actor 与 Anchor 位于同一格；它同时最多固定一根线。不进入背包，不返回拾取实例。
 - 换线时新线复制当前线已经走过的格子，独立保存，**不复制 Anchor 归属**。已插入的旧线保留路径和自己的 Anchor。插入接口时补齐到接口格子的末段，并固定此前线路；从接口原路回走会铺设返回段，不能收掉已经接入的连接。换线后的 `CircuitStart` 指向交接接口，`PreviousWire` 记录前一根线；复制的格子前缀仍只用于路径、长度与绘制。
-- `InheritedEdgeCount` 记录复制前缀；回退收掉前缀后再次铺出的段使用当前线颜色。按本局实际出线顺序设置统一 Sorting Layer 和递增 Sorting Order，新线新增段稳定覆盖旧线，不依赖实例创建顺序或路径包围盒；刷新节点不改变顺序，重开归零。原线的 Gradient 与共享材质保持原配置。
+- `InheritedEdgeCount` 记录复制前缀；回退收掉前缀后再次铺出的段使用当前线颜色。按本局实际出线顺序设置统一 Sorting Layer 和递增 Sorting Order，新线新增段稳定覆盖旧线，不依赖实例创建顺序或路径包围盒；刷新节点不改变顺序，重开归零。原线保持自身类型材质；排序不修改外观。
 - 重开清除各线路径、Anchor 固定状态、插接、换线和通关状态，再从插座建立初始路径；保留手动 Anchor 对象，不复活或移动 Player。
 
 长度是相邻格子中心的世界距离之和，包含 Grid 缩放。`maxLength == 0` 表示不限长；严格超过正数上限时 `GetResistance` 返回 `Vector2.negativeInfinity`，由 PlayerMove 在物理帧死亡。碰撞和长度使用完整路径，渲染只取本线新增尾段，继承段由原线显示；不再使用玩家挂点到 Anchor 的自由直线段。死亡不自动重开关卡。

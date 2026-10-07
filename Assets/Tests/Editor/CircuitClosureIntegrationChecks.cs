@@ -187,6 +187,7 @@ public static class CircuitClosureIntegrationChecks
     public static void CheckGroundWithoutPoweredWire()
     {
         using (var fixture = new Fixture(false))
+        using (var visuals = new WireVisualIntegrationChecks.Fixture())
         {
             PolaritySocket dual = fixture.AddInterface("Dual", 2, 0);
             PolaritySocket groundA = fixture.AddInterface("GroundA", 1, 0);
@@ -198,6 +199,8 @@ public static class CircuitClosureIntegrationChecks
             fixture.Interact(fixture.Outlet);
             Require(!fixture.Environment.HeldWire, "Returning to the remaining source endpoint must release the main wire.");
             Set(fixture.First, "maxLength", 100f);
+            Set(fixture.First, "visualConfigs", visuals.Configs);
+            fixture.First.Initialize();
             LineRenderer sourceLine = fixture.First.GetComponent<LineRenderer>();
             sourceLine.textureMode = LineTextureMode.Tile;
             sourceLine.textureScale = new Vector2(2f, 3f);
@@ -206,7 +209,8 @@ public static class CircuitClosureIntegrationChecks
             Require(groundWire && groundWire.IsHeld, "Ground pickup must work without a powered wire.");
             LineRenderer groundLine = groundWire.GetComponent<LineRenderer>();
             Require(groundWire.MaxLength == fixture.First.MaxLength &&
-                groundLine.sharedMaterial == sourceLine.sharedMaterial && groundLine.widthMultiplier == sourceLine.widthMultiplier &&
+                groundLine.sharedMaterial == visuals.Configs.GetMaterial(WirePolarity.Ground) &&
+                groundLine.widthMultiplier == sourceLine.widthMultiplier &&
                 groundLine.textureMode == sourceLine.textureMode && groundLine.textureScale == sourceLine.textureScale,
                 "Ground pickup without a main wire must inherit its initial wire template's configuration.");
             int before = groundWire.TilePath.Cells.Count;
