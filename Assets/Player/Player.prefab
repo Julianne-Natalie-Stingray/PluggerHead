@@ -310,6 +310,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   spriteFacesRight: 1
   facingMarker: {fileID: 4344929702717023574}
+  wireMarkerSprite: {fileID: 21300000, guid: 31fbbd6689becff4b8e8855bb2ac48cc, type: 3}
+  wireMarkerOffset: {x: 0, y: 0.6, z: 0}
 --- !u!114 &8142400011112222333
 MonoBehaviour:
   m_ObjectHideFlags: 0

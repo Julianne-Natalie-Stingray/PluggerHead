@@ -6,7 +6,7 @@
 | --- | --- |
 | `PlayerIdleAnim.anim` | 6 帧待机，循环周期 1 秒。 |
 | `PlayerMoveAnim.anim` | 4 帧行走，保留 0.5 秒循环周期及 0、0.5 秒的 `PlayMoveAudio` 事件。 |
-| `PlayerInteractAnim.anim` | 非循环 1 秒，显式保持待机首帧；保留首帧 `PlayInteractAudio` 事件，不直接执行交互。 |
+| `PlayerInteractAnim.anim` | 非循环 1 秒，显式保持待机首帧；首帧调用 `SpawnWireMarker` 显示持线颜色，并保留 `PlayInteractAudio` 事件，不直接执行交互。 |
 | `PlayerDeathAnim.anim` | 保留原爆炸序列与 `PlayDeathAudio` 事件。 |
 | `PlayerPortalLockedAnim.anim` | 未解锁 Portal 的独立空动画：无曲线、无事件、无音效，供后续填充。 |
 | `PlayerAC.controller` | 单 Base Layer、默认 Idle；bool `tryMoving` 控制 Idle/Move，trigger `Interact` 进入交互，交互仅在 ExitTime=1 返回 Idle。trigger `Die` 从 Idle/Move 进入 Death，Death 无出过渡。过渡时长均为0，无 AnyState 过渡或 StateMachineBehaviour。 |

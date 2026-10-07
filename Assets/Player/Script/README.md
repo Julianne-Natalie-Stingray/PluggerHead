@@ -1,5 +1,7 @@
 # Player 运行时组件
 
+Interaction 动画首帧通过 Visual 上的 `PlayerVisual.SpawnWireMarker` 生成独立的 `WireMarker`，使用 `Player/Sprite/PlayerWireMarker.png`。读取本场景交互后的 `HeldWire`：Live 红色、Neutral（Central/零线）蓝色，无主线或仅持地线时黑色。标记从 Visual 世界位置上方 0.6 单位生成，以每秒 1 单位向世界上方浮动，1 秒游戏时间后销毁，暂停时停止计时和浮动；归属玩家场景，卸载场景时一起清理。Sprite 与生成偏移在 Player prefab 的 PlayerVisual 中配置。
+
 生产 Player 已启用地面脚步：移动动画每周期两次 `PlayMoveAudio`，使用 PlayerMove 的真实向上支撑接触选择普通/金属前后脚音效。显式 `FootstepSurface` 标记金属碰撞对象，未标记或禁用标记使用普通地面；换材质保留脚序。静止、空中、暂停、死亡、输入锁或音频服务拒绝请求不推进脚序。旧的可选 `moveAudio` 保留给未启用表面脚步的接收器；交互动画本身保持 None，成功插拔和挂点由实际业务结果发声。
 
 Player 使用 [Core 输入](../Core/Input/README.md) 和 [Env 真实交互契约](../Env/README.md)，通过关卡环境取得持线阻力和地面极性上下文。真实玩家保存为 `Assets/Prefabs/Player/Player.prefab`，由 `Assets/Tests/Scenes/GameplayIntegration.unity` 引用。
