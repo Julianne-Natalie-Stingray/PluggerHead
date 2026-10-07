@@ -8,7 +8,9 @@ using System;
 /// Responsibility: answer whether a specific playback is still running, change its live volume and pitch,
 /// stop it early, and report its end through Finished.
 /// Does NOT own: pooling, the instance limits, the registry, or any decision about which sound to preempt.
-/// Lifetime: invalidated by Stop or an emitter completion callback; external destruction is not notified.
+/// Lifetime: invalidated by Stop or an emitter completion callback; external destruction is not notified. When
+/// the pinned emitter has been destroyed externally, control operations refuse (return false) instead of touching
+/// the destroyed object, so a stale handle never throws a MissingReferenceException.
 /// In the manager's completion chain, pool release runs before this handle's callback. ResetEmitter retains
 /// the completion reason so this handle can latch it. After invalidation, control operations are refused.
 /// Graceful Stop invalidates immediately while the emitter may still be fading.
@@ -18,14 +20,15 @@ using System;
 /// 存在位置: 无. 它是普通对象, 由 AudioManager.Play 每次播放创建一个, 不贴在 GameObject 上, 也不被序列化.
 /// 职能: 回答某一次播放是否仍在进行, 修改其实时音量与音高, 提前停止它, 并通过 Finished 报告结束.
 /// 不负责: 池化, 实例上限, 注册表, 以及任何"该抢占哪个声音"的决策.
-/// 生命周期: Stop 或 emitter 完成回调使其失效; 外部销毁不会通知. 管理器的完成链先归还池,
-/// 再通知句柄; ResetEmitter 保留结束原因供句柄锁存. 失效后拒绝控制操作, 但 emitter 可能仍在淡出.
+/// 生命周期: Stop 或 emitter 完成回调使其失效; 外部销毁不会通知. 当被钉住的 emitter 已被外部销毁时,
+/// 控制操作直接拒绝(返回 false), 不再触碰已销毁对象, 因此过期句柄绝不会抛出 MissingReferenceException.
+/// 管理器的完成链先归还池, 再通知句柄; ResetEmitter 保留结束原因供句柄锁存. 失效后拒绝控制操作, 但 emitter 可能仍在淡出.
 /// 使用范式: 无. 它是作用域凭证, 不是服务, 也不是单例.
 /// </summary>
 public sealed class SoundHandle : ISoundHandle
 {
     public AudioId AudioId => audioId;
-    public bool IsPlaying => isValid && emitter.IsPlaying;
+    public bool IsPlaying => isValid && emitter != null && emitter.IsPlaying;
     public bool IsFinished => isFinished;
 
     public event Action<ISoundHandle> Finished;
@@ -66,7 +69,7 @@ public sealed class SoundHandle : ISoundHandle
     /// </summary>
     public bool Stop()
     {
-        if (!isValid)
+        if (!isValid || emitter == null)
         {
             return false;
         }
@@ -78,7 +81,7 @@ public sealed class SoundHandle : ISoundHandle
 
     public bool TrySetVolume(float volume)
     {
-        if (!isValid || float.IsNaN(volume))
+        if (!isValid || emitter == null || float.IsNaN(volume))
         {
             return false;
         }
@@ -89,7 +92,7 @@ public sealed class SoundHandle : ISoundHandle
 
     public bool TrySetPitch(float pitch)
     {
-        if (!isValid || float.IsNaN(pitch))
+        if (!isValid || emitter == null || float.IsNaN(pitch))
         {
             return false;
         }
