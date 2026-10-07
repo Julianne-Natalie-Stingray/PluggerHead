@@ -91,14 +91,16 @@ public static class WireVisualIntegrationChecks
 
     public static void CheckAssetReferences()
     {
-        int wires = 0;
-        foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Prefabs/Env" }))
+        Require(AssetDatabase.IsValidFolder("Assets/Env"), "The production environment asset directory must exist.");
+        int prefabWires = 0;
+        int sceneWires = 0;
+        foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Env" }))
         {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(guid));
             foreach (Wire wire in prefab.GetComponentsInChildren<Wire>(true))
             {
                 CheckAssetWire(wire);
-                wires++;
+                prefabWires++;
             }
         }
         foreach (string guid in AssetDatabase.FindAssets("t:Scene", new[] { "Assets/Scenes", "Assets/Tests/Scenes" }))
@@ -118,7 +120,7 @@ public static class WireVisualIntegrationChecks
                     foreach (Wire wire in root.GetComponentsInChildren<Wire>(true))
                     {
                         CheckAssetWire(wire);
-                        wires++;
+                        sceneWires++;
                     }
                 }
             }
@@ -134,7 +136,8 @@ public static class WireVisualIntegrationChecks
                 }
             }
         }
-        Require(wires > 0, "The production asset scan must discover wires.");
+        Require(prefabWires > 0, "The production prefab scan must discover wires.");
+        Require(sceneWires > 0, "The production scene scan must discover wires.");
     }
 
     private static void CheckAssetWire(Wire wire)

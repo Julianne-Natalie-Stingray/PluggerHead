@@ -13,12 +13,12 @@ namespace PluggerHead.Tests
         [TestCase("Interact")]
         public void AnimationEvent_HasReceiverOnAnimatorObject(string action)
         {
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Player/Player.prefab");
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Player/Player.prefab");
             Animator animator = prefab.GetComponentInChildren<Animator>(true);
             Type receiverType = IntegrationCheckBridge.FindType("PlayerAnimationAudio");
             Assert.That(animator.GetComponent(receiverType), Is.Not.Null);
             AnimationClip clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(
-                $"Assets/Visual/Anim/Player/Player{action}Anim.anim");
+                $"Assets/Player/Anim/Player{action}Anim.anim");
             Assert.That(animator.runtimeAnimatorController.animationClips, Does.Contain(clip));
             string callback = $"Play{action}Audio";
             Assert.That(AnimationUtility.GetAnimationEvents(clip).Any(item => item.functionName == callback), Is.True);

@@ -21,10 +21,10 @@ public static class MenuMusicIntegrationChecks
         try
         {
             Require(GameStateManager.Current == GameState.Playing, "The isolated audio check requires Playing.");
-            var configs = AssetDatabase.LoadAssetAtPath<AudioManagerConfigs>("Assets/SO/Audio/DefaultAudioManagerConfigs.asset");
-            var data = AssetDatabase.LoadAssetAtPath<AudioClipData>("Assets/Audios/SO/GameMainMenu.asset");
-            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Clips/GameMainMenu.wav");
-            var click = AssetDatabase.LoadAssetAtPath<AudioClipData>("Assets/Audios/SO/MouseClick.asset");
+            var configs = AssetDatabase.LoadAssetAtPath<AudioManagerConfigs>("Assets/Core/Audio/SO/DefaultAudioManagerConfigs.asset");
+            var data = AssetDatabase.LoadAssetAtPath<AudioClipData>("Assets/Core/Audio/SO/GameMainMenu.asset");
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Core/Audio/Clips/GameMainMenu.wav");
+            var click = AssetDatabase.LoadAssetAtPath<AudioClipData>("Assets/Core/Audio/SO/MouseClick.asset");
             Require(configs && data && clip && configs.TryGetClip(AudioId.GameMainMenu, out var mapped) &&
                 mapped == data && data.Clip == clip, "The registered menu ID must resolve the new WAV through its real ClipData.");
             Require(configs.TryGetClip(AudioId.MouseClick, out var mappedClick) && mappedClick == click,
@@ -56,7 +56,7 @@ public static class MenuMusicIntegrationChecks
             host.SetActive(false);
             manager = host.AddComponent<AudioManager>();
             Set(manager, "configs", configs);
-            Set(manager, "emitterPrefab", AssetDatabase.LoadAssetAtPath<AudioEmitter>("Assets/Prefabs/Core/AudioEmitter.prefab"));
+            Set(manager, "emitterPrefab", AssetDatabase.LoadAssetAtPath<AudioEmitter>("Assets/Core/AudioEmitter.prefab"));
             Set(manager, "emitterRoot", fixture.transform);
             typeof(AudioManager).GetMethod("InitializeInternal", PrivateInstance).Invoke(manager, null);
             typeof(AudioManager).GetMethod("OnEnable", PrivateInstance).Invoke(manager, null);

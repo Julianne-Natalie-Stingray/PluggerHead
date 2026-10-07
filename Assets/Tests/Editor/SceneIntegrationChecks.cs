@@ -29,7 +29,7 @@ public static class SceneIntegrationChecks
     public static void CheckSceneRegistry()
     {
         SceneSwitchConfigs configs = AssetDatabase.LoadAssetAtPath<SceneSwitchConfigs>(
-            "Assets/SO/SceneSwitch/DefaultSceneSwitchConfigs.asset");
+            "Assets/Scenes/DefaultSceneSwitchConfigs.asset");
         Require(configs != null, "Default scene switch configuration must exist.");
         string[] scenePaths = EditorBuildSettings.scenes.Where(scene => scene.enabled)
             .Select(scene => scene.path).ToArray();
@@ -148,7 +148,7 @@ public static class SceneIntegrationChecks
                     label.rectTransform.rect.width > 0 && label.rectTransform.rect.height > 0),
                     "FinalScene text must have fonts and visible dimensions.");
                 SceneSwitchConfigs finalConfigs = AssetDatabase.LoadAssetAtPath<SceneSwitchConfigs>(
-                    "Assets/SO/SceneSwitch/DefaultSceneSwitchConfigs.asset");
+                    "Assets/Scenes/DefaultSceneSwitchConfigs.asset");
                 Require(!finalConfigs.IsGameplayLevel(SceneId.FinalScene), "Credits must not replace saved gameplay progress.");
             }
 

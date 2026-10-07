@@ -120,8 +120,8 @@ public static class MenuToolSafetyIntegrationChecks
 
     public static void CheckProjectCompatibility()
     {
-        const string sourcePath = "Assets/Scripts/Infra/MenuTool/Game.menutool";
-        const string outputPath = "Assets/Scripts/Infra/MenuTool/Game.MenuTool.g.cs";
+        const string sourcePath = "Assets/Infra/MenuTool/Game.menutool";
+        const string outputPath = "Assets/Infra/MenuTool/Game.MenuTool.g.cs";
         object data = Call(Find("MenuToolJson"), "Deserialize", File.ReadAllText(sourcePath));
         Require(((IList)Call(Find("MenuToolDataUtility"), "Validate", data)).Count == 0, "Current project menu definition must remain valid.");
         string legacy = (string)Call(Find("MenuToolCodeGenerator"), "GenerateSource", data, "MenuTool", "", sourcePath);

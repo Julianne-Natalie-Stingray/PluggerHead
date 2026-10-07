@@ -223,7 +223,7 @@ public static class GroundPolarityIntegrationChecks
         Require(Time.timeScale > 0f, "Automatic physics callbacks require an unpaused game.");
         if (CoreFacade.Instance == null)
         {
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Core/Core.prefab");
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Core/Core.prefab");
             Require(prefab != null, "The authored Core prefab must be available for runtime startup.");
             ownedCore = UnityEngine.Object.Instantiate(prefab);
         }

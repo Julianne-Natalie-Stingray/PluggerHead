@@ -271,8 +271,8 @@ public static class CircuitClosureIntegrationChecks
 
     public static void CheckExamples()
     {
-        GameObject ground = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/Sockets/GroundSocket.prefab");
-        GameObject reducer = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/VoltageReducer.prefab");
+        GameObject ground = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Env/Socket/GroundSocket.prefab");
+        GameObject reducer = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Env/Socket/VoltageReducer.prefab");
         Require(ground && ground.GetComponent<PolaritySocket>().Accepted == WirePolarity.Ground &&
             ground.GetComponent<PolaritySocket>().IsConfigurationValid && ground.GetComponent<Collider2D>() &&
             ground.GetComponent<SpriteRenderer>().sprite,

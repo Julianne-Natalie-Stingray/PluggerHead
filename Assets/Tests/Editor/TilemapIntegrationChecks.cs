@@ -82,7 +82,9 @@ public static class TilemapIntegrationChecks
             Mathf.Approximately(fixture.Wire.TilePath.GetLength(fixture.Map), 2f),
             "Sub-cell movement must neither duplicate cells nor change tile-based length.");
         PlayerInteraction interaction = fixture.Player.AddComponent<PlayerInteraction>();
-        Set(interaction, "anchorPrefab", AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Prefabs/Env/ScenePrefab/Anchor.prefab"));
+        Anchor anchorPrefab = AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Scenes/Prefab/Anchor.prefab");
+        Require(anchorPrefab != null, "The anchor prefab must be available before checking tile rejection.");
+        Set(interaction, "anchorPrefab", anchorPrefab);
         fixture.Map.SetTile(new Vector3Int(2, 0, 0), null);
         Require(!interaction.TryPlaceAnchor(), "Anchor placement must reject a cell without a tile.");
         interaction.enabled = false;
