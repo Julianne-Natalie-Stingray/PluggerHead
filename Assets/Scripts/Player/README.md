@@ -27,7 +27,7 @@ GameplayIntegration 中移动速度为 5、跳跃速度为 5、重力倍率为 1
 
 Player 预制体的 BoxCollider2D 使用 `Assets/Physics/Material/Player/Player.physicsMaterial2D`（摩擦 0、弹性 0）。持续向墙设置水平速度会产生法向碰撞冲量，默认摩擦会抵消重力，导致贴墙悬停或削弱跳跃；零摩擦保留墙面阻挡，同时让竖直运动由重力与跳跃速度决定。水平停止仍由 PlayerMove 设置速度完成。新增玩家碰撞体时也应使用该材质。
 
-Visual 上的 PlayerVisual 同样由物理帧已接受的输入驱动：A 朝左、D 朝右，输入幅度不超过 0.01 时保持最后朝向；暂停、输入锁定、死亡及 PlayerMove 禁用时不更新朝向。只翻转 SpriteRenderer，不改变 Player 根缩放、碰撞体或 PlayerAnchor。当前占位精灵左右对称，因此 Visual 内附带深色 FacingMarker 标记并随翻转移动；替换为有明确朝向的美术后可移除标记并清空引用。spriteFacesRight 表示原始未翻转精灵的朝向，默认右；标记位置应与未翻转原图匹配。已有 Animator 仍负责 tryMoving/Interact。
+Visual 上的 PlayerVisual 同样由物理帧已接受的输入驱动：A 朝左、D 朝右，输入幅度不超过 0.01 时保持最后朝向；暂停、输入锁定、死亡及 PlayerMove 禁用时不更新朝向。只翻转 SpriteRenderer，不改变 Player 根缩放、碰撞体或 PlayerAnchor。Visual 内保留 FacingMarker 对象及引用，但其 Sprite 已清空，当前不绘制朝向标记；PlayerVisual 仍更新精灵翻转和标记位置。spriteFacesRight 表示原始未翻转精灵的朝向，默认右；标记位置应与未翻转原图匹配。已有 Animator 仍负责 tryMoving/Interact。
 
 跳跃仅缓存按下时已落地的请求，执行物理帧再次检查落地；没有空中按下后自动落地起跳的缓冲。接地需要 groundLayers 内非 Trigger 接触、法线 Y≥0.65，且当前竖直速度≤0.1。有效跳跃将竖直速度设为非负 jumpSpeed。没有有效阻力查询时，正常分支将水平置零并保留原竖直速度，计算出的跳跃也不会应用。
 
