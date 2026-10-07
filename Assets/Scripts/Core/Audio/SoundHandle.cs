@@ -28,7 +28,7 @@ using System;
 public sealed class SoundHandle : ISoundHandle
 {
     public AudioId AudioId => audioId;
-    public bool IsPlaying => isValid && emitter != null && emitter.IsPlaying;
+    public bool IsPlaying => isValid && emitter && emitter.IsPlaying;
     public bool IsFinished => isFinished;
 
     public event Action<ISoundHandle> Finished;
@@ -69,8 +69,16 @@ public sealed class SoundHandle : ISoundHandle
     /// </summary>
     public bool Stop()
     {
-        if (!isValid || emitter == null)
+        if (!isValid)
         {
+            return false;
+        }
+
+        // Unity can destroy Core's pooled voices before a scene owner releases its handle.
+        // Core 的声部可能先于场景宿主销毁；清理旧句柄时不能再访问其原生组件。
+        if (!emitter)
+        {
+            Invalidate(false);
             return false;
         }
 
@@ -81,7 +89,7 @@ public sealed class SoundHandle : ISoundHandle
 
     public bool TrySetVolume(float volume)
     {
-        if (!isValid || emitter == null || float.IsNaN(volume))
+        if (!isValid || !emitter || float.IsNaN(volume))
         {
             return false;
         }
@@ -92,7 +100,7 @@ public sealed class SoundHandle : ISoundHandle
 
     public bool TrySetPitch(float pitch)
     {
-        if (!isValid || emitter == null || float.IsNaN(pitch))
+        if (!isValid || !emitter || float.IsNaN(pitch))
         {
             return false;
         }

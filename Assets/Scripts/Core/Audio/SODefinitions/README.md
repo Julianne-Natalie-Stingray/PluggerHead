@@ -44,6 +44,8 @@ Mixer 和 MasterVolume/OstVolume/SfxVolume 参数名通过此资产配置。缺 
 
 映射位于 `Assets/Audios/SO/`：GenericSfx 为 ID 0、非循环、最多 5 个；GenericOst 为 ID 1、循环、最多 1 个且忽略监听器暂停；MouseClick 为 ID 2、非循环、最多 10 个。三者 SpatialBlend 都为 0；前两者淡入/淡出为 0.15/0.3，MouseClick 未序列化的渐变及冻结字段采用源码默认 0/false。音频标识的整数兼容性见 [Enum](../Enum/README.md)。
 
+`GameMainMenu` 为 ID 3，已注册到同一默认配置；引用新增 WAV，使用 OST 分组、2D 循环、最多 1 声部，并服从监听器暂停。默认音量、音高及渐变保留素材现有配置；通过 `AudioId.GameMainMenu` 使用现有 Audio API 请求播放。
+
 ## 核查与验证（2026-10-06）
 
 本轮修复 MaxPoolSize 非正配置导致池构造异常的缺口，同时覆盖编辑器写回与运行时只读规范化，不调整其他池参数。新增 `AudioConfigurationTests` 参数用例，在独立、未保存的 AudioManagerConfigs 对象中写入 0、-1、int.MinValue、1、30，经实际 MaxPoolSize 属性构造 Unity ObjectPool 并借还对象，再调用真实 OnValidate 检查字段写回和其他参数不变；finally 销毁临时配置。实际 Test Runner 结果由主任务收尾记录。

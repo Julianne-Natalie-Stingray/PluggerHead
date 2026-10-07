@@ -7,6 +7,7 @@
 | `上海アリス幻樂団 - 運命のダークサイド.mp3` | MP3，44.1 kHz，双声道，约 228.623 秒；标签记录同名标题与作者，并带封面图流。标签不构成授权证明。 | `Audios/SO/GenericOst.asset` |
 | `Default_SFX.mp3` | MP3，48 kHz，单声道，约 1.248 秒。 | `Audios/SO/GenericSfx.asset` |
 | `click.mp3` | MP3，44.1 kHz，双声道，约 0.392 秒。 | `Audios/SO/MouseClick.asset` |
+| `GameMainMenu.wav` | 新增主菜单音乐素材，保留原导入配置与 GUID。 | `Audios/SO/GameMainMenu.asset`，`AudioId.GameMainMenu` |
 | `DISCLAIMER.md` | 记录学习/开发用途约定；已区分用途承诺与当前引用事实。 | 人工阅读，不参与构建过滤。 |
 
 三个 AudioImporter 的 meta 设置相同：无平台覆盖、未强制单声道、未后台加载、关闭 preloadAudioData；源采样率不同，不应将 `sampleRateOverride: 44100` 字段单独解释为所有素材已被强制重采样。实际播放参数由 AudioClipData 与请求决定，见[音频资源总览](../README.md)。

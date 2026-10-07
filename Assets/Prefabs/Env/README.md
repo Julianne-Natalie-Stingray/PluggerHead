@@ -2,7 +2,7 @@
 
 场景组合及其依赖预制体统一放在 `ScenePrefab/`；移动保留原 GUID，Player 和测试场景继续引用同一资源。
 
-SceneRoot 提供环境组件，默认 neededVoltage 为 0；节点和线在场景中装配。Camera.prefab 组合相机、Cinemachine 和灯光，Level0 通过场景覆盖绑定玩家跟随目标。
+SceneRoot 提供环境组件，默认 neededVoltage 为 0；节点和线在场景中装配。Camera.prefab 组合相机、Cinemachine 和灯光，默认正交视野大小为 5.5，禁用 Pixel Perfect Camera，附带约束屏幕边缘的 Cinemachine Confiner（2D模式）；范围引用保持为空，由各场景绑定自身的 PolygonCollider2D。Level1 使用 X[-10,20]、Y[-5.5,5.5]，上下各收入 1.5 层 tile，完整边界支持的宽高比上限为 30/11。Level0 等场景通过覆盖绑定跟随目标；已有视野或 Pixel Perfect Camera 覆盖保持不变。
 
 | 文件 | 实际组件与配置 |
 | --- | --- |

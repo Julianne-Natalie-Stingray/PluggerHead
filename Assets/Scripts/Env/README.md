@@ -7,7 +7,8 @@
 ## 场景配置
 
 - 每关在 `EnvironmentFacade` 的 **Background Music** 中选择 BGM 的 `AudioId`，默认 `DefaultOst`。对应 `AudioClipData` 须加入 Core 的 `AudioManagerConfigs`，配置循环播放、2D 和 OST 混音组；玩家设置中的音乐音量沿用 OST 总线。
-- BGM 在 Env 的 Start 已执行且关卡结束 Loading 后播放。设置页通过监听器暂停并从原位置续播；Env 强制本次 BGM 服从暂停，不受音频资源的 DefaultSurviveFreeze 影响。通关、死亡、Env 禁用/卸载或开始切场景时立即停止。通关/死亡后解除暂停不会重播；调试重开仍存活玩家的关卡会重新播放。没有 Core 时等待其可用；音频请求被拒绝时不逐帧重试。
+- BGM 在 Env 的 Start 已执行且关卡结束 Loading 后请求播放，由 Core 的 AudioManager 持有。SceneSwitch 的 Loading 及旧 Env 卸载保持原声部播放；新关卡请求相同 AudioId 时复用句柄和播放位置，不叠加声部，不从头重播；不同 AudioId 才停止旧曲并播放新曲。没有 Env 的目标场景也会继续播放已有 BGM。
+- 设置页通过监听器暂停并从原位置续播；BGM 强制服从暂停，不受音频资源的 DefaultSurviveFreeze 影响。通关、死亡、非 Loading 期间 Env 禁用/卸载仍立即停止；通关/死亡后解除暂停不会重播。调试重开仍存活玩家的关卡会重新播放。没有 Core 时等待其可用；音频请求被拒绝时不逐帧重试。
 - 2026-10-07 BGM 验证：编译无错误，独立审查未发现问题；EditMode **69/69**（`e482d8e14b6440f881f7808fd270d2ec`）后 PlayMode **79/79**（`7b0c9e3c704d43d7bc31333f941fe4e9`）顺序终态通过，无失败或跳过。真实 GameplayIntegration 用例覆盖加载门控、设置暂停位置保持及续播、禁用释放与启用重播、通关停止、重开、死亡停止及解除冻结不重播。未做人工听感验收。
 
 - 关卡配置一个 Grid 和已绘制的路由 Tilemap，将其赋给 `EnvironmentFacade.routingTilemap`。目前支持 Rectangle / XYZ；必须属于同一场景。场景仅有一个 Tilemap 时可自动查找，多个 Tilemap 时须显式绑定。
@@ -15,6 +16,14 @@
 - PowerSocket 的 `wires` 配置本插座的电线，首个有效火线或零线引用是开局持线。所属 Wire 的固定端取插座位置；未绑定插座时使用自身 Transform。
 - 玩家使用 Player Tag。路径根据 Player 根位置采样，渲染、Gizmo 和长度均以格心路径为准，不再依赖 WireAttach。采样忽略 Z 深度，使用 XY 网格第 0 层。
 - Wire 的 LineRenderer 绘制本线新增的格心折线，复制的历史前缀继续由原线绘制，避免换线时改变已有路径颜色。Trigger EdgeCollider2D 保留完整逻辑路径（含复制段）；碰撞体仅供查询，零长度时关闭；Player 接地排除 Trigger，交互排除 Wire 碰撞体。
+
+## Wire 外观
+
+`SO/Env/WireVisualConfigs.asset` 集中配置 Live / Neutral / Ground 三个共享材质。预设 Wire 初始化及运行时续线均按自身精确极性取材质；续线继承该配置，不继承前一根线的材质，也不由代码写入红、蓝、绿颜色。换线的 Sorting Layer / Sorting Order 规则保持不变，宽度、UV、端点与转角样式仍继承原线。
+
+当前三种独立材质共用现有 WireSprite 贴图，并保持材质白色，不额外染色。后续三张 Sprite 就绪时，分别替换 `Visual/Material/Wire.mat`、`NeutralWire.mat`、`GroundWire.mat` 的主贴图即可；LineRenderer 使用纹理而非 SpriteRenderer，不应再逐个修改 Wire 的 Rendering 或 Gradient。现有 Wire 的 Gradient 已统一白色，避免与贴图二次相乘；贴图导入与 UV 参数本次不变。
+
+无视觉配置的临时 Wire 保留原材质；已绑定配置但对应槽为空，或极性不是单独 Live / Neutral / Ground 时，材质清空，避免悄悄沿用其他种类外观。生产 Wire 必须绑定完整配置。
 
 ## 路径、长度和 Anchor
 
@@ -25,7 +34,7 @@
 - Anchor 固定此前路径；玩家从 Anchor 朝此前格子走时追加新的尾段。J 收回最近的有效 Anchor，释放固定约束，但不会立即剪掉已记录的路径；继续原路回退才收线。
 - 手动固定 Anchor 也要求 Actor 与 Anchor 位于同一格；它同时最多固定一根线。不进入背包，不返回拾取实例。
 - 换线时新线复制当前线已经走过的格子，独立保存，**不复制 Anchor 归属**。已插入的旧线保留路径和自己的 Anchor。插入接口时补齐到接口格子的末段，并固定此前线路；从接口原路回走会铺设返回段，不能收掉已经接入的连接。换线后的 `CircuitStart` 指向交接接口，`PreviousWire` 记录前一根线；复制的格子前缀仍只用于路径、长度与绘制。
-- `InheritedEdgeCount` 记录复制前缀；回退收掉前缀后再次铺出的段使用当前线颜色。按本局实际出线顺序设置统一 Sorting Layer 和递增 Sorting Order，新线新增段稳定覆盖旧线，不依赖实例创建顺序或路径包围盒；刷新节点不改变顺序，重开归零。原线的 Gradient 与共享材质保持原配置。
+- `InheritedEdgeCount` 记录复制前缀；回退收掉前缀后再次铺出的段使用当前线颜色。按本局实际出线顺序设置统一 Sorting Layer 和递增 Sorting Order，新线新增段稳定覆盖旧线，不依赖实例创建顺序或路径包围盒；刷新节点不改变顺序，重开归零。原线保持自身类型材质；排序不修改外观。
 - 重开清除各线路径、Anchor 固定状态、插接、换线和通关状态，再从插座建立初始路径；保留手动 Anchor 对象，不复活或移动 Player。
 
 长度是相邻格子中心的世界距离之和，包含 Grid 缩放。`maxLength == 0` 表示不限长；严格超过正数上限时 `GetResistance` 返回 `Vector2.negativeInfinity`，由 PlayerMove 在物理帧死亡。碰撞和长度使用完整路径，渲染只取本线新增尾段，继承段由原线显示；不再使用玩家挂点到 Anchor 的自由直线段。死亡不自动重开关卡。
@@ -47,6 +56,8 @@
 地线与主线独立：没有地线时从空闲地线端口生成并携带地线；已有地线时只能接入另一个空闲地线端口并放下。已有连接的地线端口不能再次拾取或接入；放下主线后仍可拾取、采样、检测长度并连接地线。`HeldGroundWire` 提供查询。两线分别采样格子路径、渲染与长度检查；任一持线超出正数长度上限会触发原有死亡信号。手动 Anchor 仍只固定主线。近距离跨格交互后，每根线分别从自己的连接点补齐到玩家当前格，避免跳格。
 
 `VoltageReducer` 是带一个锚点及 `voltageDrop` 的交互组件。交互将主线接入并固定当前路径，但保留主线极性与携带状态。所需降压量 `neededVoltage` 配置在 EnvironmentFacade，通过 `NeededVoltage` 查询，默认 30；非负有限数才有效。原初始/目标电压合并为两者之差，SceneRoot 预制体当前配置为 0，场景可按关卡需要覆盖。`CurrentVoltage` 表示剩余所需降压量，为 `NeededVoltage` 减所有已连接降压器的降压数，每个降压器只计算一次；未连接的不参与，相加可使结果为负，不额外钳制。连接记录随 Wire 保存，刷新节点不会重复扣压，重开清除。
+
+`ReducedVoltage` 为 `NeededVoltage - CurrentVoltage`，提供已连接降压器的累计降压量供关卡 HUD 查询，不钳制超额数值；显示组件不参与电路判定。
 
 每次插座或降压器交互后检查成功，须同时满足：
 

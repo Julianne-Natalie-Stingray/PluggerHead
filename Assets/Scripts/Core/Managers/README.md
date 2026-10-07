@@ -12,6 +12,8 @@ Awake 先创建 Registry，然后检查 emitterPrefab；缺失时记录错误并
 
 ## 请求与拒绝
 
+`PlayBackgroundMusic(id)` 为关卡 BGM 保留一个句柄。相同 AudioId 的后续请求直接返回该句柄（暂停期间也复用），不同 AudioId 先停止旧曲再请求新曲；Finished 通知清理保留引用，显式停止后可重新播放。换曲期间来自完成回调的重入请求返回 null，避免叠加声部。BGM 强制服从监听器暂停且不淡入淡出。Core 保活使声部跨 SceneSwitch 连续播放，Env 在 Loading 卸载时只释放自身引用；暂停、死亡和通关规则见 [Env](../../Env/README.md)。普通 Builder 请求仍是各自独立的播放。
+
 Play 依次检查 enabled/configs/池、解析 AudioId 与实际 clip、数值参数、冻结入口、同 ID 上限、全局上限、池容量，再借出、注册、配置、定位并启动声部。返回 ISoundHandle 或 null。检查 enabled 不等于检查 activeInHierarchy；初始化后只让 Core 失活仍可能通过公开方法发起请求，但子声部无法正常活动，不应依赖该用法。
 
 | 拒绝原因 | 当前日志 |

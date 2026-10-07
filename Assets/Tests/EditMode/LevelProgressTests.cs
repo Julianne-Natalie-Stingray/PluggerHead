@@ -6,7 +6,7 @@ namespace PluggerHead.Tests
     public sealed class LevelProgressTests
     {
         [Test]
-        public void Progress_PersistsOnlyLevelAndHandlesMissingCorruptAndFailedSaves()
+        public void Progress_UnlocksSequentiallyAllowsReplayAndResetsOnNewRun()
         {
             IntegrationCheckBridge.Invoke("MainMenuIntegrationChecks", "CheckProgressStorage");
         }

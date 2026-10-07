@@ -2,7 +2,7 @@
 
 这是 PluggerHead 的 Unity 资源目录，项目根目录在上一级。使用 Unity **2022.3.43f1c1** 打开项目；构建入口为 `Scenes/MainMenuScene.unity`。
 
-主菜单 New Game 进入 GameplayIntegration；Continue 重新加载最近关卡的默认状态，只保存关卡标识，不恢复角色位置、背包或电路。当前玩法输入为 A/D 移动、Space 跳跃、J 交互、K 放置 Anchor，具体交互和死亡规则见 Player 与 Env 说明。
+主菜单“开始游戏”隐藏菜单并解锁大厅角色；从左到右三个传送门代表第一至三关，第一关进入 Level0，后两关尚未开放。通关按顺序解锁，允许重玩；进度仅在本次运行中保留，退出后清除。当前玩法输入为 A/D 移动、Space 跳跃、J 交互、K 放置 Anchor。Level0 原布局的已知通关限制见 [进度说明](Scripts/Game/Progress/README.md)。
 
 | 目录 | 内容 |
 | --- | --- |

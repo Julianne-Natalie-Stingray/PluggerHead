@@ -7,7 +7,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>Checks the authored menu and real scene reloads with an isolated progress file.</summary>
+/// <summary>Checks the authored menu and real scene reloads with isolated in-memory progress.</summary>
 public static class MainMenuIntegrationChecks
 {
     private static readonly FieldInfo StoreField = typeof(GameProgress).GetField("store", BindingFlags.Static | BindingFlags.NonPublic);
@@ -28,7 +28,7 @@ public static class MainMenuIntegrationChecks
             "Previous progress isolation or scene cleanup remains pending; stop the Runner session before retrying.");
         previousStore = (LevelProgressStore)StoreField.GetValue(null);
         temporaryDirectory = Path.Combine(Path.GetTempPath(), "PluggerHeadMenu-" + Guid.NewGuid().ToString("N"));
-        StoreField.SetValue(null, new LevelProgressStore(Path.Combine(temporaryDirectory, "progress.json")));
+        StoreField.SetValue(null, new LevelProgressStore());
     }
 
     public static void EndProgressIsolation()
@@ -68,27 +68,21 @@ public static class MainMenuIntegrationChecks
         try
         {
             var store = GameProgress.Store;
-            string path = Path.Combine(temporaryDirectory, "progress.json");
-            Require(!store.TryGetLevel(out _), "Missing save must not offer Continue.");
-            Require(store.SaveLevel(SceneId.GameplayIntegration), "Save must succeed.");
-            Require(File.ReadAllText(path) == "{\"level\":3}", "Save must contain only the level, without in-level state.");
-            var reopened = new LevelProgressStore(path);
-            Require(reopened.TryGetLevel(out SceneId level) && level == SceneId.GameplayIntegration,
-                "A new session must recover the last level.");
-            foreach (string invalid in new[] { "", "{}", "{\"level\":999}" })
-            {
-                File.WriteAllText(path, invalid);
-                reopened.Reload();
-                Require(!reopened.TryGetLevel(out _), "Empty, missing-field and unknown-level saves must be ignored.");
-            }
-            File.WriteAllText(path, "{broken");
-            reopened.Reload();
-            Require(!reopened.TryGetLevel(out _), "Corrupt save must not prevent startup.");
-            Require(store.SaveLevel(SceneId.GameplayIntegration), "Restore known save.");
-            Directory.CreateDirectory(path + ".tmp");
-            Require(!store.SaveLevel(SceneId.CircuitDiagnostics), "I/O failure must be reported.");
-            Require(new LevelProgressStore(path).TryGetLevel(out level) && level == SceneId.GameplayIntegration,
-                "Failed save must preserve the previous file.");
+            Require(store.IsUnlocked(1) && !store.IsUnlocked(2) && !store.IsUnlocked(3),
+                "Only the first level must initially be unlocked.");
+            Require(!store.CompleteLevel(2) && !store.CompleteLevel(3) &&
+                !store.CompleteLevel(0) && !store.CompleteLevel(4), "Invalid and locked completions must be rejected.");
+            Require(store.CompleteLevel(1) && store.IsUnlocked(2) && !store.IsUnlocked(3),
+                "Completing the first level unlocks only the second.");
+            Require(store.CompleteLevel(1) && store.CompletedLevels == 1, "Replaying must not advance progress.");
+            Require(store.CompleteLevel(2) && store.IsUnlocked(3), "Completing the second unlocks the third.");
+            Require(store.CompleteLevel(3) && store.CompleteLevel(1) && store.CompletedLevels == 3,
+                "Replaying earlier levels must preserve progress.");
+            var restarted = new LevelProgressStore();
+            Require(restarted.CompletedLevels == 0 && !restarted.IsUnlocked(2), "A new run must not recover progress.");
+            typeof(GameProgress).GetMethod("Initialize", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+            Require(GameProgress.Store.CompletedLevels == 0 && !ReferenceEquals(GameProgress.Store, store),
+                "Runtime initialization must reset static progress even without domain reload.");
         }
         finally
         {
@@ -105,7 +99,7 @@ public static class MainMenuIntegrationChecks
     {
         Require(CoreFacade.Instance == null, "Run in a fresh Test Runner session.");
         Require(!ownsScenes, "Previous menu scene cleanup remains pending.");
-        foreach (string sceneName in new[] { "MainMenuScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
+        foreach (string sceneName in new[] { "MainMenuScene", "HubScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
         {
             Require(!SceneManager.GetSceneByName(sceneName).isLoaded,
                 "Refusing to modify a pre-existing menu flow scene: " + sceneName);
@@ -119,77 +113,174 @@ public static class MainMenuIntegrationChecks
         yield return null;
         var menu = UnityEngine.Object.FindObjectOfType<MainMenuScreen>();
         Require(menu != null, "MainMenuScene must contain its controller.");
-        var continueButton = Field<UnityEngine.UI.Button>(menu, "continueGameButton");
-        Require(!continueButton.interactable, "Continue must be disabled without a save.");
+        ISoundHandle menuMusic = CheckBackgroundMusic(AudioId.GameMainMenu);
+        AudioSource menuSource = Field<AudioEmitter>(menuMusic, "emitter").GetComponent<AudioSource>();
+        PlayerMove player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+        Require(player == null && UnityEngine.Object.FindObjectOfType<Portal>() == null &&
+            UnityEngine.Object.FindObjectOfType<EnvironmentFacade>() == null, "Main menu must contain no gameplay objects.");
         Require(UnityEngine.Object.FindObjectsOfType<UnityEngine.EventSystems.EventSystem>().Length == 1,
             "Menu must have one EventSystem.");
         Require(menu.GetComponent<UnityEngine.UI.GraphicRaycaster>() != null, "Menu canvas must receive pointer input.");
-        foreach (string field in new[] { "newGameButton", "continueGameButton", "settingsButton", "exitButton" })
+        foreach (string field in new[] { "newGameButton", "settingsButton", "exitButton" })
         {
             var button = Field<UnityEngine.UI.Button>(menu, field);
             Require(button.onClick.GetPersistentEventCount() == 1 && button.onClick.GetPersistentTarget(0) == menu,
                 field + " must target the authored menu controller.");
         }
-
         Field<UnityEngine.UI.Button>(menu, "settingsButton").onClick.Invoke();
         var settings = Field<SettingsScreen>(menu, "settingsScreen");
         Require(settings.gameObject.activeSelf && GameStateManager.Current == GameState.Freezed,
             "Settings button must open the existing settings panel.");
+        yield return null;
+        int pausedMenuSample = menuSource.timeSamples;
+        yield return null;
+        yield return null;
+        Require(menuSource.timeSamples == pausedMenuSample && ReferenceEquals(menuMusic, CheckBackgroundMusic(AudioId.GameMainMenu)),
+            "Menu settings must pause the same BGM voice without resetting its position.");
         CheckSettingsSave(settings);
+        menu.NewGame();
+        Require(menu.gameObject.activeSelf && !CoreFacade.Instance.SceneSwitch.IsSwitching, "Settings must block starting.");
         settings.ContinueGame();
-        Require(GameStateManager.Current == GameState.Playing && Time.timeScale > 0, "Closing settings must release pause.");
-
+        yield return IntegrationSceneWait.Until(() => menuSource.timeSamples != pausedMenuSample,
+            "resuming the menu music after settings", 5f);
+        Require(ReferenceEquals(menuMusic, CheckBackgroundMusic(AudioId.GameMainMenu)),
+            "Continuing must preserve the same music handle.");
+        GameStateManager.Freeze();
+        menu.NewGame();
+        Require(!CoreFacade.Instance.SceneSwitch.IsSwitching, "Manual pause must block starting.");
+        GameStateManager.Resume();
+        CoreFacade.Instance.SceneSwitch.enabled = false;
+        try
+        {
+            menu.NewGame();
+            Require(menu.gameObject.activeSelf && !CoreFacade.Instance.SceneSwitch.IsSwitching &&
+                Field<TMPro.TMP_Text>(menu, "startStatus").text == "关卡加载失败，请重试。",
+                "Rejected start must show a Chinese error and retain the menu for retry.");
+            Require(ReferenceEquals(menuMusic, CheckBackgroundMusic(AudioId.GameMainMenu)),
+                "Rejected start must preserve menu music.");
+        }
+        finally
+        {
+            CoreFacade.Instance.SceneSwitch.enabled = true;
+        }
         Field<UnityEngine.UI.Button>(menu, "newGameButton").onClick.Invoke();
-        yield return WaitForSwitch("GameplayIntegration");
-        Require(GameProgress.Store.TryGetLevel(out SceneId saved) && saved == SceneId.GameplayIntegration,
-            "Successful gameplay entry must save the level.");
-        PlayerMove player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
-        var environment = EnvironmentFacade.Current;
-        Wire heldWire = environment.HeldWire;
-        Require(heldWire != null, "Authored gameplay must start with a held wire.");
-        // Change scene state far beyond anything a level-only save may restore.
+        menu.NewGame();
+        yield return WaitForSwitch("HubScene");
+        CheckBackgroundMusic(EnvironmentFacade.Current.BackgroundMusic);
+        Require(CoreFacade.Instance.Audio.Registry.CountOf(AudioId.GameMainMenu) == 0,
+            "The hub music must replace the menu track.");
+        player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+        Require(player != null && !player.IsInputLocked && UnityEngine.Object.FindObjectOfType<MainMenuScreen>() == null,
+            "Starting must load an independently playable hub without the main menu overlay.");
+        Portal[] portals = UnityEngine.Object.FindObjectsOfType<Portal>().OrderBy(p => p.transform.position.x).ToArray();
+        Require(portals.Length == 3 && portals.Select(p => p.LevelNumber).SequenceEqual(new[] { 1, 2, 3 }),
+            "Authored portals must represent levels one to three from left to right.");
+        var hubScene = SceneManager.GetActiveScene();
+        settings = Resources.FindObjectsOfTypeAll<SettingsScreen>().Single(s => s.gameObject.scene == hubScene);
+        var menuButton = UnityEngine.Object.FindObjectsOfType<UnityEngine.UI.Button>().Single(b => b.name == "MenuBtn");
+        Require(menuButton.onClick.GetPersistentEventCount() == 1 &&
+            menuButton.onClick.GetPersistentTarget(0) == settings &&
+            menuButton.onClick.GetPersistentMethodName(0) == nameof(SettingsScreen.Open) &&
+            menuButton.GetComponentInChildren<TMPro.TMP_Text>().text == "菜单",
+            "Hub MenuBtn must open its own settings panel and display Chinese text.");
+        menuButton.onClick.Invoke();
+        Require(settings.gameObject.activeInHierarchy && GameStateManager.Current == GameState.Freezed && Time.timeScale == 0f,
+            "Hub MenuBtn must pause gameplay.");
+        Require(Field<UnityEngine.UI.Button>(settings, "exitButton").gameObject.activeInHierarchy &&
+            Field<UnityEngine.UI.Button>(settings, "exitButton").interactable,
+            "Hub settings must show an interactive return-to-main-menu button.");
+        portals[0].Interact(new InteractionDetails(player.gameObject, portals[0].gameObject));
+        Require(!CoreFacade.Instance.SceneSwitch.IsSwitching, "Paused hub must reject portal entry.");
+        settings.ContinueGame();
+        Require(GameStateManager.Current == GameState.Playing && !settings.gameObject.activeSelf,
+            "Continue must resume the hub.");
+        Require(portals[0].CanInteract && !portals[1].CanInteract && !portals[2].CanInteract,
+            "Only the implemented first portal can be used.");
+        var destinationField = typeof(Portal).GetField("hasDestination", BindingFlags.Instance | BindingFlags.NonPublic);
+        destinationField.SetValue(portals[1], true);
+        Require(!portals[1].CanInteract, "Even a configured second portal must reject entry before the first is cleared.");
+        destinationField.SetValue(portals[1], false);
+        for (int i = 1; i < portals.Length; i++)
+        {
+            portals[i].Interact(new InteractionDetails(player.gameObject, portals[i].gameObject));
+        }
+        Require(!CoreFacade.Instance.SceneSwitch.IsSwitching, "Unimplemented portals must not initiate loading.");
         player.GetComponent<Rigidbody2D>().simulated = false;
-        player.transform.position = new Vector3(123, 456, 0);
-        var extra = new GameObject("UnsavedRuntimeObject");
-        SceneManager.MoveGameObjectToScene(extra, player.gameObject.scene);
-        heldWire.gameObject.SetActive(false);
-        settings = Resources.FindObjectsOfTypeAll<SettingsScreen>().Single(s => s.gameObject.scene == player.gameObject.scene);
-        settings.Open();
+        Collider2D unopenedDoor = portals[1].GetComponent<Collider2D>();
+        player.transform.position = unopenedDoor.bounds.center - Vector3.right * unopenedDoor.bounds.extents.x;
+        Physics2D.SyncTransforms();
+        Require(!player.GetComponent<PlayerInteraction>().TryPerformOperation() && !CoreFacade.Instance.SceneSwitch.IsSwitching,
+            "Interacting at the unopened door must not accidentally enter its neighbor.");
+        player.transform.position = portals[0].transform.position;
+        Physics2D.SyncTransforms();
+        Require(player.GetComponent<PlayerInteraction>().TryPerformOperation(),
+            "The player's normal J interaction path must reach the first portal.");
+        yield return WaitForSwitch("Level0");
+        Require(GameProgress.Store.CompletedLevels == 0, "Merely entering a level must not unlock the next.");
+        Require(UnityEngine.Object.FindObjectOfType<LevelProgressTracker>() != null, "Level0 must track actual victory.");
+        var environment = EnvironmentFacade.Current;
+        // The authored Level0 layout is deliberately unchanged. In this owned runtime scene,
+        // use a minimal valid circuit to verify victory -> progress -> hub independently of level design.
+        PolaritySocket fixtureSocket = UnityEngine.Object.FindObjectsOfType<PolaritySocket>().First(s => s.IsDual);
+        foreach (PolaritySocket socket in UnityEngine.Object.FindObjectsOfType<PolaritySocket>())
+        {
+            if (socket != fixtureSocket)
+            {
+                UnityEngine.Object.DestroyImmediate(socket.gameObject);
+            }
+        }
+        environment.RefreshNodes();
+        typeof(EnvironmentFacade).GetField("neededVoltage", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(environment, 0f);
+        foreach (Wire wire in UnityEngine.Object.FindObjectsOfType<Wire>())
+        {
+            typeof(Wire).GetField("maxLength", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(wire, 0f);
+        }
+        player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+        PowerSocket levelOutlet = environment.HeldWire.Socket;
+        foreach (PolaritySocket socket in UnityEngine.Object.FindObjectsOfType<PolaritySocket>().Where(s => s.IsDual))
+        {
+            socket.Interact(new InteractionDetails(player.gameObject, socket.gameObject));
+        }
+        levelOutlet.Interact(new InteractionDetails(player.gameObject, levelOutlet.gameObject));
+        Require(environment.IsCircuitClosed && GameProgress.Store.IsUnlocked(2) && !GameProgress.Store.IsUnlocked(3),
+            "Actual Level0 victory must unlock only level two.");
+        var levelPrompt = UnityEngine.Object.FindObjectOfType<NextLevelScreen>();
+        Require(levelPrompt != null, "Level0 must offer a completion action.");
+        levelPrompt.LoadNextLevel();
+        yield return WaitForSwitch("HubScene");
+        player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+        Require(!player.IsInputLocked && GameProgress.Store.IsUnlocked(2), "Returning to the hub must preserve progress.");
+        settings = Resources.FindObjectsOfTypeAll<SettingsScreen>().Single(s => s.gameObject.scene == SceneManager.GetActiveScene());
+        UnityEngine.Object.FindObjectsOfType<UnityEngine.UI.Button>().Single(b => b.name == "MenuBtn").onClick.Invoke();
         Field<UnityEngine.UI.Button>(settings, "exitButton").onClick.Invoke();
         yield return WaitForSwitch("MainMenuScene");
-        Require(Time.timeScale > 0 && GameStateManager.Current == GameState.Playing && !AudioListener.pause,
-            "Returning from pause must leave the main menu unfrozen.");
-        Require(GameProgress.Store.TryGetLevel(out saved) && saved == SceneId.GameplayIntegration,
-            "Main menu must not overwrite last level.");
-        // Recreate the store to prove Continue works with persisted data, not cached objects.
-        StoreField.SetValue(null, new LevelProgressStore(Path.Combine(temporaryDirectory, "progress.json")));
-        menu = UnityEngine.Object.FindObjectOfType<MainMenuScreen>();
         yield return null;
-        Require(Field<UnityEngine.UI.Button>(menu, "continueGameButton").interactable, "Persisted level must enable Continue.");
-        Field<UnityEngine.UI.Button>(menu, "continueGameButton").onClick.Invoke();
-        yield return WaitForSwitch("GameplayIntegration");
-        Require(GameObject.Find("UnsavedRuntimeObject") == null,
-            "Continue must discard runtime objects.");
-        Require(EnvironmentFacade.Current.HeldWire != null && EnvironmentFacade.Current.HeldWire.gameObject.activeSelf &&
-            !EnvironmentFacade.Current.IsCircuitClosed, "Continue must restore the default circuit.");
-
-        // Non-gameplay scene transitions must preserve the last gameplay level.
-        CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.SceneSwitchTarget);
-        yield return WaitForSwitch("SceneSwitchTarget");
-        Require(GameProgress.Store.TryGetLevel(out saved) && saved == SceneId.GameplayIntegration,
-            "Non-gameplay scenes must not overwrite progress.");
-        CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.MainMenuScene);
-        yield return WaitForSwitch("MainMenuScene");
+        CheckBackgroundMusic(AudioId.GameMainMenu);
+        Require(CoreFacade.Instance.Audio.Registry.CountOf(AudioId.DefaultOst) == 0,
+            "Returning to the menu must replace the hub track.");
+        Require(GameProgress.Store.IsUnlocked(2) && GameStateManager.Current == GameState.Playing,
+            "Returning to main menu must release the hub pause and preserve session progress.");
         menu = UnityEngine.Object.FindObjectOfType<MainMenuScreen>();
-        GameProgress.Store.SaveLevel(SceneId.SceneSwitchTarget);
-        yield return null;
-        Require(!Field<UnityEngine.UI.Button>(menu, "continueGameButton").interactable,
-            "Non-gameplay save must not enable Continue.");
-        Field<UnityEngine.UI.Button>(menu, "newGameButton").onClick.Invoke();
-        yield return WaitForSwitch("GameplayIntegration");
-        Require(GameProgress.Store.TryGetLevel(out saved) && saved == SceneId.GameplayIntegration,
-            "New Game must replace old progress with the first level after load.");
+        menu.NewGame();
+        yield return WaitForSwitch("HubScene");
+        CheckBackgroundMusic(EnvironmentFacade.Current.BackgroundMusic);
+        Require(CoreFacade.Instance.Audio.Registry.CountOf(AudioId.GameMainMenu) == 0,
+            "Starting again must replace menu music with the hub track.");
+        player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+        Require(GameProgress.Store.IsUnlocked(2), "Starting again must retain session progress.");
+        portals = UnityEngine.Object.FindObjectsOfType<Portal>().OrderBy(p => p.LevelNumber).ToArray();
+        Require(!portals[1].CanInteract && !portals[1].HasDestination,
+            "Unlocked but unimplemented levels must remain unavailable.");
+        destinationField.SetValue(portals[1], true);
+        Require(portals[1].CanInteract, "A configured second portal must become available after the first is cleared.");
+        destinationField.SetValue(portals[1], false);
+        portals[0].Interact(new InteractionDetails(player.gameObject, portals[0].gameObject));
+        yield return WaitForSwitch("Level0");
+        Require(!EnvironmentFacade.Current.IsCircuitClosed && GameProgress.Store.IsUnlocked(2),
+            "Re-entering a completed level must load its defaults and preserve unlocks.");
 
+        // Retain completion-screen lifecycle, pause ownership and retry regression coverage.
+        yield return CheckBackgroundMusicSwitch();
         NextLevelScreen nextScreen = UnityEngine.Object.FindObjectOfType<NextLevelScreen>();
         Require(nextScreen != null && !Field<GameObject>(nextScreen, "panel").activeSelf,
             "A fresh gameplay scene must have a hidden next-level prompt.");
@@ -254,7 +345,7 @@ public static class MainMenuIntegrationChecks
     public static IEnumerator CheckMenuRestart()
     {
         Require(CoreFacade.Instance == null && !ownsScenes, "Run restart checks in a fresh Runner session.");
-        foreach (string sceneName in new[] { "MainMenuScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
+        foreach (string sceneName in new[] { "MainMenuScene", "HubScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
         {
             Require(!SceneManager.GetSceneByName(sceneName).isLoaded,
                 "Refusing to modify a pre-existing scene: " + sceneName);
@@ -406,7 +497,7 @@ public static class MainMenuIntegrationChecks
 
     private static bool IsMenuFlowScene(Scene scene)
     {
-        return scene.name == "MainMenuScene" || scene.name == "GameplayIntegration" ||
+        return scene.name == "MainMenuScene" || scene.name == "HubScene" || scene.name == "GameplayIntegration" ||
             scene.name == "SceneSwitchTarget" || scene.name == "Level0";
     }
 
@@ -462,6 +553,79 @@ public static class MainMenuIntegrationChecks
             }
             Directory.Delete(directory, true);
         }
+    }
+
+    private static IEnumerator CheckBackgroundMusicSwitch()
+    {
+        CoreFacade core = CoreFacade.Instance;
+        EnvironmentFacade environment = EnvironmentFacade.Current;
+        ISoundHandle music = Field<ISoundHandle>(environment, "musicHandle");
+        Require(music != null && music.IsPlaying, "Live level must have a BGM before switching.");
+        AudioSource source = Field<AudioEmitter>(music, "emitter").GetComponent<AudioSource>();
+        AudioClip authoredClip = source.clip;
+        // Own the clip and seek point so continuity does not depend on production music length.
+        AudioClip fixtureClip = AudioClip.Create("BgmSwitchFixture", 480000, 1, 8000, false);
+        try
+        {
+            source.clip = fixtureClip;
+            source.Play();
+            source.timeSamples = 80000;
+            yield return new WaitForSecondsRealtime(0.1f);
+            GameStateManager.Freeze();
+            int beforeSwitch = source.timeSamples;
+            Require(ReferenceEquals(music, core.Audio.PlayBackgroundMusic(environment.BackgroundMusic)),
+                "A paused BGM request must reuse its handle, not restart or reject it.");
+            yield return new WaitForSecondsRealtime(0.1f);
+            Require(source.timeSamples == beforeSwitch, "Reusing paused BGM must preserve playback position.");
+            GameStateManager.Resume();
+
+            core.SceneSwitch.enabled = false;
+            Require(core.SceneSwitch.RequestSwitch(SceneId.SceneSwitchTarget) == null && music.IsPlaying,
+                "A rejected scene switch must leave BGM playing.");
+            core.SceneSwitch.enabled = true;
+            Require(core.SceneSwitch.RequestSwitch(SceneId.SceneSwitchTarget) != null && music.IsPlaying,
+                "Entering Loading must not stop BGM.");
+            yield return WaitForSwitch("SceneSwitchTarget");
+            Require(environment == null && core == CoreFacade.Instance && music.IsPlaying &&
+                source.clip == fixtureClip && source.timeSamples > beforeSwitch,
+                "BGM must advance through scene unloading and a destination with no Env.");
+
+            beforeSwitch = source.timeSamples;
+            Require(core.SceneSwitch.RequestSwitch(SceneId.GameplayIntegration) != null, "Second switch must start.");
+            yield return WaitForSwitch("GameplayIntegration");
+            environment = EnvironmentFacade.Current;
+            Require(ReferenceEquals(music, Field<ISoundHandle>(environment, "musicHandle")) && music.IsPlaying &&
+                source.clip == fixtureClip && source.timeSamples > beforeSwitch,
+                "The new level must adopt the same BGM source and advancing position.");
+            Require(core.Audio.Registry.CountOf(music.AudioId) == 1,
+                "Scene switches and duplicate Core instances must not stack BGM voices.");
+        }
+        finally
+        {
+            if (core && core.SceneSwitch)
+            {
+                core.SceneSwitch.enabled = true;
+            }
+            if (source)
+            {
+                source.clip = authoredClip;
+                source.Play();
+            }
+            UnityEngine.Object.DestroyImmediate(fixtureClip);
+        }
+    }
+
+    private static ISoundHandle CheckBackgroundMusic(AudioId expected)
+    {
+        AudioManager audio = CoreFacade.Instance.Audio;
+        ISoundHandle music = Field<ISoundHandle>(audio, "backgroundMusic");
+        Require(music != null && music.AudioId == expected && audio.Registry.CountOf(expected) == 1,
+            "The scene must automatically select exactly one expected BGM voice.");
+        var configs = Field<AudioManagerConfigs>(audio, "configs");
+        Require(configs.TryGetClip(expected, out AudioClipData data) &&
+            Field<AudioEmitter>(music, "emitter").GetComponent<AudioSource>().clip == data.Clip,
+            "Automatic BGM must use the registered scene music clip.");
+        return music;
     }
 
     private static IEnumerator WaitForSwitch(string name)

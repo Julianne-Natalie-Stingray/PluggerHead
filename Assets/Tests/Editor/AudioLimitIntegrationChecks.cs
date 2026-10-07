@@ -90,6 +90,43 @@ public static class AudioLimitIntegrationChecks
         const AudioId requested = AudioId.DefaultSfx;
         const AudioId other = AudioId.DefaultOst;
         const AudioId third = AudioId.MouseClick;
+        if (scenario == "BackgroundMusicReentry")
+        {
+            ISoundHandle first = manager.PlayBackgroundMusic(requested);
+            bool callbackInvoked = false;
+            bool nestedRejected = false;
+            first.Finished += _ =>
+            {
+                callbackInvoked = true;
+                nestedRejected = manager.PlayBackgroundMusic(third) == null;
+            };
+            ISoundHandle replacement = manager.PlayBackgroundMusic(other);
+            Require(callbackInvoked && nestedRejected && replacement != null && replacement.IsPlaying &&
+                manager.Registry.Count == 1 && manager.Registry.CountOf(other) == 1,
+                "A completion callback cannot stack BGM while the outer request changes tracks.");
+            Require(ReferenceEquals(replacement, manager.PlayBackgroundMusic(other)),
+                "The change guard must release after completion.");
+            return;
+        }
+        if (scenario == "BackgroundMusic")
+        {
+            ISoundHandle first = manager.PlayBackgroundMusic(requested);
+            Require(first != null && first.IsPlaying && ReferenceEquals(first, manager.PlayBackgroundMusic(requested)),
+                "The same BGM must reuse one playback.");
+            ISoundHandle replacement = manager.PlayBackgroundMusic(other);
+            Require(replacement != null && replacement.IsPlaying && !first.IsPlaying && manager.Registry.Count == 1,
+                "A different BGM must replace the old voice.");
+            Require(replacement.Stop(), "BGM must support explicit stop.");
+            ISoundHandle restarted = manager.PlayBackgroundMusic(other);
+            Require(restarted != null && restarted.IsPlaying && !ReferenceEquals(replacement, restarted),
+                "An explicitly stopped BGM must start a fresh playback.");
+            restarted.Stop();
+            manager.enabled = false;
+            Require(manager.PlayBackgroundMusic(other) == null, "Unavailable BGM must return no handle.");
+            manager.enabled = true;
+            Require(manager.PlayBackgroundMusic(other) != null, "A rejected request must not poison later BGM playback.");
+            return;
+        }
         if (scenario == "PerIdReentry" || scenario == "GlobalReentry")
         {
             if (scenario == "PerIdReentry")

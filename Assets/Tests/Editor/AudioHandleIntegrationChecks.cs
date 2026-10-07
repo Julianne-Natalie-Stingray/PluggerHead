@@ -8,6 +8,70 @@ using Object = UnityEngine.Object;
 /// <summary>Exercises public handles from a real manager without modifying assets or the live mixer.</summary>
 public static class AudioHandleIntegrationChecks
 {
+    public static void CheckDestroyedEmitter(float fadeOut, bool environmentCleanup)
+    {
+        GameObject host = null;
+        GameObject owner = null;
+        AudioClip clip = null;
+        AudioClipData data = null;
+        try
+        {
+            host = new GameObject("Destroyed audio voice");
+            AudioEmitter emitter = host.AddComponent<AudioEmitter>();
+            clip = AudioClip.Create("Destroyed voice silence", 44100, 1, 44100, false);
+            data = ScriptableObject.CreateInstance<AudioClipData>();
+            Set(data, "clip", clip);
+            Set(data, "loop", true);
+            emitter.Configure(data);
+            emitter.FadeOut = fadeOut;
+            ISoundHandle handle = new SoundHandle(emitter, AudioId.DefaultSfx);
+            emitter.Play();
+            int notifications = 0;
+            handle.Finished += _ => notifications++;
+
+            Object.DestroyImmediate(host);
+            Require(!handle.IsPlaying, "A destroyed voice must not report playback.");
+            Require(!handle.TrySetVolume(0.5f) && !handle.TrySetPitch(1.5f),
+                "A destroyed voice must reject controls without accessing native components.");
+            if (environmentCleanup)
+            {
+                // Exercise the owner's shutdown callback without starting another live level.
+                // 直接验证宿主清理回调，避免启动额外关卡污染当前场景。
+                owner = new GameObject("Destroyed voice owner");
+                owner.SetActive(false);
+                EnvironmentFacade environment = owner.AddComponent<EnvironmentFacade>();
+                Set(environment, "musicHandle", handle);
+                Set(environment, "musicStarted", true);
+                typeof(EnvironmentFacade).GetMethod("OnDisable", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(environment, null);
+                Require(Get<ISoundHandle>(environment, "musicHandle") == null && !Get<bool>(environment, "musicStarted"),
+                    "Environment cleanup must release its stale music handle.");
+            }
+            else
+            {
+                Require(!handle.Stop(), "Stopping an already destroyed voice must return false.");
+            }
+            Require(notifications == 1 && !handle.IsFinished && !handle.IsPlaying,
+                "Cleanup must invalidate once as interrupted, not naturally completed.");
+            Require(!handle.Stop() && !handle.TrySetVolume(0.2f) && !handle.TrySetPitch(2f),
+                "Repeated cleanup and later controls must remain harmless.");
+            Require(notifications == 1, "Repeated Stop must not notify twice.");
+        }
+        finally
+        {
+            if (owner)
+            {
+                Object.DestroyImmediate(owner);
+            }
+            if (host)
+            {
+                Object.DestroyImmediate(host);
+            }
+            Object.DestroyImmediate(data);
+            Object.DestroyImmediate(clip);
+        }
+    }
+
     public static IEnumerator Run(bool gracefulStop)
     {
         GameObject fixture = null;

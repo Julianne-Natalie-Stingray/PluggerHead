@@ -1,6 +1,6 @@
 # 默认音频管理器配置
 
-逐文件核查日期：2026-10-06。`DefaultAudioManagerConfigs.asset` 的注册顺序为 GenericOst、GenericSfx、MouseClick，分别指向 `Audios/SO/` 的三个数据资源；Mixer 指向 `Audios/Mixers/Master.mixer`。
+`DefaultAudioManagerConfigs.asset` 的注册顺序为 GenericOst、GenericSfx、MouseClick、GameMainMenu，分别指向 `Audios/SO/` 的数据资源；Mixer 指向 `Audios/Mixers/Master.mixer`。GameMainMenu 使用独立 AudioId 3，原有标识及资源引用保持不变。
 
 | 配置 | 当前值 |
 | --- | --- |
