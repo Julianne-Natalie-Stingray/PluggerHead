@@ -8,7 +8,10 @@
 | `PlayerMoveAnim.anim` | 4 帧行走，保留 0.5 秒循环周期及 0、0.5 秒的 `PlayMoveAudio` 事件。 |
 | `PlayerInteractAnim.anim` | 非循环 1 秒，显式保持待机首帧；保留首帧 `PlayInteractAudio` 事件，不直接执行交互。 |
 | `PlayerDeathAnim.anim` | 保留原爆炸序列与 `PlayDeathAudio` 事件。 |
+| `PlayerPortalLockedAnim.anim` | 未解锁 Portal 的独立空动画：无曲线、无事件、无音效，供后续填充。 |
 | `PlayerAC.controller` | 单 Base Layer、默认 Idle；bool `tryMoving` 控制 Idle/Move，trigger `Interact` 进入交互，交互仅在 ExitTime=1 返回 Idle。trigger `Die` 从 Idle/Move 进入 Death，Death 无出过渡。过渡时长均为0，无 AnyState 过渡或 StateMachineBehaviour。 |
+
+`PortalLocked` trigger 从 Idle/Move 进入 `PlayerPortalLockedAnim`；占位状态以 ExitTime=0 返回 Idle，支持 Die 中断，不写默认值、不添加输入锁。填充实际动画时应同步调整退出时机。仅完成静态引用和控制流检查，未验证运行时播放。
 
 Interact 状态的标签为 `PlayerInteract`，与 PlayerAnimationCallbacks 的锁判断一致；锁依据标签而不是状态名。GameplayIntegration 引用此控制器，使用普通时间更新、始终更新模式并关闭 Root Motion。实际持续时间受 timeScale、Animator speed 和启用状态影响，不能承诺一秒真实时间后解锁。
 

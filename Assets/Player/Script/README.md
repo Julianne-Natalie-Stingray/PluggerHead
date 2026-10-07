@@ -35,15 +35,17 @@ Visual 上的 PlayerVisual 同样由物理帧已接受的输入驱动：A 朝左
 
 FixedUpdate 先检查地面极性，再查询阻力，再处理输入锁。踩到有效 GroundPolarity 时，地面仅允许 Live/Neutral，只有本场景正在持有的同极性电线才存活，独立地线不能代替；空手、仅持异极线或已放下匹配线均死亡；阻力 X/Y 同时为负无穷也会死亡，普通非有限值不属于完整校验范围。线长规则与地面极性组合详见 Env 文档。
 
-Die 首次设置 IsDead、手动锁输入、清空线速度/角速度、关闭刚体模拟。Animator 可用时清除 tryMoving 和 Interact，触发 Die，并使用非缩放时间、保持玩家激活以在死亡面板冻结游戏后继续播放死亡动画；没有可用 Animator 时停用玩家。最后同步触发 Died。重复调用不重复触发动画或通知；没有复活 API，也不自动重开关卡。Died 订阅者异常没有逐项隔离。Die 假定 Awake 已完成，不能当作可在任意初始化阶段调用的无依赖函数。
+Die 首次设置 IsDead、手动锁输入、清空线速度/角速度、关闭刚体模拟。Animator 可用时清除 tryMoving、Interact 和 PortalLocked，触发 Die，并使用非缩放时间、保持玩家激活以在死亡面板冻结游戏后继续播放死亡动画；没有可用 Animator 时停用玩家。最后同步触发 Died。重复调用不重复触发动画或通知；没有复活 API，也不自动重开关卡。Died 订阅者异常没有逐项隔离。Die 假定 Awake 已完成，不能当作可在任意初始化阶段调用的无依赖函数。
 
 ## 输入锁与动画
 
 手动锁、交互动画锁为两个独立布尔来源，任一个生效即 IsInputLocked。锁会清除待跳跃请求并停止用输入覆盖速度，但保留当前速度、继续施加阻力；它不是冻结物理，地面与线长危险也不会被免除。禁用 PlayerMove 才会清除水平速度并保留竖直运动。
 
-Animator 需要 bool 参数 tryMoving、trigger 参数 Interact 和 Die；交互状态标签为 PlayerInteract。Callbacks 在 OnEnable、FixedUpdate 和 LateUpdate 同步，聚合当前及过渡目标状态；基础层始终检查，其他层仅权重>0 时检查。聚合后仅在交互状态变化时通知输入锁；禁用回调组件释放它跟踪的动画锁，不清除手动锁。Animator 引用仅在为空/已销毁时重新查询，替换控制器对象布局后应重新确认绑定。
+Animator 需要 bool 参数 tryMoving、trigger 参数 Interact、PortalLocked 和 Die；交互状态标签为 PlayerInteract。Callbacks 在 OnEnable、FixedUpdate 和 LateUpdate 同步，聚合当前及过渡目标状态；基础层始终检查，其他层仅权重>0 时检查。聚合后仅在交互状态变化时通知输入锁；禁用回调组件释放它跟踪的动画锁，不清除手动锁。Animator 引用仅在为空/已销毁时重新查询，替换控制器对象布局后应重新确认绑定。
 
 TryStartInteractionAnimation 在 J 操作被认为成功后请求；操作本身先执行，动画请求失败不会回滚操作。K 放置不主动请求交互动画。
+
+未解锁 Portal 也参与最近目标筛选，J 尝试交互时由 Portal 调用 `TryStartPortalLockedAnimation`，触发 Player 的 `PortalLocked` 空动画。不请求切场景、不发成功事件，`TryPerformOperation` 仍返回 false，不播放普通 Interact 动画。暂停、Loading、死亡或输入锁期间不触发；已解锁但目的地无效的 Portal 不视为未解锁。
 
 ## 动画音频接口
 

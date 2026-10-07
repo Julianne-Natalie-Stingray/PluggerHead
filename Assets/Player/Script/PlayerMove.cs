@@ -35,6 +35,7 @@ public class PlayerMove : MonoBehaviour
     private PlayerVisual visual;
     private static readonly int MovingParameter = Animator.StringToHash("tryMoving");
     private static readonly int InteractParameter = Animator.StringToHash("Interact");
+    private static readonly int PortalLockedParameter = Animator.StringToHash("PortalLocked");
     private static readonly int DieParameter = Animator.StringToHash("Die");
     private bool isInteractionInputLocked;
     private bool isManuallyInputLocked;
@@ -69,6 +70,7 @@ public class PlayerMove : MonoBehaviour
         {
             animator.SetBool(MovingParameter, false);
             animator.ResetTrigger(InteractParameter);
+            animator.ResetTrigger(PortalLockedParameter);
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
             animator.SetTrigger(DieParameter);
             // 保持对象激活，让 Animator 播放死亡动画。
@@ -104,7 +106,23 @@ public class PlayerMove : MonoBehaviour
         }
 
         animator.ResetTrigger(InteractParameter);
+        animator.ResetTrigger(PortalLockedParameter);
         animator.SetTrigger(InteractParameter);
+        return true;
+    }
+
+    /// <summary>尝试进入未解锁传送门时播放独立的占位动画。</summary>
+    public bool TryStartPortalLockedAnimation()
+    {
+        if (!isActiveAndEnabled || IsDead || IsInputLocked || Time.timeScale <= 0f ||
+            GameStateManager.Current != GameState.Playing || !CanUseAnimator())
+        {
+            return false;
+        }
+
+        animator.ResetTrigger(InteractParameter);
+        animator.ResetTrigger(PortalLockedParameter);
+        animator.SetTrigger(PortalLockedParameter);
         return true;
     }
 
@@ -339,6 +357,7 @@ public class PlayerMove : MonoBehaviour
         if (CanUseAnimator())
         {
             animator.ResetTrigger(InteractParameter);
+            animator.ResetTrigger(PortalLockedParameter);
         }
 
         // 禁用移动组件时停止水平移动，但继续保留竖直运动。

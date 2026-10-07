@@ -164,7 +164,8 @@ public class PlayerInteraction : MonoBehaviour
         }
 
         IEnvironmentInteractable interactable = target as IEnvironmentInteractable;
-        if (interactable == null || !interactable.CanInteract)
+        if (interactable == null || (!interactable.CanInteract &&
+            !(target is Portal portal && portal.CanShowLockedFeedback)))
         {
             return false;
         }
@@ -212,7 +213,8 @@ public class PlayerInteraction : MonoBehaviour
 
                 bool canInteract = candidate is Anchor anchor
                     ? anchor.CanReclaim
-                    : candidate is IEnvironmentInteractable interactable && interactable.CanInteract;
+                    : (candidate is IEnvironmentInteractable interactable && interactable.CanInteract) ||
+                        (candidate is Portal portal && portal.CanShowLockedFeedback);
                 if (!canInteract)
                 {
                     continue;

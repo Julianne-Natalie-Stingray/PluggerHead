@@ -3,7 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>大厅选关入口。未制作或未解锁的关卡不接受交互。</summary>
+/// <summary>大厅选关入口。未解锁时只播放玩家反馈动画，不切换场景。</summary>
 [DisallowMultipleComponent]
 public sealed class Portal : MonoBehaviour, IEnvironmentInteractable
 {
@@ -16,6 +16,8 @@ public sealed class Portal : MonoBehaviour, IEnvironmentInteractable
 
     public int LevelNumber => levelNumber;
     public bool HasDestination => hasDestination;
+    public bool CanShowLockedFeedback => isActiveAndEnabled && !GameProgress.Store.IsUnlocked(levelNumber) &&
+        GameStateManager.Current == GameState.Playing && Time.timeScale > 0f;
     public bool CanInteract => isActiveAndEnabled && hasDestination && GameProgress.Store.IsUnlocked(levelNumber) &&
         GameStateManager.Current == GameState.Playing && CoreFacade.Instance != null &&
         CoreFacade.Instance.SceneSwitch.isActiveAndEnabled && !CoreFacade.Instance.SceneSwitch.IsSwitching &&
@@ -38,7 +40,16 @@ public sealed class Portal : MonoBehaviour, IEnvironmentInteractable
     public void Interact(InteractionDetails details)
     {
         PlayerMove actor = details?.Actor != null ? details.Actor.GetComponent<PlayerMove>() : null;
-        if (!CanInteract || actor == null || actor.gameObject.scene != gameObject.scene || actor.IsInputLocked || actor.IsDead)
+        if (actor == null || actor.gameObject.scene != gameObject.scene || actor.IsInputLocked || actor.IsDead)
+        {
+            return;
+        }
+        if (CanShowLockedFeedback)
+        {
+            actor.TryStartPortalLockedAnimation();
+            return;
+        }
+        if (!CanInteract)
         {
             return;
         }
