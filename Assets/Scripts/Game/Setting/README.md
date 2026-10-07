@@ -14,7 +14,7 @@
 | `SettingsScreen.cs` | 读取音量到三个滑块，显式保存，管理自己的暂停所有权及返回主菜单。 |
 | `README.md` | 本目录总览及行为核查记录；对应 .meta 仅维护 Unity 资源标识。 |
 
-六个脚本和 README 的 `.meta` 成对，脚本无 Inspector 默认引用或自定义执行顺序。SettingsScreen 的 GUID `a44e8a1743f82ae41a79f953c0d46fad` 被 MainMenuScene 和 GameplayIntegration 引用。
+六个脚本和 README 的 `.meta` 成对，脚本无 Inspector 默认引用或自定义执行顺序。SettingsScreen 的 GUID `a44e8a1743f82ae41a79f953c0d46fad` 被 MainMenuScene、HubScene 和 GameplayIntegration 引用。
 
 ## 数据和生命周期
 
@@ -53,7 +53,7 @@ Load 先 new 数据并 ResetToDefault，再读取文件并覆盖默认实例，�
 
 Level0 实测确认 TMP 字形覆盖、无溢出、射线首个命中 RestartLevelButton；派发 pointerClick 后仍加载 Level0、玩家存活、菜单隐藏、时间倍率恢复 1。画面：[正常菜单](../../../Docs/Development/MenuRestart.png)、[失败提示](../../../Docs/Development/MenuRestartFailure.png)。
 
-MainMenuScene 和 GameplayIntegration 都包含初始 inactive 的 SettingsScreen。Inspector 需配置三条音量 Slider（当前范围 0–1）、返回主菜单 Button 和保存状态 TMP 文本。GameplayIntegration 的 MenuButton 持久事件直接调用 Open；主菜单通过 MainMenuScreen.OpenSettings 间接调用 Open。面板按钮和滑块连接 ContinueGame/SaveSettings/ReturnToMainMenu/OnVolumeChanged。
+MainMenuScene、HubScene 和 GameplayIntegration 都包含初始 inactive 的 SettingsScreen。Inspector 需配置三条音量 Slider（当前范围 0–1）、返回主菜单 Button 和保存状态 TMP 文本。HubScene 的 MenuBtn 与 GameplayIntegration 的 MenuButton 持久事件直接调用 Open；主菜单通过 MainMenuScreen.OpenSettings 间接调用 Open。面板按钮和滑块连接 ContinueGame/SaveSettings/ReturnToMainMenu/OnVolumeChanged。
 
 Open 在对象 activeSelf 已为 true 或全局 Loading 时直接返回，否则校验引用，使用 SetValueWithoutNotify 填滑块并清空状态文本。OnEnable 独立请求冻结，OnDisable 释放，包括直接激活、父对象停用和场景卸载。关闭面板仅释放自身请求；其他面板请求或手动暂停仍存在时保持冻结。主菜单场景禁用返回主菜单按钮，但公开 ReturnToMainMenu 方法没有同名场景保护，外部调用仍应遵循 UI 约束。
 

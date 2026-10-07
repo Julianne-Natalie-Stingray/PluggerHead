@@ -12,4 +12,4 @@
 
 桥不负责测试隔离、清理或执行协程。返回 `IEnumerator` 的入口由调用方 `yield return`；协程推进时抛出的异常直接交给 Runner，并不经过反射调用的异常解包分支。全局状态、临时场景和文件清理由具体检查脚本负责。
 
-当前测试在 Unity Editor 内调用 `Scripts/Editor/` 的检查实现；这里的 asmdef 没有 Editor 平台限制，不代表这些检查可用于独立 Player。测试模式、运行命令和清理约定见[测试总说明](../README.md)。本轮只新增文档，未修改反射桥或程序集配置，无需重跑 Unity 测试。
+当前测试在 Unity Editor 内调用 `Tests/Editor/` 的检查实现；这里的 asmdef 没有 Editor 平台限制，不代表这些检查可用于独立 Player。测试模式、运行命令和清理约定见[测试总说明](../README.md)。本轮只新增文档，未修改反射桥或程序集配置，无需重跑 Unity 测试。

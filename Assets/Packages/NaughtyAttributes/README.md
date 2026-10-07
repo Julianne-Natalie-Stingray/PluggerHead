@@ -10,7 +10,7 @@
 | `package.json` | 版本、Unity 要求、作者与 Demo Scene 元数据。 |
 | `Scripts/Core` | 属性声明及辅助类型，全平台程序集；这些声明不等于运行时自动执行 Inspector 校验。 |
 | `Scripts/Editor` | 属性绘制、分组、条件与校验以及 NaughtyInspector，Editor-only 程序集。 |
-| `Scripts/Test` | 普通演示程序集，无 TestAssemblies 标记，不计入 Unity Test Runner 回归。 |
+| `Assets/Tests/ThirdParty/NaughtyAttributes` | 普通演示程序集，无 TestAssemblies 标记，不计入 Unity Test Runner 回归。 |
 | `Samples/DemoScene` | 演示场景与素材；MockPlayer prefab 实际引用其中 icon-github.png，不能整体当作未使用资源删除。 |
 
 业务代码主要使用 BoxGroup 与 Button。Button 默认 Always，并非自动限制 Play Mode；支持无参数或参数全有默认值的方法，协程按钮需要 Play Mode。点击可能对多个选中目标执行并标记资源/场景 dirty，不自动保存，也不是无副作用的显示操作。具体按钮是否可在 EditMode 使用，应检查业务方法自己的保护。

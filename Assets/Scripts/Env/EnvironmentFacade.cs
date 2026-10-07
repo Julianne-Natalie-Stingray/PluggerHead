@@ -26,6 +26,8 @@ public class EnvironmentFacade : MonoBehaviour
     public float NeededVoltage => neededVoltage;
     /// <summary>Remaining required drop; zero or less satisfies the voltage condition. 剩余所需降压量，可为负。</summary>
     public double CurrentVoltage { get; private set; }
+    /// <summary>Accumulated connected voltage drop, including excess. 已连接降压器的累计降压量，允许超过需求。</summary>
+    public double ReducedVoltage => NeededVoltage - CurrentVoltage;
 
     [SerializeField, Min(0f), Tooltip("通关所需的累计降压量。")]
     private float neededVoltage = 30f;
@@ -111,16 +113,22 @@ public class EnvironmentFacade : MonoBehaviour
             musicPlayer.Died -= EndMusic;
         }
         musicPlayer = null;
-        StopMusic();
+        if (GameStateManager.Current == GameState.Loading)
+        {
+            // Core keeps the playback alive while this scene owner is unloaded.
+            // 切场景只释放本关引用，由 Core 保持原播放位置。
+            musicHandle = null;
+            musicStarted = false;
+        }
+        else
+        {
+            StopMusic();
+        }
     }
 
     private void HandleMusicStateChanged(GameState state)
     {
-        if (state == GameState.Loading)
-        {
-            StopMusic();
-        }
-        else
+        if (state != GameState.Loading)
         {
             TryStartMusic();
         }
@@ -143,7 +151,7 @@ public class EnvironmentFacade : MonoBehaviour
         }
         // A rejected request is not retried every frame (missing mapping / exhausted pool).
         musicStarted = true;
-        musicHandle = core.Audio.CreateBuilder().WithSurviveFreeze(false).WithFade(0f, 0f).Play(backgroundMusic);
+        musicHandle = core.Audio.PlayBackgroundMusic(backgroundMusic);
     }
 
     private void EndMusic()

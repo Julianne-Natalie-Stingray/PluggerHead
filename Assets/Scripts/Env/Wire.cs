@@ -39,6 +39,10 @@ public class Wire : MonoBehaviour
     [Tooltip("Maximum routed length of the carried wire. Exceeding it kills the player; zero leaves its length unrestricted.")]
     private float maxLength;
 
+    [SerializeField, BoxGroup("Wire")]
+    [Tooltip("Selects a shared material by wire polarity; textures and colors belong to these material assets.")]
+    private WireVisualConfigs visualConfigs;
+
     private LineRenderer line;
     private EdgeCollider2D pathCollider;
     private readonly List<Vector2> colliderPoints = new();
@@ -65,6 +69,13 @@ public class Wire : MonoBehaviour
         if (!line)
         {
             line = GetComponent<LineRenderer>();
+        }
+
+        if (visualConfigs)
+        {
+            // An empty slot clears stale material instead of displaying another polarity's appearance.
+            // 空槽清除旧材质，避免显示其他种类的外观；未绑定配置时兼容已有渲染器。
+            line.sharedMaterial = visualConfigs.GetMaterial(polarity);
         }
 
         if (!pathCollider)
@@ -98,11 +109,11 @@ public class Wire : MonoBehaviour
     {
         polarity = value;
         maxLength = source ? source.MaxLength : 0f;
+        visualConfigs = source ? source.visualConfigs : null;
         Initialize();
         if (source)
         {
             LineRenderer original = source.GetComponent<LineRenderer>();
-            line.sharedMaterial = original.sharedMaterial;
             line.textureMode = original.textureMode;
             line.textureScale = original.textureScale;
             line.widthCurve = original.widthCurve;
@@ -110,9 +121,6 @@ public class Wire : MonoBehaviour
             line.numCornerVertices = original.numCornerVertices;
             line.numCapVertices = original.numCapVertices;
         }
-        Color color = value == WirePolarity.Live ? Color.red :
-            value == WirePolarity.Neutral ? Color.blue : Color.green;
-        line.startColor = line.endColor = color;
     }
 
     internal void ConnectReducer(VoltageReducer target)

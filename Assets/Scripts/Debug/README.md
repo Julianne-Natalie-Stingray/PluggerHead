@@ -1,14 +1,14 @@
 # 手工诊断与漂浮实验
 
-这里保留设置诊断和视觉实验脚本，不是正式测试程序集。运行时集成测试在 `Assets/Tests/`，Editor 检查实现位于 `Scripts/Editor/`。
+这里保留视觉实验脚本；手工设置诊断位于 Assets/Tests/Manual。运行时集成测试在 `Assets/Tests/`，Editor 检查实现位于 `Tests/Editor/`。
 
 ## 逐文件说明
 
 | 文件 | 行为与使用边界 |
 | --- | --- |
-| `DebugScript.cs` | Start 打印三路音量；两个 NaughtyAttributes 按钮分别把同一个随机值写入三路音量、恢复设计默认值，再打印结果。 |
+| `../../Tests/Manual/DebugScript.cs` | Start 打印三路音量；两个 NaughtyAttributes 按钮分别把同一个随机值写入三路音量、恢复设计默认值，再打印结果。 |
 | `FloatingLogic.cs` | Awake 记录初始局部位置和随机种子；Update 叠加周期漂移、双轴 Perlin 位移，再执行 Z 轴旋转；选中时绘制 Gizmos。 |
-| 两个脚本 `.meta` | 保留 GUID，没有默认引用或特殊执行顺序。 |
+| 脚本对应 `.meta` | 保留 GUID，没有默认引用或特殊执行顺序。 |
 | `README.md` / `.meta` | 目录说明及标识。 |
 
 本次按脚本 GUID 搜索当前 Scenes 和 Prefabs，未找到两组件的序列化引用；这不能排除外部代码动态创建。DebugScript.Test 中读取的 CoreFacade 局部变量未被使用，不构成 Core 服务验证。原按钮旁的 `passed` 注释没有测试证据，本次已移除。

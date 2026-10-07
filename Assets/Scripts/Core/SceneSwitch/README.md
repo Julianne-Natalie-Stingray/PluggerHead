@@ -1,6 +1,6 @@
 # 场景切换服务
 
-生产玩法通过 `CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId)` 请求异步 Single 加载。目标由调用方决定；配置还供主菜单判断可加载关卡、进度追踪反向查询场景。Editor 测试为了隔离会直接使用 SceneManager，不能把本服务描述为整个工程唯一的加载调用。
+生产玩法通过 `CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId)` 请求异步 Single 加载。目标由调用方决定；配置还供大厅 Portal 判断可加载关卡。Editor 测试为了隔离会直接使用 SceneManager，不能把本服务描述为整个工程唯一的加载调用。
 
 ## 逐文件职责
 
@@ -16,17 +16,19 @@
 
 | SceneId 整数 | 名称 | 路径（相对 Assets） | 玩法关卡 |
 | --- | --- | --- | --- |
-| 1 | SceneSwitchTarget | Scenes/Tests/SceneSwitchTarget.unity | 否 |
-| 2 | CircuitDiagnostics | Scenes/Tests/CircuitDiagnostics.unity | 否 |
-| 3 | GameplayIntegration | Scenes/Tests/GameplayIntegration.unity | 是 |
+| 1 | SceneSwitchTarget | Tests/Scenes/SceneSwitchTarget.unity | 否 |
+| 2 | CircuitDiagnostics | Tests/Scenes/CircuitDiagnostics.unity | 否 |
+| 3 | GameplayIntegration | Tests/Scenes/GameplayIntegration.unity | 是 |
 | 4 | MainMenuScene | Scenes/MainMenuScene.unity | 否 |
 | 5 | FinalScene | Scenes/FinalScene.unity | 否 |
+| 6 | Level0 | Scenes/Level0.unity | 是 |
+| 7 | HubScene | Scenes/HubScene.unity | 否 |
 
-默认配置为 SO/SceneSwitch/DefaultSceneSwitchConfigs.asset；Core 的 Manager、LevelProgressTracker 与主菜单共享它。Build Settings 顺序为 MainMenuScene、GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget、FinalScene，全部启用；构建索引与枚举整数不是同一概念。退役枚举值 0 不复用。新增关卡须一起维护枚举、资源、配置和构建注册；玩法标记决定是否可由菜单进入及记录进度。
+默认配置为 SO/SceneSwitch/DefaultSceneSwitchConfigs.asset；Core 的 Manager 与大厅 Portal 共用它。Build Settings 顺序为 MainMenuScene、GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget、FinalScene、Level0、HubScene，全部启用；Level0 的 SceneId 为 6，标记为玩法关卡。构建索引与枚举整数不是同一概念，退役枚举值 0 不复用。新增关卡须一起维护枚举、资源、配置和构建注册；进度由关卡环境的通关事件独立记录。
 
 ## 查询与配置校验
 
-TryGetSceneName 返回首个同 ID 的名字，即使名字为空仍返回 true；IsGameplayLevel 检查任一同 ID 条目是否标为玩法；TryGetGameplayLevel 用精确场景名找到首个玩法条目。这些查询不校验列表为 null、不清理重复项。MainMenuScreen 每帧调用查询，不是只在切换时查询。
+TryGetSceneName 返回首个同 ID 的名字，即使名字为空仍返回 true；IsGameplayLevel 检查任一同 ID 条目是否标为玩法；TryGetGameplayLevel 用精确场景名找到首个玩法条目。这些查询不校验列表为 null、不清理重复项。Portal 在检查交互可用性时查询配置。
 
 OnValidate 只警告空名。Inspector 的 Remove Duplicates 按钮会实际修改列表，按 ID 保留首项；不自动运行，不处理重复场景名、错误枚举值或构建注册。重复 ID 可使首项映射和任一玩法标记不一致，重复场景名可使进度记录到错误 ID；当前默认资产没有这些冲突。场景名保持与 Scene.name 一致，避免破坏 Tracker 的反向查找。
 

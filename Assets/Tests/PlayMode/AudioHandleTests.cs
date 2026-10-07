@@ -11,6 +11,15 @@ namespace PluggerHead.Tests
     [UnityPlatform(RuntimePlatform.WindowsEditor, RuntimePlatform.LinuxEditor, RuntimePlatform.OSXEditor)]
     public sealed class AudioHandleTests
     {
+        [TestCase(0f, false)]
+        [TestCase(0.25f, false)]
+        [TestCase(0f, true)]
+        [TestCase(0.25f, true)]
+        public void DestroyedEmitter_RejectsControlsAndAllowsOwnerCleanup(float fadeOut, bool environmentCleanup)
+        {
+            IntegrationCheckBridge.Invoke("AudioHandleIntegrationChecks", "CheckDestroyedEmitter", fadeOut, environmentCleanup);
+        }
+
         [UnityTest]
         public IEnumerator Handle_NaturalCompletionIsolatesSubscribersAndRejectsNaN()
         {

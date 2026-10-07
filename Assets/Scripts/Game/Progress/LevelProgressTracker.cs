@@ -1,35 +1,33 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
-/// <summary>Attached to the persistent Core object; records successfully loaded gameplay scenes.
-/// 主菜单、诊断场景及切换失败都不会覆盖进度。</summary>
+/// <summary>挂在实际关卡的环境上，仅在通关后更新本次运行的解锁进度。</summary>
 [DisallowMultipleComponent]
+[RequireComponent(typeof(EnvironmentFacade))]
 public sealed class LevelProgressTracker : MonoBehaviour
 {
-    [SerializeField] private SceneSwitchConfigs configs;
+    [SerializeField, Range(1, LevelProgressStore.LevelCount)] private int levelNumber = 1;
+    private EnvironmentFacade environment;
 
-    private void Start()
+    private void OnEnable()
     {
-        // Start runs after Core's duplicate guard has removed extra instances.
-        SceneManager.sceneLoaded += OnSceneLoaded;
-        RecordLevel(SceneManager.GetActiveScene());
-    }
-
-    private void OnDestroy()
-    {
-        SceneManager.sceneLoaded -= OnSceneLoaded;
-    }
-
-    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
-        RecordLevel(scene);
-    }
-
-    private void RecordLevel(Scene scene)
-    {
-        if (configs != null && configs.TryGetGameplayLevel(scene.name, out SceneId level))
+        environment = GetComponent<EnvironmentFacade>();
+        environment.LevelCleared += RecordCompletion;
+        if (environment.IsCircuitClosed)
         {
-            GameProgress.Store.SaveLevel(level);
+            RecordCompletion();
         }
+    }
+
+    private void OnDisable()
+    {
+        if (environment != null)
+        {
+            environment.LevelCleared -= RecordCompletion;
+        }
+    }
+
+    private void RecordCompletion()
+    {
+        GameProgress.Store.CompleteLevel(levelNumber);
     }
 }

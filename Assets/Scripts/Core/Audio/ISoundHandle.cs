@@ -47,9 +47,11 @@ public interface ISoundHandle
 
     /// <summary>
     /// Stop this playback early. Idempotent: stopping an already ended handle does nothing and returns false.
+    /// If the emitter was destroyed, invalidates the stale handle as interrupted and returns false.
     /// When this playback's effective FadeOut is positive, the sound ramps down and this handle is invalidated
     /// immediately either way: IsPlaying reports false as soon as this call returns.
     /// 提前停止本次播放. 幂等: 对已结束的句柄再次调用不产生副作用并返回 false.
+    /// emitter 已销毁时将旧句柄按中断失效并返回 false，不再访问已销毁组件。
     /// 若本次播放的有效 FadeOut 为正, 声音会先降音再结束; 两种情况都立即使句柄失效, 返回后 IsPlaying 为 false.
     /// </summary>
     bool Stop();

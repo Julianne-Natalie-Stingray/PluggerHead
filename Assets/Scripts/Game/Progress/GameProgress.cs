@@ -1,12 +1,10 @@
-using System.IO;
 using UnityEngine;
 
-/// <summary>Session access to the level-only save, separate from player preferences.</summary>
+/// <summary>运行期间跨场景共享通关进度；每次启动清空，与音量偏好无关。</summary>
 public static class GameProgress
 {
     private static LevelProgressStore store;
-    public static LevelProgressStore Store => store ?? (store = new LevelProgressStore(
-        Path.Combine(Application.persistentDataPath, "LevelProgress.json")));
+    public static LevelProgressStore Store => store ?? (store = new LevelProgressStore());
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void Initialize()

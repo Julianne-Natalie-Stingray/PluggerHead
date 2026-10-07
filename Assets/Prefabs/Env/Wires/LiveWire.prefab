@@ -151,6 +151,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   polarity: 1
+  visualConfigs: {fileID: 11400000, guid: 7aee678343fc40ba89865538c9b6425f, type: 2}
   maxLength: 0
 --- !u!68 &5167315994382206133
 EdgeCollider2D:

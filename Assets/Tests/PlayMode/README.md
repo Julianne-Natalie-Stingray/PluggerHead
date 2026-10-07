@@ -23,7 +23,7 @@
 | `SceneSwitchRecoveryTests.cs` | 4：失活、销毁、禁用及异常订阅者；重入拒绝、Single 切换完成和后续恢复。 |
 | `PluggerHead.PlayModeTests.asmdef` | 显式引用 TestSupport，关闭自动引用，标记 TestAssemblies，无平台过滤。 |
 
-对应 `.meta` 保留 GUID，无自定义执行顺序。检查实现和具体等待期限见[Editor 目录说明](../../Scripts/Editor/README.md)。
+对应 `.meta` 保留 GUID，无自定义执行顺序。检查实现和具体等待期限见[Editor 目录说明](../Editor/README.md)。
 
 Timer 使用真实协程宿主，每次等待最多 3 秒；借用已有 Runner，缺失时创建。finally 停止本用例 Timer、恢复原 Runner 引用和 timeScale、销毁自建 Runner。测试临时设置 timeScale=1，不覆盖所有计时参数、非缩放模式、Runner 销毁/停用或独立 Player 行为。
 
