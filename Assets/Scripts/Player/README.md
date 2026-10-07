@@ -8,6 +8,7 @@ Player 使用 [Core 输入](../Core/Input/README.md) 和 [Env 真实交互契约
 | --- | --- |
 | PlayerMove.cs | Rigidbody2D 水平移动、落地跳跃、阻力/地面危险、死亡与输入锁，设置 Animator 参数。 |
 | PlayerVisual.cs | 挂在 Visual 上，根据 PlayerMove 接受的水平输入更新 SpriteRenderer.flipX 和可选朝向标记。 |
+| PlayerAnimationAudio.cs | 挂在 Animator 同物体上，接收 Death/Move/Interact 动画事件，通过 Core 音频服务播放可选音效。 |
 | PlayerAnimationCallbacks.cs | 按 Animator 状态标签聚合动作，通知 PlayerMove 进入/退出动画锁；不负责位移。 |
 | PlayerInteraction.cs | 订阅 J/K 输入，查找最近目标、发起交互或放置 Anchor。 |
 | 各脚本 .meta | GUID 与 GameplayIntegration 的组件引用一致，无默认引用；PlayerAnimationCallbacks 的 -100 执行顺序来自源码属性，meta 未覆盖。 |
@@ -41,6 +42,14 @@ Die 首次设置 IsDead、手动锁输入、清空线速度/角速度、关闭�
 Animator 需要 bool 参数 tryMoving、trigger 参数 Interact 和 Die；交互状态标签为 PlayerInteract。Callbacks 在 OnEnable、FixedUpdate 和 LateUpdate 同步，聚合当前及过渡目标状态；基础层始终检查，其他层仅权重>0 时检查。聚合后仅在交互状态变化时通知输入锁；禁用回调组件释放它跟踪的动画锁，不清除手动锁。Animator 引用仅在为空/已销毁时重新查询，替换控制器对象布局后应重新确认绑定。
 
 TryStartInteractionAnimation 在 J 操作被认为成功后请求；操作本身先执行，动画请求失败不会回滚操作。K 放置不主动请求交互动画。
+
+## 动画音频接口
+
+`Player.prefab/Visual` 已挂载 `PlayerAnimationAudio`，Death、Move、Interact 动画片段首帧分别调用 `PlayDeathAudio()`、`PlayMoveAudio()`、`PlayInteractAudio()`。Move 每轮循环触发，可在 Animation 窗口移动事件到落脚帧或增加落脚事件；替换片段时保留对应事件及 Animator 同物体上的接收组件。
+
+在组件 Inspector 中设置 `deathAudio`、`moveAudio`、`interactAudio`，选择已在 AudioManagerConfigs 映射的 AudioId。默认 `None` 表示静音；本次仅提供接口，不指定占位音效。新增专用音效时添加 AudioId、AudioClipData 并登记到 Core 使用的配置，建议使用非循环片段。每类新请求停止该类上一句柄，禁用组件时停止其持有的全部声音，防止循环音效遗留。
+
+播放位置跟随 Visual。死亡音效允许在死亡面板冻结游戏后播放；移动和交互音效拒绝暂停或死亡后的事件。缺少 Core/Audio、选择 None 或服务拒绝请求时不影响动画与玩法；请求缺失映射时沿用 AudioManager 的错误日志。
 
 ## J/K 操作的判定
 

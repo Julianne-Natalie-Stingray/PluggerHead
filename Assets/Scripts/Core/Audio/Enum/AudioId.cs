@@ -11,5 +11,8 @@ public enum AudioId
     DefaultSfx,
     DefaultOst,
 
-    MouseClick
+    MouseClick,
+
+    // Optional audio hooks use None without submitting a playback request.
+    None = -1
 }
