@@ -905,21 +905,33 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 5482605552156359373, guid: 38739bcf0407b6845946ab898d81d69f, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5482605552156359373, guid: 38739bcf0407b6845946ab898d81d69f, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5482605552156359373, guid: 38739bcf0407b6845946ab898d81d69f, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -0.21
+      objectReference: {fileID: 0}
     - target: {fileID: 6151197871303624085, guid: 38739bcf0407b6845946ab898d81d69f, type: 3}
       propertyPath: m_Name
       value: Static Camera
       objectReference: {fileID: 0}
     - target: {fileID: 8019805452225709923, guid: 38739bcf0407b6845946ab898d81d69f, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -4.3432245
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8019805452225709923, guid: 38739bcf0407b6845946ab898d81d69f, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -4.705488
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8019805452225709923, guid: 38739bcf0407b6845946ab898d81d69f, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -9.940436
+      value: -10
       objectReference: {fileID: 0}
     - target: {fileID: 8019805452225709923, guid: 38739bcf0407b6845946ab898d81d69f, type: 3}
       propertyPath: m_LocalRotation.w
