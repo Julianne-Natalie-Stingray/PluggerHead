@@ -24,8 +24,8 @@ MainMenu、HubScene、GameplayIntegration、CircuitDiagnostics、FinalScene、Le
 
 ## Level1 相机范围
 
-`Levels/Level1.unity` 使用场景内覆盖配置 Cinemachine Confiner 的 2D 模式，并约束屏幕边缘。独立的 `Camera Bounds` PolygonCollider2D 使用 Trigger 和 Ignore Raycast 层，不作为玩家支撑面或交互目标。世界范围为 X `[-10, 20]`、Y `[-6, 6]`；Orthographic Size 为 `6`，精确包含上、下各两层 tile，共四层，并排除左、右各一列 tile，共两列。
+`Levels/Level1.unity` 继承 `Prefabs/Env/ScenePrefab/Camera.prefab` 的 Orthographic Size `5.5`、禁用的 Pixel Perfect Camera 与 Cinemachine Confiner（2D模式） 屏幕边缘限制。独立的 `Camera Bounds` PolygonCollider2D 使用 Trigger 和 Ignore Raycast 层，通过场景覆盖绑定 Confiner，不作为玩家支撑面或交互目标。世界范围为 X `[-10, 20]`、Y `[-5.5, 5.5]`，精确包含上、下各 1.5 层 tile，并排除左、右各一列 tile。
 
-本场景禁用 Pixel Perfect Camera，避免其重新计算正交视野大小；共享 Camera 预制体和其他关卡未修改。4:3、16:9、21:9 画幅的边界探针已验证。宽高比超过 `2.5` 时，画面宽度超过约束区域，不能同时保持完整垂直范围并排除左右边框；本次未适配该超宽画幅。[Level1 运行画面](../Docs/Development/Level1-CameraBounds.png)。
+Prefab 统一提供视野及限制组件，范围碰撞体仍由各场景绑定；Level1 不再覆盖旧 size 6。其他场景已有覆盖保留，未绑定范围的实例不会被限制。固定可视高度 11，宽高比超过 `30/11` 时画面宽度超过关卡内部宽度，不能同时保持完整垂直范围并排除左右边框；本次未适配该超宽画幅。[Level1 运行画面](../Docs/Development/Level1-CameraBounds.png)。
 
-验证记录（2026-10-07）：独立 review 选择 Level1 临时运行探针，实际 Cinemachine Brain 在 16:9 下经过 21 个连续跟随位置及中心位置采样，视野大小始终为 6，上下边缘始终为 -6/6，水平边缘未超出 -10/20。Console 无错误或警告；临时跟随对象已销毁，Follow 已恢复 Player，退出 Play 后场景干净，EditorSettings 与开始时一致。已有 Test Runner 用例不覆盖 Level1 相机配置，本次仅变更场景配置，未运行无关程序集，未新增固定调参值的自动化测试。
+验证记录（2026-10-07）：独立 review 选择的 MainMenu、Hub、Level0 资源完整性 EditMode 用例 3/3 通过。Level1 实际 Brain 在 4:3、16:9、21:9 的极端位置及中心位置，以及连续跟随位置共 36 次采样全部满足范围；Level1、Level0 无 Console 错误或警告。Hub 相机正常启用，另有环境未找到带线插座的既有警告；Level0 保留启用 Pixel Perfect Camera 的场景覆盖，实际 size 为 5.625。新实例继承双 size 5.5、禁用的 Pixel Perfect Camera 和未绑定范围的限制组件。临时对象、Follow、活动场景及 EditorSettings 已恢复；未新增固定调参值的自动化测试。

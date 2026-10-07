@@ -484,10 +484,10 @@ PolygonCollider2D:
   m_AutoTiling: 0
   m_Points:
     m_Paths:
-    - - {x: -10, y: -6}
-      - {x: -10, y: 6}
-      - {x: 20, y: 6}
-      - {x: 20, y: -6}
+    - - {x: -10, y: -5.5}
+      - {x: -10, y: 5.5}
+      - {x: 20, y: 5.5}
+      - {x: 20, y: -5.5}
   m_UseDelaunayMesh: 0
 --- !u!4 &860500758
 Transform:
@@ -1081,22 +1081,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 491342146010842364, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
-      propertyPath: orthographic size
-      value: 6
-      objectReference: {fileID: 0}
+    - target: {fileID: 767391565609548077, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
+      propertyPath: m_BoundingShape2D
+      value: 
+      objectReference: {fileID: 860500757}
     - target: {fileID: 2740983318797223501, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
       propertyPath: m_Follow
       value: 
       objectReference: {fileID: 858489724}
-    - target: {fileID: 2740983318797223501, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
-      propertyPath: m_Lens.OrthographicSize
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 3086030607412159750, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
-      propertyPath: m_Enabled
-      value: 0
-      objectReference: {fileID: 0}
     - target: {fileID: 3850534588612062324, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
       propertyPath: m_LocalPosition.x
       value: -4.3432245
@@ -1163,11 +1155,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7405304827053612321, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 5.0072956
+      value: 5.0098915
       objectReference: {fileID: 0}
     - target: {fileID: 7405304827053612321, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 4.704028
+      value: 4.705488
       objectReference: {fileID: 0}
     - target: {fileID: 8687102528539017254, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
       propertyPath: m_Name
@@ -1176,33 +1168,8 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 4141618845411320416, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 3559550085804068499}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
---- !u!1 &3559550085804068498 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 4141618845411320416, guid: 9a97ce07069ec6c4fb82f9c5fe8f2733, type: 3}
-  m_PrefabInstance: {fileID: 3559550085804068497}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &3559550085804068499
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3559550085804068498}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a2fba25a5cd15594e8f050a11e386c80, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_ConfineMode: 0
-  m_BoundingVolume: {fileID: 0}
-  m_BoundingShape2D: {fileID: 860500757}
-  m_ConfineScreenEdges: 1
-  m_Damping: 0
 --- !u!483693784 &4078032490153622990
 TilemapRenderer:
   m_ObjectHideFlags: 0
