@@ -264,6 +264,21 @@ public class Wire : MonoBehaviour
         connection.numCornerVertices = line.numCornerVertices;
         connection.sortingLayerID = line.sortingLayerID;
         connection.sortingOrder = line.sortingOrder;
+        // The routed wire may sit behind world geometry, but the terminal branch must reach the visible socket.
+        // 主线路可位于场景后方，接头支线必须显示在插座图片前方，才能看见锚点连接。
+        SpriteRenderer socketRenderer = endpoint.GetComponent<SpriteRenderer>();
+        if (socketRenderer)
+        {
+            int wireLayer = SortingLayer.GetLayerValueFromID(line.sortingLayerID);
+            int socketLayer = SortingLayer.GetLayerValueFromID(socketRenderer.sortingLayerID);
+            if (socketLayer >= wireLayer)
+            {
+                connection.sortingLayerID = socketRenderer.sortingLayerID;
+                connection.sortingOrder = socketLayer == wireLayer
+                    ? Mathf.Max(line.sortingOrder, socketRenderer.sortingOrder + 1)
+                    : socketRenderer.sortingOrder + 1;
+            }
+        }
         connection.SetPosition(0, ClosestPathPoint(positions, anchor.position));
         connection.SetPosition(1, anchor.position);
         connection.enabled = true;

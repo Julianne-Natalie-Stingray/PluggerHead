@@ -89,6 +89,61 @@ public static class WireVisualIntegrationChecks
         }
     }
 
+    public static void CheckSocketConnections(string socketName, int polarity)
+    {
+        using (var fixture = new Fixture())
+        {
+            Wire wire = fixture.CreateWire("Socket connection", (WirePolarity)polarity);
+            wire.Initialize();
+            GameObject wireAsset = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Env/Wire/LiveWire.prefab");
+            GameObject socketAsset = AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Env/Socket/{socketName}.prefab");
+            Require(wireAsset && socketAsset, "Production wire and socket prefabs must exist.");
+            GameObject socket = (GameObject)PrefabUtility.InstantiatePrefab(socketAsset, wire.gameObject.scene);
+            SpriteRenderer socketRenderer = socket.GetComponent<SpriteRenderer>();
+            LineRenderer authoredLine = wireAsset.GetComponent<LineRenderer>();
+            LineRenderer line = wire.GetComponent<LineRenderer>();
+            wire.SetRenderOrder(authoredLine.sortingLayerID, authoredLine.sortingOrder);
+            Transform anchor = socket.TryGetComponent(out PowerSocket outlet)
+                ? outlet.GetWireAnchor((WirePolarity)polarity)
+                : socket.GetComponent<PolaritySocket>().GetWireAnchor((WirePolarity)polarity);
+            Require(anchor && anchor.IsChildOf(socket.transform), "Each polarity must reference its own socket anchor.");
+            Vector3 expected = new Vector3(anchor.position.x, anchor.position.y - 1f, anchor.position.z);
+            Vector3[] path = { expected + Vector3.left * 2f, expected + Vector3.right * 2f };
+            typeof(Wire).GetMethod("BeginConnection", PrivateInstance)
+                .Invoke(wire, new object[] { socket.transform, null });
+            wire.PlugInto(socket.transform, false);
+            // Exercise both authored layers and the same-layer order case without fixing production values.
+            foreach (bool sameLayer in new[] { false, true })
+            {
+                if (sameLayer)
+                {
+                    socketRenderer.sortingLayerID = line.sortingLayerID;
+                    socketRenderer.sortingOrder = line.sortingOrder + 5;
+                }
+                wire.RenderPath(path);
+                foreach (string name in new[] { "StartConnection", "EndConnection" })
+                {
+                    Transform child = wire.transform.Find(name);
+                    Require(child, "Both electrical endpoints must create a connection renderer.");
+                    LineRenderer connection = child.GetComponent<LineRenderer>();
+                    Require(connection.enabled && connection.positionCount == 2 &&
+                        Vector3.Distance(connection.GetPosition(0), expected) < 0.00001f &&
+                        connection.GetPosition(1) == anchor.position,
+                        "Connection must join the nearest segment point to the matching anchor.");
+                    int connectionLayer = SortingLayer.GetLayerValueFromID(connection.sortingLayerID);
+                    int socketLayer = SortingLayer.GetLayerValueFromID(socketRenderer.sortingLayerID);
+                    Require(connectionLayer > socketLayer ||
+                        (connectionLayer == socketLayer && connection.sortingOrder > socketRenderer.sortingOrder),
+                        "Socket artwork must not cover the terminal connection.");
+                }
+                Require(line.sortingLayerID == authoredLine.sortingLayerID &&
+                    line.sortingOrder == authoredLine.sortingOrder && line.positionCount == path.Length &&
+                    line.GetPosition(0) == path[0] && line.GetPosition(1) == path[1],
+                    "Terminal sorting must preserve the main wire route and its authored sorting.");
+            }
+        }
+    }
+
     public static void CheckAssetReferences()
     {
         Require(AssetDatabase.IsValidFolder("Assets/Env"), "The production environment asset directory must exist.");

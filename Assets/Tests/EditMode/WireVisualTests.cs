@@ -32,6 +32,15 @@ namespace PluggerHead.Tests
             IntegrationCheckBridge.Invoke("WireVisualIntegrationChecks", "CheckPathAndOrder");
         }
 
+        [TestCase("PowerSocket", 1)]
+        [TestCase("PowerSocket", 2)]
+        [TestCase("DualSocket", 1)]
+        [TestCase("DualSocket", 2)]
+        public void SocketConnections_ReachAnchorsAndRenderAboveSocket(string socketName, int polarity)
+        {
+            IntegrationCheckBridge.Invoke("WireVisualIntegrationChecks", "CheckSocketConnections", socketName, polarity);
+        }
+
         [Test]
         public void ProductionAssets_HaveCompletePolarityMaterials()
         {
