@@ -75,8 +75,8 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 1882602391, guid: 45068eec119cc034c94cdf135f11949c, type: 3}
-  m_Color: {r: 0.2, g: 1, b: 0.3, a: 1}
+  m_Sprite: {fileID: -1137179793, guid: dd8e9605952c4874381225bcd8bdbc01, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -150,3 +150,5 @@ MonoBehaviour:
   accepted: 4
   canInteract: 1
   firePrefab: {fileID: 3443888433943991114, guid: 8e1346e882884a9f93fcf7dca53e5e23, type: 3}
+  liveAnchor: {fileID: 0}
+  neutralAnchor: {fileID: 0}
