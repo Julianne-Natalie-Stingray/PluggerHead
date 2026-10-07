@@ -111,16 +111,22 @@ public class EnvironmentFacade : MonoBehaviour
             musicPlayer.Died -= EndMusic;
         }
         musicPlayer = null;
-        StopMusic();
+        if (GameStateManager.Current == GameState.Loading)
+        {
+            // Core keeps the playback alive while this scene owner is unloaded.
+            // 切场景只释放本关引用，由 Core 保持原播放位置。
+            musicHandle = null;
+            musicStarted = false;
+        }
+        else
+        {
+            StopMusic();
+        }
     }
 
     private void HandleMusicStateChanged(GameState state)
     {
-        if (state == GameState.Loading)
-        {
-            StopMusic();
-        }
-        else
+        if (state != GameState.Loading)
         {
             TryStartMusic();
         }
@@ -143,7 +149,7 @@ public class EnvironmentFacade : MonoBehaviour
         }
         // A rejected request is not retried every frame (missing mapping / exhausted pool).
         musicStarted = true;
-        musicHandle = core.Audio.CreateBuilder().WithSurviveFreeze(false).WithFade(0f, 0f).Play(backgroundMusic);
+        musicHandle = core.Audio.PlayBackgroundMusic(backgroundMusic);
     }
 
     private void EndMusic()

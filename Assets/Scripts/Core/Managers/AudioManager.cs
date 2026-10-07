@@ -26,6 +26,8 @@ public class AudioManager : MonoBehaviour
 
     private GameObjectPool<AudioEmitter> emitterPool;
     private AudioRegistry registry;
+    private ISoundHandle backgroundMusic;
+    private bool isChangingBackgroundMusic;
 
     private const float MinVolume = 0f;
     private const float MaxVolume = 1f;
@@ -70,7 +72,56 @@ public class AudioManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (backgroundMusic != null)
+        {
+            backgroundMusic.Finished -= HandleBackgroundMusicFinished;
+            backgroundMusic = null;
+        }
         emitterPool?.Clear();
+    }
+
+    /// <summary>
+    /// Reuse the current BGM, including while paused; a different AudioId replaces it.
+    /// Core owns this playback across scene loads. Finished releases the retained handle.
+    /// 复用当前 BGM（包括暂停时）；不同 AudioId 才换曲。Core 跨场景持有播放，结束时释放句柄。
+    /// Reentrant requests during a change return null so completion callbacks cannot stack BGM voices.
+    /// 换曲期间重入请求返回 null，防止结束回调叠加 BGM 声部。
+    /// </summary>
+    public ISoundHandle PlayBackgroundMusic(AudioId requested)
+    {
+        if (isChangingBackgroundMusic)
+        {
+            return null;
+        }
+        if (backgroundMusic != null && backgroundMusic.AudioId == requested)
+        {
+            return backgroundMusic;
+        }
+
+        isChangingBackgroundMusic = true;
+        try
+        {
+            backgroundMusic?.Stop();
+            backgroundMusic = CreateBuilder().WithSurviveFreeze(false).WithFade(0f, 0f).Play(requested);
+            if (backgroundMusic != null)
+            {
+                backgroundMusic.Finished += HandleBackgroundMusicFinished;
+            }
+            return backgroundMusic;
+        }
+        finally
+        {
+            isChangingBackgroundMusic = false;
+        }
+    }
+
+    private void HandleBackgroundMusicFinished(ISoundHandle finished)
+    {
+        finished.Finished -= HandleBackgroundMusicFinished;
+        if (ReferenceEquals(backgroundMusic, finished))
+        {
+            backgroundMusic = null;
+        }
     }
 
     /// <summary>

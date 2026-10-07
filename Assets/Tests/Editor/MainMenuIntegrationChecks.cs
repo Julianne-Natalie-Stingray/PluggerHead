@@ -210,8 +210,7 @@ public static class MainMenuIntegrationChecks
             "Re-entering a completed level must load its defaults and preserve unlocks.");
 
         // Retain completion-screen lifecycle, pause ownership and retry regression coverage.
-        CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.GameplayIntegration);
-        yield return WaitForSwitch("GameplayIntegration");
+        yield return CheckBackgroundMusicSwitch();
         NextLevelScreen nextScreen = UnityEngine.Object.FindObjectOfType<NextLevelScreen>();
         Require(nextScreen != null && !Field<GameObject>(nextScreen, "panel").activeSelf,
             "A fresh gameplay scene must have a hidden next-level prompt.");
@@ -483,6 +482,66 @@ public static class MainMenuIntegrationChecks
                 configs.Mixer.SetFloat(parameters[i], previousVolumes[i]);
             }
             Directory.Delete(directory, true);
+        }
+    }
+
+    private static IEnumerator CheckBackgroundMusicSwitch()
+    {
+        CoreFacade core = CoreFacade.Instance;
+        EnvironmentFacade environment = EnvironmentFacade.Current;
+        ISoundHandle music = Field<ISoundHandle>(environment, "musicHandle");
+        Require(music != null && music.IsPlaying, "Live level must have a BGM before switching.");
+        AudioSource source = Field<AudioEmitter>(music, "emitter").GetComponent<AudioSource>();
+        AudioClip authoredClip = source.clip;
+        // Own the clip and seek point so continuity does not depend on production music length.
+        AudioClip fixtureClip = AudioClip.Create("BgmSwitchFixture", 480000, 1, 8000, false);
+        try
+        {
+            source.clip = fixtureClip;
+            source.Play();
+            source.timeSamples = 80000;
+            yield return new WaitForSecondsRealtime(0.1f);
+            GameStateManager.Freeze();
+            int beforeSwitch = source.timeSamples;
+            Require(ReferenceEquals(music, core.Audio.PlayBackgroundMusic(environment.BackgroundMusic)),
+                "A paused BGM request must reuse its handle, not restart or reject it.");
+            yield return new WaitForSecondsRealtime(0.1f);
+            Require(source.timeSamples == beforeSwitch, "Reusing paused BGM must preserve playback position.");
+            GameStateManager.Resume();
+
+            core.SceneSwitch.enabled = false;
+            Require(core.SceneSwitch.RequestSwitch(SceneId.SceneSwitchTarget) == null && music.IsPlaying,
+                "A rejected scene switch must leave BGM playing.");
+            core.SceneSwitch.enabled = true;
+            Require(core.SceneSwitch.RequestSwitch(SceneId.SceneSwitchTarget) != null && music.IsPlaying,
+                "Entering Loading must not stop BGM.");
+            yield return WaitForSwitch("SceneSwitchTarget");
+            Require(environment == null && core == CoreFacade.Instance && music.IsPlaying &&
+                source.clip == fixtureClip && source.timeSamples > beforeSwitch,
+                "BGM must advance through scene unloading and a destination with no Env.");
+
+            beforeSwitch = source.timeSamples;
+            Require(core.SceneSwitch.RequestSwitch(SceneId.GameplayIntegration) != null, "Second switch must start.");
+            yield return WaitForSwitch("GameplayIntegration");
+            environment = EnvironmentFacade.Current;
+            Require(ReferenceEquals(music, Field<ISoundHandle>(environment, "musicHandle")) && music.IsPlaying &&
+                source.clip == fixtureClip && source.timeSamples > beforeSwitch,
+                "The new level must adopt the same BGM source and advancing position.");
+            Require(core.Audio.Registry.CountOf(music.AudioId) == 1,
+                "Scene switches and duplicate Core instances must not stack BGM voices.");
+        }
+        finally
+        {
+            if (core && core.SceneSwitch)
+            {
+                core.SceneSwitch.enabled = true;
+            }
+            if (source)
+            {
+                source.clip = authoredClip;
+                source.Play();
+            }
+            UnityEngine.Object.DestroyImmediate(fixtureClip);
         }
     }
 

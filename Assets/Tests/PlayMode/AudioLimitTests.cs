@@ -40,6 +40,12 @@ namespace PluggerHead.Tests
         [UnityTest]
         public IEnumerator Limits_NonPositiveCapsRejectWithoutPreemption() => Run("NonPositiveCaps");
 
+        [UnityTest]
+        public IEnumerator BackgroundMusic_ReusesReplacesAndRecoversPlayback() => Run("BackgroundMusic");
+
+        [UnityTest]
+        public IEnumerator BackgroundMusic_CompletionCallbackCannotStackAnotherTrack() => Run("BackgroundMusicReentry");
+
         private static IEnumerator Run(string scenario)
         {
             IEnumerator routine = (IEnumerator)IntegrationCheckBridge.Invoke("AudioLimitIntegrationChecks", "Run", scenario);
