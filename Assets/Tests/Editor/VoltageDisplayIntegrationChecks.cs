@@ -102,7 +102,7 @@ public static class VoltageDisplayIntegrationChecks
 
     private static TMPro.TMP_Text CreateHud(Scene scene)
     {
-        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/ScenePrefab/GlobalUI.prefab");
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Scenes/Prefab/GlobalUI.prefab");
         var root = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
         foreach (MonoBehaviour component in root.GetComponentsInChildren<MonoBehaviour>(true))
         {

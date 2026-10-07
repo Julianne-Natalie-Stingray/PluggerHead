@@ -173,7 +173,7 @@ public static class SceneSwitchRecoveryChecks
         gameObject.SetActive(false);
         var manager = gameObject.AddComponent<SceneSwitchManager>();
         var configs = AssetDatabase.LoadAssetAtPath<SceneSwitchConfigs>(
-            "Assets/SO/SceneSwitch/DefaultSceneSwitchConfigs.asset");
+            "Assets/Scenes/DefaultSceneSwitchConfigs.asset");
         Require(configs != null, "Scene switch fixture requires the authored scene registry.");
         typeof(SceneSwitchManager).GetField("configs", BindingFlags.Instance | BindingFlags.NonPublic)
             .SetValue(manager, configs);

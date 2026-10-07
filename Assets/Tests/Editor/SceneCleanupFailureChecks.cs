@@ -137,7 +137,7 @@ public static class SceneCleanupFailureChecks
             }
             if (kind != "Recovery")
             {
-                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Core/Core.prefab");
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Core/Core.prefab");
                 CoreFacade core = Object.Instantiate(prefab).GetComponent<CoreFacade>();
                 if (kind == "Gameplay")
                 {

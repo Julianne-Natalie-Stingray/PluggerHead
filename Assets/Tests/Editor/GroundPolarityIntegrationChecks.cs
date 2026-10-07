@@ -13,6 +13,67 @@ using UnityEngine.Tilemaps;
 /// </summary>
 public static class GroundPolarityIntegrationChecks
 {
+    public static void CheckFootstepAudio(AudioManager manager)
+    {
+        BeginChecks();
+        var fixture = new Fixture(WirePolarity.Live, WirePolarity.Live, false);
+        PlayerAnimationAudio receiver = fixture.Player.gameObject.AddComponent<PlayerAnimationAudio>();
+        try
+        {
+            fixture.EstablishContact(Vector2.down);
+            fixture.Player.enabled = true;
+            fixture.Body.velocity = Vector2.right;
+            Set(receiver, "useSurfaceFootsteps", true);
+            receiver.PlayMoveAudio();
+            Require(manager.Registry.CountOf(AudioId.GroundStepFront) == 1, "Ordinary support must play front foot first.");
+            fixture.Player.LockInput();
+            receiver.PlayMoveAudio();
+            fixture.Player.UnlockInput();
+            fixture.Body.velocity = Vector2.zero;
+            receiver.PlayMoveAudio();
+            fixture.Body.velocity = Vector2.right;
+            CoreFacade savedCore = CoreFacade.Instance;
+            typeof(CoreFacade).GetProperty("Instance").SetValue(null, null);
+            try
+            {
+                receiver.PlayMoveAudio();
+            }
+            finally
+            {
+                typeof(CoreFacade).GetProperty("Instance").SetValue(null, savedCore);
+            }
+            receiver.PlayMoveAudio();
+            Require(manager.Registry.CountOf(AudioId.GroundStepBack) == 1 && manager.Registry.CountOf(AudioId.GroundStepFront) == 0,
+                "Locked and stationary events must not advance alternation.");
+            FootstepSurface marker = fixture.Surface.gameObject.AddComponent<FootstepSurface>();
+            receiver.PlayMoveAudio();
+            Require(manager.Registry.CountOf(AudioId.MetalStepFront) == 1, "Metal support must change family while preserving alternation.");
+            fixture.Body.velocity = Vector2.one;
+            receiver.PlayMoveAudio();
+            fixture.Body.velocity = Vector2.right;
+            receiver.PlayMoveAudio();
+            Require(manager.Registry.CountOf(AudioId.MetalStepBack) == 1, "Upward motion must not advance the sequence.");
+            marker.enabled = false;
+            GameStateManager.Freeze();
+            receiver.PlayMoveAudio();
+            GameStateManager.Resume();
+            receiver.PlayMoveAudio();
+            Require(manager.Registry.CountOf(AudioId.GroundStepFront) == 1, "Disabled marker uses ground; pause must not advance.");
+            Set(fixture.Player, "groundLayers", (LayerMask)0);
+            receiver.PlayMoveAudio();
+            Set(fixture.Player, "groundLayers", (LayerMask)(~0));
+            receiver.PlayMoveAudio();
+            Require(manager.Registry.CountOf(AudioId.GroundStepBack) == 1, "Excluded support must not advance alternation.");
+            receiver.enabled = false;
+            Require(manager.Registry.Count == 0, "Disable must release the footstep voice.");
+        }
+        finally
+        {
+            receiver.enabled = false;
+            fixture.Player.enabled = false;
+        }
+    }
+
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
     private static readonly List<Scene> ownedScenes = new List<Scene>();
     private static readonly List<Tile> ownedTiles = new List<Tile>();
@@ -223,7 +284,7 @@ public static class GroundPolarityIntegrationChecks
         Require(Time.timeScale > 0f, "Automatic physics callbacks require an unpaused game.");
         if (CoreFacade.Instance == null)
         {
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Core/Core.prefab");
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Core/Core.prefab");
             Require(prefab != null, "The authored Core prefab must be available for runtime startup.");
             ownedCore = UnityEngine.Object.Instantiate(prefab);
         }

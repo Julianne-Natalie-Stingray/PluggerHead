@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0eba6b78ffc85814fa5be4588d0120f4, type: 3}
+  m_Name: DefaultAudioManagerConfigs
+  m_EditorClassIdentifier: 
+  audios:
+  - {fileID: 11400000, guid: d15e0c703738ee1458c373bc0c8be955, type: 2}
+  - {fileID: 11400000, guid: 35d9bb617c495a540b8dea30430efd7c, type: 2}
+  - {fileID: 11400000, guid: f9b1025f320a5494a8154983ce646c10, type: 2}
+  - {fileID: 11400000, guid: 203dcea7d9a11564193023987fdc0285, type: 2}
+  - {fileID: 11400000, guid: 397969ce4770c71479ba1d078e7b78ce, type: 2}
+  - {fileID: 11400000, guid: 332224206b4b5cb47b31f3eb1cc6c88c, type: 2}
+  - {fileID: 11400000, guid: dc85b810848f07841a7568b9bbbd6815, type: 2}
+  - {fileID: 11400000, guid: 8dfbec0802f772c4ab3d86c5513a50c2, type: 2}
+  - {fileID: 11400000, guid: c4a158f82f77cb14daf0e3984347d746, type: 2}
+  - {fileID: 11400000, guid: 708a2139033b46f42b21628fc8efe4d6, type: 2}
+  - {fileID: 11400000, guid: 76ea02fcbc231f54b95eb5c82a74e1bf, type: 2}
+  - {fileID: 11400000, guid: b88d419c0cd3de542a0904ea329cf096, type: 2}
+  - {fileID: 11400000, guid: 0b2c30d69e4680346b18ea0945551209, type: 2}
+  - {fileID: 11400000, guid: 4eeb322277d439b49af7117215759cbf, type: 2}
+  - {fileID: 11400000, guid: 86231c116a9251f40aefe84c64e6d6ef, type: 2}
+  - {fileID: 11400000, guid: 3dc401157c428bd45b7e667b22dd6d53, type: 2}
+  - {fileID: 11400000, guid: 59bd8953b7b897642af67a7fe4d23b2f, type: 2}
+  mixer: {fileID: 24100000, guid: a6b573f691acdc44a9421d10d0de8b7a, type: 2}
+  masterVolumeParameter: MasterVolume
+  ostVolumeParameter: OstVolume
+  sfxVolumeParameter: SfxVolume
+  collectionCheck: 1
+  defaultCapacity: 10
+  maxPoolSize: 30
+  prewarmAmount: 10
+  maxSoundInstance: 30

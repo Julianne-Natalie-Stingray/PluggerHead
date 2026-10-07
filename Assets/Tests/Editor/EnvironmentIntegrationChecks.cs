@@ -78,7 +78,7 @@ public static class EnvironmentIntegrationChecks
 
             CheckSceneBindings(environment, player, anchor, live, ref checks);
 
-            Anchor prefab = AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Prefabs/Env/ScenePrefab/Anchor.prefab");
+            Anchor prefab = AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Scenes/Prefab/Anchor.prefab");
             Check(prefab != null, "The player anchor prefab is available", ref checks);
             Set(interaction, "anchorPrefab", prefab);
             Physics2D.SyncTransforms();

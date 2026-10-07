@@ -9,6 +9,60 @@ using UnityEngine.Tilemaps;
 /// <summary>Real socket interactions in a disposable preview scene; no authored scene is saved.</summary>
 public static class CircuitClosureIntegrationChecks
 {
+    public static void CheckAudio(AudioManager manager)
+    {
+        using (var fixture = new Fixture(false))
+        {
+            PolaritySocket dual = fixture.AddInterface("Dual", 2, 2);
+            PolaritySocket groundA = fixture.AddInterface("GroundA", 3, 0);
+            PolaritySocket groundB = fixture.AddInterface("GroundB", 3, 3);
+            Set(groundA, "accepted", WirePolarity.Ground);
+            Set(groundB, "accepted", WirePolarity.Ground);
+            VoltageReducer reducer = fixture.AddReducer("Reducer", 1, 0, 30f);
+            Set(fixture.Environment, "neededVoltage", 30f);
+            fixture.Restart();
+            int baseline = manager.Registry.Count;
+            fixture.Interact(fixture.Outlet);
+            Require(manager.Registry.Count == baseline, "Rejected origin connection must be silent.");
+            fixture.Interact(groundA);
+            Require(manager.Registry.CountOf(AudioId.PlugOut) == 1, "Ground pickup must play PlugOut.");
+            fixture.Interact(groundA);
+            Require(manager.Registry.CountOf(AudioId.PlugOut) == 1, "Repeated occupied pickup must be silent.");
+            fixture.Interact(reducer);
+            Require(manager.Registry.CountOf(AudioId.Activated) == 1, "First reducer connection must play Activated.");
+            fixture.Interact(reducer);
+            Require(manager.Registry.CountOf(AudioId.Activated) == 1, "Repeated reducer connection must be silent.");
+            fixture.Interact(dual);
+            fixture.Interact(reducer);
+            Require(manager.Registry.CountOf(AudioId.Activated) == 1, "A reducer shared by another wire must remain silent.");
+            fixture.Interact(groundB);
+            Require(manager.Registry.CountOf(AudioId.PlugIn) == 2, "Powered handover and ground connection must each play PlugIn.");
+            fixture.Environment.LevelCleared += GameStateManager.Freeze;
+            fixture.Interact(fixture.Outlet);
+            Require(fixture.Environment.IsCircuitClosed && GameStateManager.Current == GameState.Freezed, "Final connection must freeze through real clear notification.");
+            Require(manager.Registry.CountOf(AudioId.PlugIn) == 3, "Final connection audio must survive the synchronous victory freeze.");
+            Require(manager.Registry.TryGetOldest(AudioId.PlugIn, true, out AudioEmitter sound) && sound.GetComponent<AudioSource>().ignoreListenerPause, "Interaction sounds must survive the paused listener.");
+            GameStateManager.Resume();
+            fixture.Restart();
+            fixture.Interact(reducer);
+            Require(manager.Registry.CountOf(AudioId.Activated) == 2, "Restart must permit reducer activation again.");
+            PlayerInteraction interaction = fixture.Player.AddComponent<PlayerInteraction>();
+            Set(interaction, "anchorPrefab", UnityEditor.AssetDatabase.LoadAssetAtPath<Anchor>("Assets/Scenes/Prefab/Anchor.prefab"));
+            fixture.Move(new Vector3(1.5f, 1.5f, 0f));
+            Require(interaction.TryPlaceAnchor() && manager.Registry.CountOf(AudioId.Activated) == 3,
+                "Successful anchor placement must play activation audio.");
+            Set(interaction, "interactionRadius", 0.1f);
+            Physics2D.SyncTransforms();
+            Require(interaction.TryPerformOperation() && manager.Registry.CountOf(AudioId.PlugOut) == 2,
+                "Successful anchor reclaim must play removal audio.");
+            Require(!interaction.TryPerformOperation() && manager.Registry.CountOf(AudioId.PlugOut) == 2,
+                "Repeated reclaim must be rejected silently.");
+            Set(interaction, "anchorPrefab", null);
+            Require(!interaction.TryPlaceAnchor() && manager.Registry.CountOf(AudioId.Activated) == 3,
+                "Missing anchor prefab must reject without sound.");
+        }
+    }
+
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
     public static void CheckCircuit(string scenario, bool neutralFirst)
@@ -271,8 +325,8 @@ public static class CircuitClosureIntegrationChecks
 
     public static void CheckExamples()
     {
-        GameObject ground = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/Sockets/GroundSocket.prefab");
-        GameObject reducer = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Env/VoltageReducer.prefab");
+        GameObject ground = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Env/Socket/GroundSocket.prefab");
+        GameObject reducer = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Env/Socket/VoltageReducer.prefab");
         Require(ground && ground.GetComponent<PolaritySocket>().Accepted == WirePolarity.Ground &&
             ground.GetComponent<PolaritySocket>().IsConfigurationValid && ground.GetComponent<Collider2D>() &&
             ground.GetComponent<SpriteRenderer>().sprite,

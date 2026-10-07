@@ -1,0 +1,80 @@
+# Player 运行时组件
+
+生产 Player 已启用地面脚步：移动动画每周期两次 `PlayMoveAudio`，使用 PlayerMove 的真实向上支撑接触选择普通/金属前后脚音效。显式 `FootstepSurface` 标记金属碰撞对象，未标记或禁用标记使用普通地面；换材质保留脚序。静止、空中、暂停、死亡、输入锁或音频服务拒绝请求不推进脚序。旧的可选 `moveAudio` 保留给未启用表面脚步的接收器；交互动画本身保持 None，成功插拔和挂点由实际业务结果发声。
+
+Player 使用 [Core 输入](../Core/Input/README.md) 和 [Env 真实交互契约](../Env/README.md)，通过关卡环境取得持线阻力和地面极性上下文。真实玩家保存为 `Assets/Prefabs/Player/Player.prefab`，由 `Assets/Tests/Scenes/GameplayIntegration.unity` 引用。
+
+## 逐文件职责
+
+| 文件 | 行为 |
+| --- | --- |
+| PlayerMove.cs | Rigidbody2D 水平移动、落地跳跃、阻力/地面危险、死亡与输入锁，设置 Animator 参数。 |
+| PlayerVisual.cs | 挂在 Visual 上，根据 PlayerMove 接受的水平输入更新 SpriteRenderer.flipX 和可选朝向标记。 |
+| PlayerAnimationAudio.cs | 挂在 Animator 同物体上，接收 Death/Move/Interact 动画事件，通过 Core 音频服务播放可选音效。 |
+| PlayerAnimationCallbacks.cs | 按 Animator 状态标签聚合动作，通知 PlayerMove 进入/退出动画锁；不负责位移。 |
+| PlayerInteraction.cs | 订阅 J/K 输入，查找最近目标、发起交互或放置 Anchor。 |
+| 各脚本 .meta | GUID 与 GameplayIntegration 的组件引用一致，无默认引用；PlayerAnimationCallbacks 的 -100 执行顺序来自源码属性，meta 未覆盖。 |
+
+## 初始化与当前场景配置
+
+玩家需 Dynamic Rigidbody2D 和非 Trigger Collider2D。PlayerMove 要求刚体，在 Awake 缓存刚体和子 Animator，并补齐/同步 PlayerAnimationCallbacks；Start 优先保留显式 GetResistance 委托，否则通过 EnvironmentFacade.ForScene 查询本场景并绑定。缺环境查询仅记录错误，之后不会应用正常水平移动或跳跃；缺 Core/Input 则禁用组件。
+
+PlayerInteraction 在 Start 获取 Core.Input 并确认本场景环境存在，缺失时禁用。重新启用只重新订阅已缓存输入，不自动重走失败的 Start。输入事件均成对订阅/退订。移动、地面极性检查和 J/K 操作均直接通过 EnvironmentFacade.ForScene 查询玩家所属场景，不依赖背包组件或全局 Current。
+
+GameplayIntegration 中移动速度为 5、跳跃速度为 5、重力倍率为 1；groundLayers 和 interactionLayers 当前为全部层，交互半径 2。Anchor prefab 引用为 `Assets/Prefabs/Env/ScenePrefab/Anchor.prefab`；Player Tag 供 Env 采样根位置；历史 WireAttach 子挂点已不参与线逻辑。动画控制器为 `Assets/Visual/Anim/Player/PlayerAC.controller`。
+
+## 移动、跳跃与死亡
+
+当前输入绑定为 A/D 水平移动、Space 跳跃、J 操作、K 放 Anchor。PlayerMove 在 FixedUpdate 将输入 X 钳到 -1..1，乘非负 moveSpeed 写入水平速度，保留竖直速度；不再乘 fixedDeltaTime。随后通过 AddForce 施加 GetResistance 返回值。移动动画 tryMoving 依据输入幅度，不是实际位移。
+
+Player 预制体的 BoxCollider2D 使用 `Assets/Physics/Material/Player/Player.physicsMaterial2D`（摩擦 0、弹性 0）。持续向墙设置水平速度会产生法向碰撞冲量，默认摩擦会抵消重力，导致贴墙悬停或削弱跳跃；零摩擦保留墙面阻挡，同时让竖直运动由重力与跳跃速度决定。水平停止仍由 PlayerMove 设置速度完成。新增玩家碰撞体时也应使用该材质。
+
+Visual 上的 PlayerVisual 同样由物理帧已接受的输入驱动：A 朝左、D 朝右，输入幅度不超过 0.01 时保持最后朝向；暂停、输入锁定、死亡及 PlayerMove 禁用时不更新朝向。只翻转 SpriteRenderer，不改变 Player 根缩放、碰撞体或 PlayerAnchor。Visual 内保留 FacingMarker 对象及引用，但其 Sprite 已清空，当前不绘制朝向标记；PlayerVisual 仍更新精灵翻转和标记位置。spriteFacesRight 表示原始未翻转精灵的朝向，默认右；标记位置应与未翻转原图匹配。已有 Animator 仍负责 tryMoving/Interact。
+
+跳跃仅缓存按下时已落地的请求，执行物理帧再次检查落地；没有空中按下后自动落地起跳的缓冲。接地需要 groundLayers 内非 Trigger 接触、法线 Y≥0.65，且当前竖直速度≤0.1。有效跳跃将竖直速度设为非负 jumpSpeed。没有有效阻力查询时，正常分支将水平置零并保留原竖直速度，计算出的跳跃也不会应用。
+
+FixedUpdate 先检查地面极性，再查询阻力，再处理输入锁。踩到有效 GroundPolarity 时，地面仅允许 Live/Neutral，只有本场景正在持有的同极性电线才存活，独立地线不能代替；空手、仅持异极线或已放下匹配线均死亡；阻力 X/Y 同时为负无穷也会死亡，普通非有限值不属于完整校验范围。线长规则与地面极性组合详见 Env 文档。
+
+Die 首次设置 IsDead、手动锁输入、清空线速度/角速度、关闭刚体模拟。Animator 可用时清除 tryMoving 和 Interact，触发 Die，并使用非缩放时间、保持玩家激活以在死亡面板冻结游戏后继续播放死亡动画；没有可用 Animator 时停用玩家。最后同步触发 Died。重复调用不重复触发动画或通知；没有复活 API，也不自动重开关卡。Died 订阅者异常没有逐项隔离。Die 假定 Awake 已完成，不能当作可在任意初始化阶段调用的无依赖函数。
+
+## 输入锁与动画
+
+手动锁、交互动画锁为两个独立布尔来源，任一个生效即 IsInputLocked。锁会清除待跳跃请求并停止用输入覆盖速度，但保留当前速度、继续施加阻力；它不是冻结物理，地面与线长危险也不会被免除。禁用 PlayerMove 才会清除水平速度并保留竖直运动。
+
+Animator 需要 bool 参数 tryMoving、trigger 参数 Interact 和 Die；交互状态标签为 PlayerInteract。Callbacks 在 OnEnable、FixedUpdate 和 LateUpdate 同步，聚合当前及过渡目标状态；基础层始终检查，其他层仅权重>0 时检查。聚合后仅在交互状态变化时通知输入锁；禁用回调组件释放它跟踪的动画锁，不清除手动锁。Animator 引用仅在为空/已销毁时重新查询，替换控制器对象布局后应重新确认绑定。
+
+TryStartInteractionAnimation 在 J 操作被认为成功后请求；操作本身先执行，动画请求失败不会回滚操作。K 放置不主动请求交互动画。
+
+## 动画音频接口
+
+`Player.prefab/Visual` 已挂载 `PlayerAnimationAudio`，Death、Move、Interact 动画片段首帧分别调用 `PlayDeathAudio()`、`PlayMoveAudio()`、`PlayInteractAudio()`。Move 每轮循环触发，可在 Animation 窗口移动事件到落脚帧或增加落脚事件；替换片段时保留对应事件及 Animator 同物体上的接收组件。
+
+在组件 Inspector 中设置 `deathAudio`、`moveAudio`、`interactAudio`，选择已在 AudioManagerConfigs 映射的 AudioId。默认 `None` 表示静音；本次仅提供接口，不指定占位音效。新增专用音效时添加 AudioId、AudioClipData 并登记到 Core 使用的配置，建议使用非循环片段。每类新请求停止该类上一句柄，禁用组件时停止其持有的全部声音，防止循环音效遗留。
+
+播放位置跟随 Visual。死亡音效允许在死亡面板冻结游戏后播放；移动和交互音效拒绝暂停或死亡后的事件。缺少 Core/Audio、选择 None 或服务拒绝请求时不影响动画与玩法；请求缺失映射时沿用 AudioManager 的错误日志。
+
+## J/K 操作的判定
+
+两类操作都要求组件 activeAndEnabled、timeScale>0，且存在 PlayerMove 时未死亡/未锁输入；没有 PlayerMove 组件时不额外拒绝。它们不直接检查 GameState 标签，Loading 也不一定会自动屏蔽输入。
+
+J 在自身 PhysicsScene2D 中查询半径内碰撞体，包括 Trigger，排除其他场景、玩家自身子层级以及碰撞体同物体上有 Wire 的情况。对命中物体及父级 MonoBehaviour 检查交互能力，以碰撞体 ClosestPoint 到玩家的平方距离选择最近候选；相等时用较小实例 ID 稳定选择，保证只适用于当前会话。没有视线遮挡检测，也不会在最近目标操作失败后继续尝试第二个目标。
+
+Anchor 调用 TryReclaim；普通目标使用 CanInteract/Interact。交互载荷统一使用 InteractionDetails。普通交互临时订阅 OnInteracted，以同步回调是否发生作为返回成功的依据，finally 退订；这表示节点处理了请求，不保证最终插接或通关成功。异步才发事件不会被此次调用捕获，订阅者异常也可能向外传播。
+
+K 将玩家当前 XY 格子投影到已绘制 tile 中心，再实例化 anchorPrefab，移动到玩家场景、启用并注册；有持线时请求 Anchor.Interact。返回 true 表示完成放置，不保证 prefab 禁止绕线时也能挂线。空格拒绝放置；没有库存上限、消耗、位置占用或地形重叠检查。手动 Anchor 收回会销毁节点而不产生背包物品。Corner 自动 Anchor 已随 Tilemap 改造移除。
+
+## 背包功能分支
+
+`feature/player-inventory` 保留拆分前版本（`72f22e6`）：PlayerInventory、InventoryUI、IEnvironmentPickup、IPickupInstance 及原场景八格背包布局和对应 GUID。master 已移除这些脚本、接口和场景组件，GlobalUI prefab 不含背包 UI。Anchor 放置与收回继续独立工作。
+
+## 背包拆分验证（2026-10-06）
+
+master 的无背包版本顺序通过 EditMode **22/22**（`5b1dddad95e34aff8eeddfb952b7b8d6`）和 PlayMode **71/71**（`90fc40b70f3e44b28a7c5a7ec7999f88`），无失败或跳过。真实场景检查确认不含 PlayerInventory / InventoryUI，并继续验证 J/K、路由、死亡和重开提示。独立审查已检查分支保留内容、预制体引用和场景隔离；50 个已删除背包对象的 prefab override 已清理。原功能和 UI 布局仍保存在 feature/player-inventory。
+
+## 拆分前历史核查与验证（2026-10-06）
+
+逐一检查五个脚本及 meta，再核对输入源、Env 接口、GameplayIntegration 组件与动画资源、现有测试。原脚本注释与正常路径基本一致，本轮只新增总文档和 meta，未改代码或资源行为。
+
+EnvironmentIntegrationChecks 覆盖最近 Anchor、J/K、操作锁、环境隔离和超长死亡；SceneGameplayTests 在真实场景走 Anchor/回路流程及超长死亡；GroundPolarityTests 验证真实接触、极性组合、墙顶/Trigger/排除层、站立换线和锁定时死亡。场景流程会等待交互动画解锁，但不能证明所有动画进入/过渡/多层时序正确。没有发现真实 A/D/Space 输入、跳跃、完整通用背包/UI 及异常订阅者的专项测试。
+
+最近已完成的回归为 EditMode 17/17、PlayMode 27/27（job `1d96f6f716264310af0df0e75726f731`、`21336b3daa794474982d80666cea66c0`），覆盖当时的 Player 与场景代码。该结果不验证上面列出的缺口或其后并行修复；纯文档新增无需重跑 Unity 测试。两位独立审查者复核后已补齐直接背包 API 的操作限制和 Inspector 范围属性边界；文档链接有效，新增 GUID 唯一，未留下文档审查问题。

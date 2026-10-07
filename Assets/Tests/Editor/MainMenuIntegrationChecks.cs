@@ -99,7 +99,7 @@ public static class MainMenuIntegrationChecks
     {
         Require(CoreFacade.Instance == null, "Run in a fresh Test Runner session.");
         Require(!ownsScenes, "Previous menu scene cleanup remains pending.");
-        foreach (string sceneName in new[] { "MainMenuScene", "HubScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
+        foreach (string sceneName in new[] { "MainMenuScene", "HubScene", "GameplayIntegration", "SceneSwitchTarget", "Level0", "Level1", "Level2", "Level3" })
         {
             Require(!SceneManager.GetSceneByName(sceneName).isLoaded,
                 "Refusing to modify a pre-existing menu flow scene: " + sceneName);
@@ -163,8 +163,12 @@ public static class MainMenuIntegrationChecks
         {
             CoreFacade.Instance.SceneSwitch.enabled = true;
         }
+        Require(CoreFacade.Instance.Audio.Registry.CountOf(AudioId.GameStart) == 0,
+            "Rejected starts must not play the game-start sound.");
         Field<UnityEngine.UI.Button>(menu, "newGameButton").onClick.Invoke();
         menu.NewGame();
+        Require(CoreFacade.Instance.Audio.Registry.CountOf(AudioId.GameStart) == 1,
+            "Accepted start must play exactly one game-start sound despite a duplicate request.");
         yield return WaitForSwitch("HubScene");
         CheckBackgroundMusic(EnvironmentFacade.Current.BackgroundMusic);
         Require(CoreFacade.Instance.Audio.Registry.CountOf(AudioId.GameMainMenu) == 0,
@@ -195,16 +199,13 @@ public static class MainMenuIntegrationChecks
         Require(GameStateManager.Current == GameState.Playing && !settings.gameObject.activeSelf,
             "Continue must resume the hub.");
         Require(portals[0].CanInteract && !portals[1].CanInteract && !portals[2].CanInteract,
-            "Only the implemented first portal can be used.");
-        var destinationField = typeof(Portal).GetField("hasDestination", BindingFlags.Instance | BindingFlags.NonPublic);
-        destinationField.SetValue(portals[1], true);
-        Require(!portals[1].CanInteract, "Even a configured second portal must reject entry before the first is cleared.");
-        destinationField.SetValue(portals[1], false);
+            "Only the unlocked first portal can be used.");
+        Require(portals.All(p => p.HasDestination), "All three production portals must be configured.");
         for (int i = 1; i < portals.Length; i++)
         {
             portals[i].Interact(new InteractionDetails(player.gameObject, portals[i].gameObject));
         }
-        Require(!CoreFacade.Instance.SceneSwitch.IsSwitching, "Unimplemented portals must not initiate loading.");
+        Require(!CoreFacade.Instance.SceneSwitch.IsSwitching, "Locked portals must not initiate loading.");
         player.GetComponent<Rigidbody2D>().simulated = false;
         Collider2D unopenedDoor = portals[1].GetComponent<Collider2D>();
         player.transform.position = unopenedDoor.bounds.center - Vector3.right * unopenedDoor.bounds.extents.x;
@@ -215,11 +216,11 @@ public static class MainMenuIntegrationChecks
         Physics2D.SyncTransforms();
         Require(player.GetComponent<PlayerInteraction>().TryPerformOperation(),
             "The player's normal J interaction path must reach the first portal.");
-        yield return WaitForSwitch("Level0");
+        yield return WaitForSwitch("Level1");
         Require(GameProgress.Store.CompletedLevels == 0, "Merely entering a level must not unlock the next.");
-        Require(UnityEngine.Object.FindObjectOfType<LevelProgressTracker>() != null, "Level0 must track actual victory.");
+        Require(UnityEngine.Object.FindObjectOfType<LevelProgressTracker>() != null, "Level1 must track actual victory.");
         var environment = EnvironmentFacade.Current;
-        // The authored Level0 layout is deliberately unchanged. In this owned runtime scene,
+        // The authored Level1 layout is deliberately unchanged. In this owned runtime scene,
         // use a minimal valid circuit to verify victory -> progress -> hub independently of level design.
         PolaritySocket fixtureSocket = UnityEngine.Object.FindObjectsOfType<PolaritySocket>().First(s => s.IsDual);
         foreach (PolaritySocket socket in UnityEngine.Object.FindObjectsOfType<PolaritySocket>())
@@ -243,13 +244,55 @@ public static class MainMenuIntegrationChecks
         }
         levelOutlet.Interact(new InteractionDetails(player.gameObject, levelOutlet.gameObject));
         Require(environment.IsCircuitClosed && GameProgress.Store.IsUnlocked(2) && !GameProgress.Store.IsUnlocked(3),
-            "Actual Level0 victory must unlock only level two.");
+            "Actual Level1 victory must unlock only level two.");
         var levelPrompt = UnityEngine.Object.FindObjectOfType<NextLevelScreen>();
-        Require(levelPrompt != null, "Level0 must offer a completion action.");
+        Require(levelPrompt != null, "Level1 must offer a completion action.");
+        Require(Field<UnityEngine.UI.Button>(levelPrompt, "nextLevelButton").GetComponentInChildren<TMPro.TMP_Text>(true).text == "返回大厅",
+            "An authored level completion action must describe returning to the hub.");
+        CoreFacade.Instance.SceneSwitch.enabled = false;
+        levelPrompt.LoadNextLevel();
+        Require(Field<TMPro.TMP_Text>(levelPrompt, "congratulationsText").text == "返回大厅失败，请重试。",
+            "A rejected hub return must explain the actual destination in Chinese.");
+        CoreFacade.Instance.SceneSwitch.enabled = true;
         levelPrompt.LoadNextLevel();
         yield return WaitForSwitch("HubScene");
         player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
         Require(!player.IsInputLocked && GameProgress.Store.IsUnlocked(2), "Returning to the hub must preserve progress.");
+        for (int level = 2; level <= 3; level++)
+        {
+            portals = UnityEngine.Object.FindObjectsOfType<Portal>().OrderBy(p => p.LevelNumber).ToArray();
+            Require(portals[level - 1].CanInteract, "The next authored portal must be unlocked.");
+            player.GetComponent<Rigidbody2D>().simulated = false;
+            player.transform.position = portals[level - 1].transform.position;
+            Physics2D.SyncTransforms();
+            Require(player.GetComponent<PlayerInteraction>().TryPerformOperation(),
+                "Normal player interaction must enter each unlocked authored portal.");
+            yield return WaitForSwitch("Level" + level);
+            environment = EnvironmentFacade.Current;
+            PolaritySocket kept = UnityEngine.Object.FindObjectsOfType<PolaritySocket>().First(s => s.IsDual);
+            foreach (PolaritySocket socket in UnityEngine.Object.FindObjectsOfType<PolaritySocket>())
+            {
+                if (socket != kept)
+                {
+                    UnityEngine.Object.DestroyImmediate(socket.gameObject);
+                }
+            }
+            environment.RefreshNodes();
+            typeof(EnvironmentFacade).GetField("neededVoltage", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(environment, 0f);
+            foreach (Wire wire in UnityEngine.Object.FindObjectsOfType<Wire>())
+            {
+                typeof(Wire).GetField("maxLength", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(wire, 0f);
+            }
+            player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+            PowerSocket selectedOutlet = environment.HeldWire.Socket;
+            kept.Interact(new InteractionDetails(player.gameObject, kept.gameObject));
+            selectedOutlet.Interact(new InteractionDetails(player.gameObject, selectedOutlet.gameObject));
+            Require(environment.IsCircuitClosed && GameProgress.Store.CompletedLevels == level,
+                "Actual authored tracker must record its own level exactly once.");
+            UnityEngine.Object.FindObjectOfType<NextLevelScreen>().LoadNextLevel();
+            yield return WaitForSwitch("HubScene");
+            player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
+        }
         settings = Resources.FindObjectsOfTypeAll<SettingsScreen>().Single(s => s.gameObject.scene == SceneManager.GetActiveScene());
         UnityEngine.Object.FindObjectsOfType<UnityEngine.UI.Button>().Single(b => b.name == "MenuBtn").onClick.Invoke();
         Field<UnityEngine.UI.Button>(settings, "exitButton").onClick.Invoke();
@@ -269,13 +312,10 @@ public static class MainMenuIntegrationChecks
         player = UnityEngine.Object.FindObjectOfType<PlayerMove>();
         Require(GameProgress.Store.IsUnlocked(2), "Starting again must retain session progress.");
         portals = UnityEngine.Object.FindObjectsOfType<Portal>().OrderBy(p => p.LevelNumber).ToArray();
-        Require(!portals[1].CanInteract && !portals[1].HasDestination,
-            "Unlocked but unimplemented levels must remain unavailable.");
-        destinationField.SetValue(portals[1], true);
-        Require(portals[1].CanInteract, "A configured second portal must become available after the first is cleared.");
-        destinationField.SetValue(portals[1], false);
+        Require(portals.All(p => p.HasDestination && p.CanInteract) && GameProgress.Store.CompletedLevels == 3,
+            "All three cleared levels must remain available after returning through the main menu.");
         portals[0].Interact(new InteractionDetails(player.gameObject, portals[0].gameObject));
-        yield return WaitForSwitch("Level0");
+        yield return WaitForSwitch("Level1");
         Require(!EnvironmentFacade.Current.IsCircuitClosed && GameProgress.Store.IsUnlocked(2),
             "Re-entering a completed level must load its defaults and preserve unlocks.");
 
@@ -345,7 +385,7 @@ public static class MainMenuIntegrationChecks
     public static IEnumerator CheckMenuRestart()
     {
         Require(CoreFacade.Instance == null && !ownsScenes, "Run restart checks in a fresh Runner session.");
-        foreach (string sceneName in new[] { "MainMenuScene", "HubScene", "GameplayIntegration", "SceneSwitchTarget", "Level0" })
+        foreach (string sceneName in new[] { "MainMenuScene", "HubScene", "GameplayIntegration", "SceneSwitchTarget", "Level0", "Level1", "Level2", "Level3" })
         {
             Require(!SceneManager.GetSceneByName(sceneName).isLoaded,
                 "Refusing to modify a pre-existing scene: " + sceneName);
@@ -353,7 +393,7 @@ public static class MainMenuIntegrationChecks
         previousSceneState = new IntegrationSceneState();
         testHostScene = SceneManager.GetActiveScene();
         ownsScenes = true;
-        foreach (string path in new[] { "Assets/Tests/Scenes/GameplayIntegration.unity", "Assets/Scenes/Level0.unity" })
+        foreach (string path in new[] { "Assets/Tests/Scenes/GameplayIntegration.unity", "Assets/Scenes/Level0.unity", "Assets/Scenes/Levels/Level1.unity", "Assets/Scenes/Levels/Level2.unity", "Assets/Scenes/Levels/Level3.unity" })
         {
             pendingSceneOperation = UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(
                 path, new LoadSceneParameters(LoadSceneMode.Single));
@@ -498,7 +538,7 @@ public static class MainMenuIntegrationChecks
     private static bool IsMenuFlowScene(Scene scene)
     {
         return scene.name == "MainMenuScene" || scene.name == "HubScene" || scene.name == "GameplayIntegration" ||
-            scene.name == "SceneSwitchTarget" || scene.name == "Level0";
+            scene.name == "SceneSwitchTarget" || scene.name == "Level0" || scene.name == "Level1" || scene.name == "Level2" || scene.name == "Level3";
     }
 
     private static void CapturePendingSwitch()
