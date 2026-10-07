@@ -1,5 +1,25 @@
 # 整合集成测试
 
+## 目录组织
+
+测试脚本集中在本目录；三个功能测试场景位于 `Tests/Scenes/`。`Levels/Scene/TestLevel.unity` 保留在关卡目录。
+
+| 目录 | 用途与编译归属 |
+| --- | --- |
+| `EditMode/` | `PluggerHead.EditModeTests`，编辑模式测试入口。 |
+| `PlayMode/` | `PluggerHead.PlayModeTests`，Editor 播放模式测试入口。 |
+| `Shared/` | `PluggerHead.TestSupport`，测试程序集使用的反射桥。 |
+| `Editor/` | 检查实现、夹具和清理辅助；保留 Unity Editor 特殊目录及预定义 `Assembly-CSharp-Editor` 归属，以便直接访问生产类型。此目录不增加 asmdef。 |
+| `Manual/` | 手工设置诊断 `DebugScript`；保留 `Assembly-CSharp` 归属，可在 Play Mode 挂载使用，不是 Test Runner 用例。 |
+| `ThirdParty/NaughtyAttributes/` | 第三方属性测试示例，保留原 `NaughtyAttributes.Test` 程序集与 GUID；不是项目自动化回归用例。 |
+| `Scenes/` | GameplayIntegration、CircuitDiagnostics、SceneSwitchTarget；保留场景名、GUID 和构建顺序。 |
+
+新增专用测试脚本应放入相应目录。`Scripts/Debug/FloatingLogic.cs` 是被测试的视觉行为，保留在业务脚本目录；第三方素材、演示场景及许可仍保留在原包中。目录名称本身不会排除 Player 构建内容：Editor 实现与 TestAssemblies 有原有排除规则，Manual 和第三方演示程序集保持原有编译行为。
+
+2026-10-07 目录迁移验证：迁移 63 个脚本与 3 个场景，保留已有 GUID；场景路径、注册扫描范围、Build Settings 和文档链接已同步。编译后 Console 无错误；EditMode **73/73**（`8adf201ff9a54b779f36d3a763b2fa2a`）、PlayMode **80/80**（`e52086aa2f5c42d1bd8479da3726b370`）依次终态通过，无失败或跳过。场景资源检查与真实菜单/玩法/切换回归通过；未进行新的手工输入或美术验收。测试后恢复 Level0，场景未标脏，EditorSettings 已恢复任务开始状态。独立静态审查提出的文档路径遗漏已修正。
+
+## 历史验证记录
+
 2026-10-07 所需降压量合并：EnvironmentFacade 使用 `NeededVoltage` / `neededVoltage` 替代初始及目标电压，`CurrentVoltage` 表示剩余所需降压量，累计降压达到要求时满足电压条件。SceneRoot 从 220/190 迁移为 30；接线/UI 夹具显式配置自有降压量。补充零、负数、NaN、正负无穷配置验证，保留相等、不足、超额、重复降压及重开检查。独立审查通过；编译无错误，EditMode **69/69**（`e98e7a77a87042b1a519215b0fae467b`）、PlayMode **79/79**（`32cb10501f0640e3804c776a4ba91bcf`）顺序终态通过，无失败或跳过。测试后 Level0 恢复且未标脏，Console 仅有测试预期的音频、场景切换及 Timer 故障注入异常；EditorSettings 的运行模式差异保留，不纳入本次提交。
 
 2026-10-07 合并远端 `ffd705b`（合并提交 `d9f4163`）：新增 TestLevel，生产目标电压保留远端的 190；接线及通关 UI 测试仅在自有夹具/场景副本中显式设定电压，不依赖生产调参。独立复审通过，合并后 EditMode **64/64**（`32a88b9347194b659b351297e9151b2d`）、PlayMode **79/79**（`d20d81fc3066450890897c01d9a36fb7`）顺序终态通过。TestLevel 的初始插座加两个双极插座布局在单次占用规则下仍不可完成，由用户调整；本次未改布局。
@@ -42,13 +62,13 @@ FinalScene 加入前验证（2026-10-06）：代码及文档独立审查通过�
 
 清理缺陷修复历史验证（2026-10-06，新增 Timer/MenuTool 及后续 Physics 用例之前）：编译后 Console 无错误，独立审查通过；按顺序运行 EditMode 17/17（job `3eb8b79ef39f415abbed40cead84b714`）和 PlayMode 57/57（job `e648646396f14d7ab119a800823a87c8`），均终态通过。新增 20 项故障注入检查覆盖失败恢复、在途句柄保留、异常聚合和临时进度存储延期释放。
 
-2026-10-06 逐文件核查：当时 EditMode 21 个、PlayMode 71 个用例；本轮 MenuTool 4 项、Timer 12 项及新增 Physics 2 项均包含在上述当前版本通过结果中。文件级职责及边界分别见 [EditMode](EditMode/README.md)、[PlayMode](PlayMode/README.md)、[Shared 反射桥](Shared/README.md)；实际断言、隔离和超时实现见 [Scripts/Editor](../Scripts/Editor/README.md)。
+2026-10-06 逐文件核查：当时 EditMode 21 个、PlayMode 71 个用例；本轮 MenuTool 4 项、Timer 12 项及新增 Physics 2 项均包含在上述当前版本通过结果中。文件级职责及边界分别见 [EditMode](EditMode/README.md)、[PlayMode](PlayMode/README.md)、[Shared 反射桥](Shared/README.md)；实际断言、隔离和超时实现见 [Tests/Editor](Editor/README.md)。
 
 以下为清理修复前的审计验证记录：EditMode 17/17（job `3fa8c86afa1348cb8f60ce2d1e6faa98`），PlayMode 37/37（job `ed6e536d01d7477d941943af149956d1`）。该快照包含 `7c91a3a` 的碰撞体 offset 修复；本轮只改说明和一处检查脚本注释。独立审查已通过，后续行为改动需重新验证。
 
 ## 功能场景
 
-主菜单位于 `Assets/Scenes/MainMenuScene.unity`；功能验证场景位于 `Assets/Scenes/Tests/`。第三方包内的示例场景不纳入构建列表。
+主菜单位于 `Assets/Scenes/MainMenuScene.unity`；功能验证场景位于 `Assets/Tests/Scenes/`。第三方包内的示例场景不纳入构建列表。
 
 | 场景 | 功能与使用入口 |
 | --- | --- |
@@ -91,7 +111,7 @@ FinalScene 加入前验证（2026-10-06）：代码及文档独立审查通过�
 
 表中的断言数是用例内部的检查点数量，不是 NUnit 用例数量；实际用例数与结果以 Test Runner 报告为准。PlayMode 用例由 Runner 自动进入/退出播放；音频用例会创建缺失的 TimerRunner 和 AudioListener，玩法用例会加载并卸载自有场景和 Core，无需预先打开或手工配置运行场景。
 
-这些是 **Editor 内运行的 EditMode/PlayMode 测试**。验证实现复用 `Scripts/Editor/` 中的现有脚本；PlayMode 用例声明仅支持 Editor 平台，不用于独立 Player 测试包。测试程序集通过 `IntegrationCheckBridge` 调用预定义程序集，避免为了测试改动生产脚本的程序集布局。普通 Player 构建不包含 TestAssemblies。
+这些是 **Editor 内运行的 EditMode/PlayMode 测试**。验证实现复用 `Tests/Editor/` 中的现有脚本；PlayMode 用例声明仅支持 Editor 平台，不用于独立 Player 测试包。测试程序集通过 `IntegrationCheckBridge` 调用预定义程序集，避免为了测试改动生产脚本的程序集布局。普通 Player 构建不包含 TestAssemblies。
 
 通过结果仅证明实际断言覆盖的路径：按钮使用事件调用、玩法使用处理器和刚体调整，不验证真实键盘/鼠标输入、UI 排版或全部角色移动。音频使用静音 clip，不能证明听感；多数音频夹具手工初始化 inactive Manager，不覆盖正常 Awake/Start 与预热。资产检查复用已加载场景时，结果对应内存版本。Settings 的失败替换测试依赖 Windows 文件锁语义。
 
@@ -129,7 +149,7 @@ EditMode 完成后，再运行 PlayMode 并同样轮询自己的 job：
 
 - Runner 启动前会要求处理未保存的场景修改；先保存自己的工作。测试实现不会保存被检查的场景。
 - EditMode 的 Player/Env 用例使用独立预览场景并恢复临时全局状态；场景参数用例只关闭自己打开的场景。
-- 音频用例在当前活动场景创建临时层级，协程 finally 清理自有对象并恢复其改动的全局设置；不属于独立场景隔离。10 秒外层期限仅属于原生命周期检查，Handle/Tail/Limit 的期限不同，详见 [Editor 检查说明](../Scripts/Editor/README.md)。
+- 音频用例在当前活动场景创建临时层级，协程 finally 清理自有对象并恢复其改动的全局设置；不属于独立场景隔离。10 秒外层期限仅属于原生命周期检查，Handle/Tail/Limit 的期限不同，详见 [Editor 检查说明](Editor/README.md)。
 - Gameplay 用例操作自有 Additive 场景；加载、卸载与动画锁等待各有 15 秒期限。Menu/Recovery 使用真实 Single 加载，会卸载原场景，不能还原原内容。场景等待均有期限；嵌套协程失败也执行同步状态恢复，未完成的操作和场景保留归属供清理重试。加载仍在途时，IntegrationSceneState 仅恢复 timeScale、AudioListener.pause 和 Environment 引用，暂不恢复 GameState 标签及冻结前倍率、加载前状态两个缓存字段；加载结束后重试清理才恢复完整快照。菜单/玩法加载未清完前保留临时进度存储并拒绝开始新夹具，成功重试后兑现延迟释放。
 - 玩法用例在自有场景加载回调中临时取消线长限制，完成交互流程后设置有限线长，验证真实物理帧的超限死亡。这样兼容开局即超限的诊断配置，不修改或保存原场景资源。
 - 地面极性用例创建独立的 2D 物理场景，并先验证实际接触与法向，再检查死亡结果；`UnityTearDown` 卸载自有场景、恢复环境静态引用并清理自有 Core，不保存或修改关卡资源。

@@ -4,7 +4,7 @@
 
 2026-10-06 Tilemap 改造验证：EditMode 22/22（job `812b828e3ce84ea889c26457cc594fda`）、PlayMode 71/71（job `c12304087033435ebdf260a2b5541579`）均终态通过；以下较早 job 为历史记录。原 Corner 用例已替换为 TilemapTests，覆盖近角非格心往返、调试验收同格操作，并新增真实场景 Tilemap 落地及两个关卡的格心资源检查。
 
-这些脚本位于 Unity 的 Editor 特殊目录，编译进预定义 Editor 程序集。它们提供实际断言和测试夹具，由 `Tests/` 的 NUnit 包装通过反射调用；不是独立 Player 的运行时代码。逐文件核查日期：2026-10-06。运行入口和程序集说明见[测试总说明](../../Tests/README.md)。
+这些脚本位于 Unity 的 Editor 特殊目录，编译进预定义 Editor 程序集。它们提供实际断言和测试夹具，由 `Tests/` 的 NUnit 包装通过反射调用；不是独立 Player 的运行时代码。逐文件核查日期：2026-10-06。运行入口和程序集说明见[测试总说明](../README.md)。
 
 ## 文件与入口
 
@@ -39,7 +39,7 @@ Timer 每次等待上限 3 秒，并非整项用例统一期限。借用现有 T
 
 MenuTool 写删检查使用随机临时目录和实际生成器辅助方法，finally 删除临时目录；删除通过注入的 File.Delete 委托执行，不调用 AssetDatabase 删除、导入或触发脚本重载。元数据保留检查不代表 Unity 资产管线全过程验证。项目兼容性检查只读现有源文件、生成文件及源 meta，不改写项目输出。
 
-此前清理修复版本已通过独立审查及 EditMode 17/17、PlayMode 57/57 完整回归；该记录不包含后续 MenuTool 4、Timer 12 和 Physics 2 项。FinalScene 加入前用例清单为 21/71；本轮编译 Console 错误为 0，EditMode job `21b6cbceec95472ca70ce3a965876b63` 已终态通过 21/21，PlayMode 重跑 job `a8881108238d4eb5860ef817658ccfdf` 已终态通过 71/71，最新结果见[测试总说明](../../Tests/README.md)。使用 IntegrationSceneWait.Finally 的路径显式推进嵌套协程，使子迭代器异常进入已开始执行的父级 finally，并保留操作、Dispose 与恢复错误。OwnedPhysicsSceneCleanup 在正常推进到末尾时聚合错误；中途 Dispose 会保留归属，但不会再抛出此前收集的失败，Tilemap/Ground 也没有统一聚合卸载与恢复错误。引擎在途加载不能取消：超时后保留归属和临时进度存储，阻止新夹具覆盖；成功重试清理后自动完成已请求的存储恢复。加载仍在途时，IntegrationSceneState 只恢复 timeScale、监听器暂停和 Environment 引用，GameState 标签及两个缓存字段留待加载结束后的清理重试恢复。无法完成的引擎操作需要停止该 Runner 会话并处理 Editor 状态，不把报错视作清理成功。
+此前清理修复版本已通过独立审查及 EditMode 17/17、PlayMode 57/57 完整回归；该记录不包含后续 MenuTool 4、Timer 12 和 Physics 2 项。FinalScene 加入前用例清单为 21/71；本轮编译 Console 错误为 0，EditMode job `21b6cbceec95472ca70ce3a965876b63` 已终态通过 21/21，PlayMode 重跑 job `a8881108238d4eb5860ef817658ccfdf` 已终态通过 71/71，最新结果见[测试总说明](../README.md)。使用 IntegrationSceneWait.Finally 的路径显式推进嵌套协程，使子迭代器异常进入已开始执行的父级 finally，并保留操作、Dispose 与恢复错误。OwnedPhysicsSceneCleanup 在正常推进到末尾时聚合错误；中途 Dispose 会保留归属，但不会再抛出此前收集的失败，Tilemap/Ground 也没有统一聚合卸载与恢复错误。引擎在途加载不能取消：超时后保留归属和临时进度存储，阻止新夹具覆盖；成功重试清理后自动完成已请求的存储恢复。加载仍在途时，IntegrationSceneState 只恢复 timeScale、监听器暂停和 Environment 引用，GameState 标签及两个缓存字段留待加载结束后的清理重试恢复。无法完成的引擎操作需要停止该 Runner 会话并处理 Editor 状态，不把报错视作清理成功。
 
 PhysicsCleanup 正常路径在内部等待真实重试卸载完成；Run 的 finally 恢复注入设置和同步状态，剩余异步卸载由独立 UnityTearDown 调用 Cleanup 等待。Cleanup 通过 IntegrationSceneWait.Finally 恢复原 Environment 引用，仅在自有场景列表清空后释放 activeOwner；失败仍保留归属并阻止下一夹具覆盖。现已注入两个方向的终态不一致；“句柄完成但场景仍加载”使用完成代理模拟，不是制造 Unity 原生 AsyncOperation 故障。
 

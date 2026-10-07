@@ -1,6 +1,6 @@
 # Player 运行时组件
 
-Player 使用 [Core 输入](../Core/Input/README.md) 和 [Env 真实交互契约](../Env/README.md)，通过关卡环境取得持线阻力和地面极性上下文。真实玩家保存为 `Assets/Prefabs/Player.prefab`，由 `Assets/Scenes/Tests/GameplayIntegration.unity` 引用。
+Player 使用 [Core 输入](../Core/Input/README.md) 和 [Env 真实交互契约](../Env/README.md)，通过关卡环境取得持线阻力和地面极性上下文。真实玩家保存为 `Assets/Prefabs/Player.prefab`，由 `Assets/Tests/Scenes/GameplayIntegration.unity` 引用。
 
 ## 逐文件职责
 

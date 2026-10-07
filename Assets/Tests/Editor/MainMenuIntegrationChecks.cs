@@ -262,7 +262,7 @@ public static class MainMenuIntegrationChecks
         previousSceneState = new IntegrationSceneState();
         testHostScene = SceneManager.GetActiveScene();
         ownsScenes = true;
-        foreach (string path in new[] { "Assets/Scenes/Tests/GameplayIntegration.unity", "Assets/Levels/Scene/Level0.unity" })
+        foreach (string path in new[] { "Assets/Tests/Scenes/GameplayIntegration.unity", "Assets/Levels/Scene/Level0.unity" })
         {
             pendingSceneOperation = UnityEditor.SceneManagement.EditorSceneManager.LoadSceneAsyncInPlayMode(
                 path, new LoadSceneParameters(LoadSceneMode.Single));

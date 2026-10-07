@@ -1,6 +1,6 @@
 # 从空白 Scene 创建玩法关卡
 
-本文以 [`GameplayIntegration`](../Scenes/Tests/GameplayIntegration.unity) 为可运行参照，使用项目现有预制体从空白 Scene 装配一关。示例目标是：玩家能够移动、跳跃、绕线、放置或收回 Anchor、插接与换线；死亡能重新加载本关，通关能进入指定场景，主菜单能进入并记录本关。关卡名以下用 `Level1` 举例；实际名称以保存的 `.unity` 文件名为准。
+本文以 [`GameplayIntegration`](../Tests/Scenes/GameplayIntegration.unity) 为可运行参照，使用项目现有预制体从空白 Scene 装配一关。示例目标是：玩家能够移动、跳跃、绕线、放置或收回 Anchor、插接与换线；死亡能重新加载本关，通关能进入指定场景，主菜单能进入并记录本关。关卡名以下用 `Level1` 举例；实际名称以保存的 `.unity` 文件名为准。
 
 ## 1. 创建场景与基础对象
 
@@ -56,7 +56,7 @@
 2. 在 [`DefaultSceneSwitchConfigs.asset`](../SO/SceneSwitch/DefaultSceneSwitchConfigs.asset) 增加该 SceneId 到**不带 `.unity` 后缀的准确场景名**的映射，并为正式玩法关勾选 `isGameplayLevel`。Core 的 SceneSwitchManager 和 LevelProgressTracker 共用这份配置；该标记决定菜单能否加载、进入后是否记录进度。
 3. 在 **File > Build Settings** 中加入并启用该 `.unity` 场景。保持 `MainMenuScene` 为索引 0；Build Settings 索引与 SceneId 整数是不同概念。SceneSwitch 会拒绝未在构建列表中的目标。
 
-`Continue` 只重新加载最近进入的玩法关卡的**场景默认状态**，不会恢复角色位置或绕线。新增关卡后，更新 [`SceneIntegrationChecks.CheckSceneRegistry`](../Scripts/Editor/SceneIntegrationChecks.cs)：它目前只搜索 `Assets/Scenes`，还按“找到的场景数等于 SceneId 数”逐一检查映射。当前 `Assets/Levels/Scene` 同时有 `Level0.unity` 和 `Level1.unity`，**不能直接把整个目录加入搜索**，否则未注册的场景也会被要求加入 SceneId、配置和 Build Settings。可以让检查只纳入明确要发布的关卡，或把该目录中的所有关卡都完整注册；两种方式都要保持场景、SceneId、配置与构建列表一致。在 [`SceneAssetTests`](../Tests/EditMode/SceneAssetTests.cs) 加入新关的场景用例。若更改主菜单首关，同步调整 [`MainMenuIntegrationChecks`](../Scripts/Editor/MainMenuIntegrationChecks.cs) 里对 GameplayIntegration 的固定预期及相应流程测试；原 GameplayIntegration 的独立回归仍应保留。
+`Continue` 只重新加载最近进入的玩法关卡的**场景默认状态**，不会恢复角色位置或绕线。新增关卡后，更新 [`SceneIntegrationChecks.CheckSceneRegistry`](../Tests/Editor/SceneIntegrationChecks.cs)：它目前搜索 `Assets/Scenes` 和 `Assets/Tests/Scenes`，还按“找到的场景数等于 SceneId 数”逐一检查映射。当前 `Assets/Levels/Scene` 同时有 `Level0.unity` 和 `Level1.unity`，**不能直接把整个目录加入搜索**，否则未注册的场景也会被要求加入 SceneId、配置和 Build Settings。可以让检查只纳入明确要发布的关卡，或把该目录中的所有关卡都完整注册；两种方式都要保持场景、SceneId、配置与构建列表一致。在 [`SceneAssetTests`](../Tests/EditMode/SceneAssetTests.cs) 加入新关的场景用例。若更改主菜单首关，同步调整 [`MainMenuIntegrationChecks`](../Tests/Editor/MainMenuIntegrationChecks.cs) 里对 GameplayIntegration 的固定预期及相应流程测试；原 GameplayIntegration 的独立回归仍应保留。
 
 ## 6. 验收顺序
 

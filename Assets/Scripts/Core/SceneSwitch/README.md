@@ -16,9 +16,9 @@
 
 | SceneId 整数 | 名称 | 路径（相对 Assets） | 玩法关卡 |
 | --- | --- | --- | --- |
-| 1 | SceneSwitchTarget | Scenes/Tests/SceneSwitchTarget.unity | 否 |
-| 2 | CircuitDiagnostics | Scenes/Tests/CircuitDiagnostics.unity | 否 |
-| 3 | GameplayIntegration | Scenes/Tests/GameplayIntegration.unity | 是 |
+| 1 | SceneSwitchTarget | Tests/Scenes/SceneSwitchTarget.unity | 否 |
+| 2 | CircuitDiagnostics | Tests/Scenes/CircuitDiagnostics.unity | 否 |
+| 3 | GameplayIntegration | Tests/Scenes/GameplayIntegration.unity | 是 |
 | 4 | MainMenuScene | Scenes/MainMenuScene.unity | 否 |
 | 5 | FinalScene | Scenes/FinalScene.unity | 否 |
 

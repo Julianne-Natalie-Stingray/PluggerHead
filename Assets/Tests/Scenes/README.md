@@ -12,6 +12,6 @@ Gameplay 的 Player 初始位置 `(0,0,0)`，J 操作/收回、K 在当前 tile 
 
 CircuitDiagnostics 已改用 `Assets/Prefabs/Player.prefab`，出生位置 `(-2.5,0.25,-0.05)`，沿用移动、跳跃和 J/K 操作。新增 Ground Tiles 覆盖 x=-9..8、y=-1，并带 TilemapCollider2D，避免真实玩家落出关卡。线序与长度上限同上。调试按钮会修改当前回路，不能把缺少节点时允许跳过的脚本化验收当作完整测试。
 
-本次场景结构、真实玩家 Tilemap 落地、J/K、回退、换线、重开及死亡检查已通过。完整记录见 [测试说明](../../Tests/README.md)，画面见 [TilemapEnvironment](../../Docs/Development/TilemapEnvironment.png)。真实键盘输入和发布构建未在本次验证。
+本次场景结构、真实玩家 Tilemap 落地、J/K、回退、换线、重开及死亡检查已通过。完整记录见 [测试说明](../README.md)，画面见 [TilemapEnvironment](../../Docs/Development/TilemapEnvironment.png)。真实键盘输入和发布构建未在本次验证。
 
 2026-10-07：诊断场景真实 Player 替换已通过 EditMode 55/55、PlayMode 76/76（含新增落地与 J/K 交互检查），独立复审通过。[场景预览](../../Docs/Development/CircuitDiagnosticsPlayer.png)为编辑器相机渲染，运行时行为由上述测试验证。

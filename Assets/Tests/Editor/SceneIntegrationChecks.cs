@@ -13,7 +13,7 @@ using UnityEngine.InputSystem.LowLevel;
 /// <summary>Reusable checks for the authored integration scenes; never saves a scene.</summary>
 public static class SceneIntegrationChecks
 {
-    private const string GameplayScenePath = "Assets/Scenes/Tests/GameplayIntegration.unity";
+    private const string GameplayScenePath = "Assets/Tests/Scenes/GameplayIntegration.unity";
     private static string ownedScenePath = GameplayScenePath;
     private const float TimeoutSeconds = 15f;
     private static Scene ownedScene;
@@ -31,7 +31,7 @@ public static class SceneIntegrationChecks
         SceneSwitchConfigs configs = AssetDatabase.LoadAssetAtPath<SceneSwitchConfigs>(
             "Assets/SO/SceneSwitch/DefaultSceneSwitchConfigs.asset");
         Require(configs != null, "Default scene switch configuration must exist.");
-        string[] scenePaths = AssetDatabase.FindAssets("t:Scene", new[] { "Assets/Scenes" })
+        string[] scenePaths = AssetDatabase.FindAssets("t:Scene", new[] { "Assets/Scenes", "Assets/Tests/Scenes" })
             .Select(AssetDatabase.GUIDToAssetPath).ToArray();
         SceneId[] ids = (SceneId[])Enum.GetValues(typeof(SceneId));
         Require(scenePaths.Length == ids.Length, "Every project scene must have a functional SceneId.");
@@ -190,7 +190,7 @@ public static class SceneIntegrationChecks
     {
         Require(Application.isPlaying && !gameplayStarted && CoreFacade.Instance == null,
             "Diagnostic checks require a clean PlayMode runner.");
-        const string path = "Assets/Scenes/Tests/CircuitDiagnostics.unity";
+        const string path = "Assets/Tests/Scenes/CircuitDiagnostics.unity";
         Require(!SceneManager.GetSceneByPath(path).isLoaded, "Refusing to modify an unowned diagnostic scene.");
         ownedScenePath = path;
         previousState = new IntegrationSceneState();

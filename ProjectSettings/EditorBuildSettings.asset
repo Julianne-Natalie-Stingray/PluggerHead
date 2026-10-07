@@ -9,13 +9,13 @@ EditorBuildSettings:
     path: Assets/Scenes/MainMenuScene.unity
     guid: c613112f40eed3541be16277ca0e041a
   - enabled: 1
-    path: Assets/Scenes/Tests/GameplayIntegration.unity
+    path: Assets/Tests/Scenes/GameplayIntegration.unity
     guid: cbff9c96056649142b6d976e1faebf92
   - enabled: 1
-    path: Assets/Scenes/Tests/CircuitDiagnostics.unity
+    path: Assets/Tests/Scenes/CircuitDiagnostics.unity
     guid: de3663fde75ac7e4aaf49af09a5fdae6
   - enabled: 1
-    path: Assets/Scenes/Tests/SceneSwitchTarget.unity
+    path: Assets/Tests/Scenes/SceneSwitchTarget.unity
     guid: 203b0ce30fc8e7a44843ea7e21baa3af
   - enabled: 1
     path: Assets/Scenes/FinalScene.unity
