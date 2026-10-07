@@ -13,6 +13,9 @@ public sealed class PlayerVisual : MonoBehaviour
     [SerializeField, Tooltip("可选的朝向标记，必须是 Visual 的子对象。")]
     private Transform facingMarker;
 
+    [SerializeField] private Sprite wireMarkerSprite;
+    [SerializeField] private Vector3 wireMarkerOffset = new Vector3(0f, 0.6f, 0f);
+
     private SpriteRenderer spriteRenderer;
     private Vector3 markerPosition;
 
@@ -42,5 +45,44 @@ public sealed class PlayerVisual : MonoBehaviour
             facingMarker.localPosition = new Vector3(
                 spriteRenderer.flipX ? -markerPosition.x : markerPosition.x, markerPosition.y, markerPosition.z);
         }
+    }
+
+    /// <summary>交互动画首帧显示操作后的持线类型；标记独立于玩家移动。</summary>
+    public void SpawnWireMarker()
+    {
+        if (!isActiveAndEnabled || wireMarkerSprite == null)
+        {
+            return;
+        }
+
+        EnvironmentFacade environment = EnvironmentFacade.ForScene(gameObject.scene);
+        Wire wire = environment != null ? environment.HeldWire : null;
+        Color color = Color.black;
+        if (wire != null && wire.IsHeld)
+        {
+            if (wire.Polarity == WirePolarity.Live)
+            {
+                color = Color.red;
+            }
+            else if (wire.Polarity == WirePolarity.Neutral)
+            {
+                color = Color.blue;
+            }
+        }
+
+        if (spriteRenderer == null)
+        {
+            spriteRenderer = GetComponent<SpriteRenderer>();
+        }
+        GameObject marker = new GameObject("WireMarker");
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(marker, gameObject.scene);
+        marker.layer = gameObject.layer;
+        marker.transform.position = transform.position + wireMarkerOffset;
+        SpriteRenderer markerRenderer = marker.AddComponent<SpriteRenderer>();
+        markerRenderer.sprite = wireMarkerSprite;
+        markerRenderer.color = color;
+        markerRenderer.sortingLayerID = spriteRenderer.sortingLayerID;
+        markerRenderer.sortingOrder = spriteRenderer.sortingOrder + 1;
+        marker.AddComponent<WireMarker>();
     }
 }
