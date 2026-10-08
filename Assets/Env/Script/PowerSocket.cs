@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using NaughtyAttributes;
 using UnityEngine;
+using Random = System.Random;
 
 /// <summary>
 /// Scene outlet owning a configured list of wires and announcing plug requests to EnvironmentFacade.
@@ -22,6 +23,8 @@ public class PowerSocket : MonoBehaviour, IEnvironmentInteractable
     public bool IsGroundTerminal => isGroundTerminal;
     public IReadOnlyList<Wire> Wires => wires;
     public Vector3 PlugPosition => transform.position;
+    public float randomRadius;
+    public int randomFireNumber;
 
     /// <summary>
     /// The wire the level starts the run with: the first Live or Neutral wire in the configured list. Null when none exists.
@@ -84,13 +87,17 @@ public class PowerSocket : MonoBehaviour, IEnvironmentInteractable
             return;
         }
 
-        SocketFireEffect effect = Instantiate(firePrefab, PlugPosition, Quaternion.identity, transform);
-        SpriteRenderer socketRenderer = GetComponent<SpriteRenderer>();
-        if (socketRenderer)
+        for (int i = 0; i < randomFireNumber; i++)
         {
-            SpriteRenderer effectRenderer = effect.GetComponent<SpriteRenderer>();
-            effectRenderer.sortingLayerID = socketRenderer.sortingLayerID;
-            effectRenderer.sortingOrder = socketRenderer.sortingOrder + 1;
+            var random = UnityEngine.Random.insideUnitCircle;
+            SocketFireEffect effect = Instantiate(firePrefab, PlugPosition + (Vector3)random * randomRadius, Quaternion.identity, transform);
+            SpriteRenderer socketRenderer = GetComponent<SpriteRenderer>();
+            if (socketRenderer)
+            {
+                SpriteRenderer effectRenderer = effect.GetComponent<SpriteRenderer>();
+                effectRenderer.sortingLayerID = socketRenderer.sortingLayerID;
+                effectRenderer.sortingOrder = socketRenderer.sortingOrder + 1;
+            }
         }
     }
 

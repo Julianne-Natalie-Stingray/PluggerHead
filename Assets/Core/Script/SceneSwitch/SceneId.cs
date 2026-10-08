@@ -34,5 +34,6 @@ public enum SceneId
     HubScene = 7,
     Level1 = 8,
     Level2 = 9,
-    Level3 = 10
+    Level3 = 10,
+    CgScene = 11
 }

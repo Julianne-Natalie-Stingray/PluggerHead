@@ -25,6 +25,7 @@ public enum AudioId
     ButtonPressClose = 14,
     ButtonReleaseClose = 15,
     Switch = 16,
+    GameTheme,
 
     // Optional audio hooks use None without submitting a playback request.
     None = -1

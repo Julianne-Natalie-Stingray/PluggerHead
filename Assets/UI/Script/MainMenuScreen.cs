@@ -52,7 +52,7 @@ public sealed class MainMenuScreen : MonoBehaviour
         {
             return;
         }
-        if (CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.HubScene) != null)
+        if (CoreFacade.Instance.SceneSwitch.RequestSwitch(SceneId.CgScene) != null)
         {
             CoreFacade.Instance.Audio?.CreateBuilder().Play(AudioId.GameStart);
         }

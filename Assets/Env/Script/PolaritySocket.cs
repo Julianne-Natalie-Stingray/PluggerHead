@@ -55,6 +55,9 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
     [SerializeField, BoxGroup("Polarity")] private Transform liveAnchor;
     [SerializeField, BoxGroup("Polarity")] private Transform neutralAnchor;
 
+    public float randomRadius;
+    public int randomFireNumber;
+    
     /// <summary>Visual endpoint only; circuit occupancy still belongs to the socket.
     /// 仅用于外观接线，电路占用仍以插座为单位。</summary>
     public Transform GetWireAnchor(WirePolarity polarity)
@@ -73,18 +76,23 @@ public class PolaritySocket : MonoBehaviour, IEnvironmentInteractable
     /// 环境确认双极插座交互成功后，在插座位置播放一次 Fire。</summary>
     internal void PlayInteractionEffect()
     {
-        if (!Application.isPlaying || !IsDual || !firePrefab)
+        if (!Application.isPlaying || !firePrefab)
         {
             return;
         }
 
-        SocketFireEffect effect = Instantiate(firePrefab, transform.position, Quaternion.identity, transform);
-        SpriteRenderer socketRenderer = GetComponent<SpriteRenderer>();
-        if (socketRenderer)
+        for (int i = 0; i < randomFireNumber; i++)
         {
-            SpriteRenderer effectRenderer = effect.GetComponent<SpriteRenderer>();
-            effectRenderer.sortingLayerID = socketRenderer.sortingLayerID;
-            effectRenderer.sortingOrder = socketRenderer.sortingOrder + 1;
+            var random = UnityEngine.Random.insideUnitCircle;
+            SocketFireEffect effect = Instantiate(firePrefab, transform.position + (Vector3)random * randomRadius,
+                Quaternion.identity, transform);
+            SpriteRenderer socketRenderer = GetComponent<SpriteRenderer>();
+            if (socketRenderer)
+            {
+                SpriteRenderer effectRenderer = effect.GetComponent<SpriteRenderer>();
+                effectRenderer.sortingLayerID = socketRenderer.sortingLayerID;
+                effectRenderer.sortingOrder = socketRenderer.sortingOrder + 1;
+            }
         }
     }
 

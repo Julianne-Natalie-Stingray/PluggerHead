@@ -45,7 +45,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   neededVoltage: 0
-  backgroundMusic: 1
+  backgroundMusic: 3
   routingTilemap: {fileID: 0}
   playerTag: Player
   debugTarget: {fileID: 0}

@@ -43,3 +43,6 @@ MonoBehaviour:
   - id: 10
     sceneName: Level3
     isGameplayLevel: 1
+  - id: 11
+    sceneName: CGScene
+    isGameplayLevel: 0
